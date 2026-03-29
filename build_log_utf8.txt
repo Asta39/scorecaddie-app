@@ -1,0 +1,18 @@
+﻿  Generating the build script.
+  Reading the asset graph.
+  Checking for updates.
+  Updating the asset graph.
+  Building, incremental build.
+  0s riverpod_generator on 49 inputs; lib/app.dart
+  0s riverpod_generator on 49 inputs: 1 skipped; lib/core/cloud/group_sync_service.dart
+  0s riverpod_generator on 49 inputs: 49 skipped
+  0s drift_dev on 196 inputs; lib/app.dart
+  0s drift_dev on 196 inputs: 196 skipped
+  0s source_gen:combining_builder on 98 inputs; lib/app.dart
+  0s source_gen:combining_builder on 98 inputs: 98 skipped
+  Running the post build.
+  Writing the asset graph.
+E riverpod_generator on lib/core/router/app_router.dart:
+  40:7: Expected an identifier.
+  40:7: Expected to find ')'.
+  Failed to build with build_runner in 4s; wrote 0 outputs.

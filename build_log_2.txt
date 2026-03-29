@@ -1,0 +1,274 @@
+Launching lib\main.dart on A059 in debug mode...
+Running Gradle task 'assembleDebug'...                          
+lib/screens/profile/profile_screen.dart:699:17: Error: Variables must be declared using the keywords 'const', 'final', 'var' or a type name.
+Try adding the name of the type of the variable or the keyword 'var'.
+                toY: dailyCounts[i].toDouble(),
+                ^^^
+lib/screens/profile/profile_screen.dart:699:17: Error: Expected ';' after this.
+                toY: dailyCounts[i].toDouble(),
+                ^^^
+lib/screens/profile/profile_screen.dart:699:20: Error: Expected a class member, but got ':'.
+                toY: dailyCounts[i].toDouble(),
+                   ^
+lib/screens/profile/profile_screen.dart:699:22: Error: Variables must be declared using the keywords 'const', 'final', 'var' or a type name.
+Try adding the name of the type of the variable or the keyword 'var'.
+                toY: dailyCounts[i].toDouble(),
+                     ^^^^^^^^^^^
+lib/screens/profile/profile_screen.dart:699:22: Error: Expected ';' after this.
+                toY: dailyCounts[i].toDouble(),
+                     ^^^^^^^^^^^
+lib/screens/profile/profile_screen.dart:699:33: Error: Expected a class member, but got '['.
+                toY: dailyCounts[i].toDouble(),
+                                ^
+lib/screens/profile/profile_screen.dart:699:34: Error: Variables must be declared using the keywords 'const', 'final', 'var' or a type name.
+Try adding the name of the type of the variable or the keyword 'var'.
+                toY: dailyCounts[i].toDouble(),
+                                 ^
+lib/screens/profile/profile_screen.dart:699:34: Error: Expected ';' after this.
+                toY: dailyCounts[i].toDouble(),
+                                 ^
+lib/screens/profile/profile_screen.dart:699:35: Error: Expected a class member, but got ']'.
+                toY: dailyCounts[i].toDouble(),
+                                  ^
+lib/screens/profile/profile_screen.dart:699:36: Error: Expected a class member, but got '.'.
+                toY: dailyCounts[i].toDouble(),
+                                   ^
+lib/screens/profile/profile_screen.dart:699:47: Error: Expected '{' before this.
+                toY: dailyCounts[i].toDouble(),
+                                              ^
+lib/screens/profile/profile_screen.dart:699:47: Error: Expected a class member, but got ','.
+                toY: dailyCounts[i].toDouble(),
+                                              ^
+lib/screens/profile/profile_screen.dart:700:17: Error: Variables must be declared using the keywords 'const', 'final', 'var' or a type name.
+Try adding the name of the type of the variable or the keyword 'var'.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                ^^^^^
+lib/screens/profile/profile_screen.dart:700:17: Error: Expected ';' after this.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                ^^^^^
+lib/screens/profile/profile_screen.dart:700:22: Error: Expected a class member, but got ':'.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                     ^
+lib/screens/profile/profile_screen.dart:700:24: Error: Variables must be declared using the keywords 'const', 'final', 'var' or a type name.
+Try adding the name of the type of the variable or the keyword 'var'.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                       ^
+lib/screens/profile/profile_screen.dart:700:24: Error: Expected ';' after this.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                       ^
+lib/screens/profile/profile_screen.dart:700:26: Error: Operator declarations must be preceded by the keyword 'operator'.
+Try adding the keyword 'operator'.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                         ^^
+lib/screens/profile/profile_screen.dart:700:26: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                         ^^
+lib/screens/profile/profile_screen.dart:700:29: Error: Expected '{' before this.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                            ^
+lib/screens/profile/profile_screen.dart:700:26: Error: Operator '==' should have exactly one parameter.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                         ^^
+lib/screens/profile/profile_screen.dart:700:29: Error: Expected a class member, but got '6'.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                            ^
+lib/screens/profile/profile_screen.dart:700:31: Error: Operator declarations must be preceded by the keyword 'operator'.
+Try adding the keyword 'operator'.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                              ^
+lib/screens/profile/profile_screen.dart:700:31: Error: The string '?' isn't a user-definable operator.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                              ^
+lib/screens/profile/profile_screen.dart:700:31: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                              ^
+lib/screens/profile/profile_screen.dart:700:33: Error: Expected '{' before this.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                                ^^^^^^^^^
+lib/screens/profile/profile_screen.dart:700:33: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                                ^^^^^^^^^
+lib/screens/profile/profile_screen.dart:700:56: Error: Expected an assignment after the field name.
+To initialize a field, use the syntax 'name = value'.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                                                       ^^^^^^^^^
+lib/screens/profile/profile_screen.dart:701:17: Error: Expected an assignment after the field name.
+To initialize a field, use the syntax 'name = value'.
+                width: 18,
+                ^^^^^
+lib/screens/profile/profile_screen.dart:701:22: Error: Expected '{' before this.
+                width: 18,
+                     ^
+lib/screens/profile/profile_screen.dart:700:33: Error: The name of a constructor must match the name of the enclosing class.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                                ^^^^^^^^^
+lib/screens/profile/profile_screen.dart:701:22: Error: Expected a class member, but got ':'.
+                width: 18,
+                     ^
+lib/screens/profile/profile_screen.dart:701:24: Error: Expected a class member, but got '18'.
+                width: 18,
+                       ^^
+lib/screens/profile/profile_screen.dart:701:26: Error: Expected a class member, but got ','.
+                width: 18,
+                         ^
+lib/screens/profile/profile_screen.dart:702:17: Error: Variables must be declared using the keywords 'const', 'final', 'var' or a type name.
+Try adding the name of the type of the variable or the keyword 'var'.
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                ^^^^^^^^^^^^
+lib/screens/profile/profile_screen.dart:702:17: Error: Expected ';' after this.
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                ^^^^^^^^^^^^
+lib/screens/profile/profile_screen.dart:702:29: Error: Expected a class member, but got ':'.
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                            ^
+lib/screens/profile/profile_screen.dart:702:62: Error: Non-optional parameters can't have a default value.
+Try removing the default value or making the parameter optional.
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                                             ^
+lib/screens/profile/profile_screen.dart:702:83: Error: Expected '{' before this.
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                                                                  ^
+lib/screens/profile/profile_screen.dart:702:37: Error: The name of a constructor must match the name of the enclosing class.
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                    ^^^^^^^^^^^^
+lib/screens/profile/profile_screen.dart:702:31: Error: A const constructor can't have a body.
+Try removing either the 'const' keyword or the body.
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                              ^^^^^
+lib/screens/profile/profile_screen.dart:702:83: Error: Expected a class member, but got ','.
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                                                                  ^
+lib/screens/profile/profile_screen.dart:703:17: Error: Variables must be declared using the keywords 'const', 'final', 'var' or a type name.
+Try adding the name of the type of the variable or the keyword 'var'.
+                backDrawRodData: BackgroundBarChartRodData(
+                ^^^^^^^^^^^^^^^
+lib/screens/profile/profile_screen.dart:703:17: Error: Expected ';' after this.
+                backDrawRodData: BackgroundBarChartRodData(
+                ^^^^^^^^^^^^^^^
+lib/screens/profile/profile_screen.dart:703:32: Error: Expected a class member, but got ':'.
+                backDrawRodData: BackgroundBarChartRodData(
+                               ^
+lib/screens/profile/profile_screen.dart:704:23: Error: Non-optional parameters can't have a default value.
+Try removing the default value or making the parameter optional.
+                  show: true,
+                      ^
+lib/screens/profile/profile_screen.dart:705:22: Error: Non-optional parameters can't have a default value.
+Try removing the default value or making the parameter optional.
+                  toY: maxVal,
+                     ^
+lib/screens/profile/profile_screen.dart:706:24: Error: Non-optional parameters can't have a default value.
+Try removing the default value or making the parameter optional.
+                  color: const Color(0xFFF9FAFB),
+                       ^
+lib/screens/profile/profile_screen.dart:707:18: Error: Expected '{' before this.
+                ),
+                 ^
+lib/screens/profile/profile_screen.dart:707:18: Error: Expected a class member, but got ','.
+                ),
+                 ^
+lib/screens/profile/profile_screen.dart:708:15: Error: Expected a class member, but got ')'.
+              ),
+              ^
+lib/screens/profile/profile_screen.dart:708:16: Error: Expected a class member, but got ','.
+              ),
+               ^
+lib/screens/profile/profile_screen.dart:709:13: Error: Expected a class member, but got ']'.
+            ],
+            ^
+lib/screens/profile/profile_screen.dart:709:14: Error: Expected a class member, but got ','.
+            ],
+             ^
+lib/screens/profile/profile_screen.dart:710:11: Error: Expected a class member, but got ')'.
+          )),
+          ^
+lib/screens/profile/profile_screen.dart:710:12: Error: Expected a class member, but got ')'.
+          )),
+           ^
+lib/screens/profile/profile_screen.dart:710:13: Error: Expected a class member, but got ','.
+          )),
+            ^
+lib/screens/profile/profile_screen.dart:711:9: Error: Expected a class member, but got ')'.
+        ),
+        ^
+lib/screens/profile/profile_screen.dart:711:10: Error: Expected a class member, but got ','.
+        ),
+         ^
+lib/screens/profile/profile_screen.dart:712:7: Error: Expected a class member, but got ')'.
+      ),
+      ^
+lib/screens/profile/profile_screen.dart:712:8: Error: Expected a class member, but got ','.
+      ),
+       ^
+lib/screens/profile/profile_screen.dart:713:5: Error: Expected a class member, but got ')'.
+    );
+    ^
+lib/screens/profile/profile_screen.dart:713:6: Error: Expected a class member, but got ';'.
+    );
+     ^
+lib/screens/profile/profile_screen.dart:715:1: Error: Expected a declaration, but got '}'.
+}
+^
+lib/screens/profile/profile_screen.dart:698:7: Error: '_CareerStatItem' is already declared in this scope.
+class _CareerStatItem extends StatelessWidget {
+      ^^^^^^^^^^^^^^^
+lib/screens/profile/profile_screen.dart:601:7: Context: Previous declaration of '_CareerStatItem'.
+class _CareerStatItem extends StatelessWidget {
+      ^^^^^^^^^^^^^^^
+lib/screens/profile/profile_screen.dart:700:24: Error: 'i' is already declared in this scope.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                       ^
+lib/screens/profile/profile_screen.dart:699:34: Context: Previous declaration of 'i'.
+                toY: dailyCounts[i].toDouble(),
+                                 ^
+lib/screens/profile/profile_screen.dart:698:7: Error: The non-abstract class '_CareerStatItem' is missing implementations for these members:
+ - StatelessWidget.build
+Try to either
+ - provide an implementation,
+ - inherit an implementation from a superclass or mixin,
+ - mark the class as abstract, or
+ - provide a 'noSuchMethod' implementation.
+class _CareerStatItem extends StatelessWidget {
+      ^^^^^^^^^^^^^^^
+/C:/Users/ianlo/flutter/packages/flutter/lib/src/widgets/framework.dart:572:10: Context: 'StatelessWidget.build' is defined here.
+  Widget build(BuildContext context);
+         ^^^^^
+lib/screens/profile/profile_screen.dart:700:26: Error: The method '_CareerStatItem#1.==' has fewer positional arguments than those of overridden method 'Widget.=='.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                         ^
+/C:/Users/ianlo/flutter/packages/flutter/lib/src/widgets/framework.dart:366:17: Context: This is the overridden method ('==').
+  bool operator ==(Object other) => super == other;
+                ^
+lib/screens/profile/profile_screen.dart:702:71: Error: Constant expression expected.
+Try inserting 'const'.
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                                                      ^^^^^^^^
+lib/screens/profile/profile_screen.dart:705:24: Error: Undefined name 'maxVal'.
+                  toY: maxVal,
+                       ^^^^^^
+lib/screens/profile/profile_screen.dart:700:26: Error: A non-null value must be returned since the return type 'bool' doesn't allow null.
+                color: i == 6 ? AppColors.emerald700 : AppColors.emerald700.withValues(alpha: 0.3),
+                         ^
+lib/screens/profile/profile_screen.dart:701:17: Error: 'width' isn't an instance field of this class.
+                width: 18,
+                ^^^^^
+Target kernel_snapshot_program failed: Exception
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileFlutterBuildDebug'.
+> Process 'command 'C:\Users\ianlo\flutter\bin\flutter.bat'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1m 16s
+Running Gradle task 'assembleDebug'...                             77.2s
+Error: Gradle task assembleDebug failed with exit code 1

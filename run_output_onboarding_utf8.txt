@@ -1,0 +1,20 @@
+﻿D/FlutterJNI( 9846): Sending viewport metrics to the engine.
+D/FlutterJNI( 9846): Sending viewport metrics to the engine.
+D/FlutterJNI( 9846): Sending viewport metrics to the engine.
+D/FlutterJNI( 9846): Sending viewport metrics to the engine.
+D/InputConnectionAdaptor( 9846): The input method toggled cursor monitoring on
+I/ImeTracker( 9846): system_server:77e287be: onCancelled at PHASE_CLIENT_ON_CONTROLS_CHANGED
+D/InputConnectionAdaptor( 9846): The input method toggled cursor monitoring off
+D/InputConnectionAdaptor( 9846): The input method toggled cursor monitoring on
+D/InputConnectionAdaptor( 9846): The input method toggled cursor monitoring off
+Restarted application in 2,645ms.
+D/VRI[MainActivity]( 9846): visibilityChanged oldVisibility=true newVisibility=false
+I/Choreographer( 9846): Skipped 82 frames!  The application may be doing too much work on its main thread.
+I/AutofillManager( 9846): onInvisibleForAutofill(): expiringResponse
+V/NativeCrypto( 9846): Read error: ssl=0xb400007c6ffd4758: I/O error during system call, Software caused connection abort
+W/Firestore( 9846): (26.1.0) [WatchStream]: (52420fe) Stream closed with status: Status{code=UNAVAILABLE, description=End of stream or IOException, cause=null}.
+V/NativeCrypto( 9846): Write error: ssl=0xb400007c6ffd4758: I/O error during system call, Broken pipe
+V/NativeCrypto( 9846): SSL shutdown failed: ssl=0xb400007c6ffd4758: I/O error during system call, Success
+W/ManagedChannelImpl( 9846): [{0}] Failed to resolve name. status={1}
+W/ManagedChannelImpl( 9846): [{0}] Failed to resolve name. status={1}
+W/ManagedChannelImpl( 9846): [{0}] Failed to resolve name. status={1}

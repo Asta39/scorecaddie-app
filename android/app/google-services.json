@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "538763677400",
+    "project_id": "scorecaddie-1e9e0",
+    "storage_bucket": "scorecaddie-1e9e0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:538763677400:android:c51666172d8127584591ad",
+        "android_client_info": {
+          "package_name": "com.scorecaddie.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "538763677400-sdhv32aeqiuu9ho3cjlhavihahecrjbe.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.scorecaddie.app",
+            "certificate_hash": "27fa336db6ccb4ecb6f4fdcb1af7f0d1793ce0cf"
+          }
+        },
+        {
+          "client_id": "538763677400-qg6eauj6cvibkq6s728hjdpg9l49sa3b.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeBhq5ux8JF0CBRvDIgdyQYnA5hbfLvjw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "538763677400-qg6eauj6cvibkq6s728hjdpg9l49sa3b.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "538763677400-h2re3dmdbft7qkcp9b2t4ah96k8rhea9.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.scorecaddie.scoreCaddie"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:538763677400:android:eb9d46a7259501d84591ad",
+        "android_client_info": {
+          "package_name": "com.scorecaddie.score_caddie"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "538763677400-qg6eauj6cvibkq6s728hjdpg9l49sa3b.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeBhq5ux8JF0CBRvDIgdyQYnA5hbfLvjw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "538763677400-qg6eauj6cvibkq6s728hjdpg9l49sa3b.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "538763677400-h2re3dmdbft7qkcp9b2t4ah96k8rhea9.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.scorecaddie.scoreCaddie"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

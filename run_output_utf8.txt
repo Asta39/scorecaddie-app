@@ -1,0 +1,173 @@
+﻿Launching lib\main.dart on A059 in debug mode...
+Running Gradle task 'assembleDebug'...                          
+D/FlutterJNI(29097): Beginning load of flutter...
+D/FlutterJNI(29097): flutter (null) was loaded normally!
+I/flutter (29097): [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+D/FlutterRenderer(29097): Width is zero. 0,0
+D/FlutterRenderer(29097): Width is zero. 0,0
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+D/FlutterJNI(29097): Sending viewport metrics to the engine.
+Running Gradle task 'assembleDebug'...                            201.2s
+ΓêÜ Built build\app\outputs\flutter-apk\app-debug.apk
+Installing build\app\outputs\flutter-apk\app-debug.apk...           7.6s
+D/FlutterJNI(30539): Beginning load of flutter...
+D/FlutterJNI(30539): flutter (null) was loaded normally!
+I/flutter (30539): [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+D/FlutterRenderer(30539): Width is zero. 0,0
+D/FlutterRenderer(30539): Width is zero. 0,0
+D/FlutterJNI(30539): Sending viewport metrics to the engine.
+D/FlutterJNI(30539): Sending viewport metrics to the engine.
+D/FlutterJNI(30539): Sending viewport metrics to the engine.
+W/ManagedChannelImpl(30539): [{0}] Failed to resolve name. status={1}
+W/Firestore(30539): (26.1.0) [WriteStream]: (8899ba2) Stream closed with status: Status{code=UNAVAILABLE, description=Unable to resolve host firestore.googleapis.com, cause=java.lang.RuntimeException: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:223)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.doResolve(DnsNameResolver.java:282)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$Resolve.run(DnsNameResolver.java:318)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1156)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:651)
+W/Firestore(30539): 	at java.lang.Thread.run(Thread.java:1119)
+W/Firestore(30539): Caused by: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:156)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupAllHostAddr(Inet6AddressImpl.java:103)
+W/Firestore(30539): 	at java.net.InetAddress.getAllByName(InetAddress.java:1152)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$JdkAddressResolver.resolveAddress(DnsNameResolver.java:632)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:219)
+W/Firestore(30539): 	... 5 more
+W/Firestore(30539): Caused by: android.system.GaiException: android_getaddrinfo failed: EAI_NODATA (No address associated with hostname)
+W/Firestore(30539): 	at libcore.io.Linux.android_getaddrinfo(Native Method)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at libcore.io.BlockGuardOs.android_getaddrinfo(BlockGuardOs.java:222)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:135)
+W/Firestore(30539): 	... 9 more
+W/Firestore(30539): }.
+W/ManagedChannelImpl(30539): [{0}] Failed to resolve name. status={1}
+Syncing files to device A059...                                    263ms
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on A059 is available at: http://127.0.0.1:52257/yqIdBHy70uI=/
+The Flutter DevTools debugger and profiler on A059 is available at: http://127.0.0.1:52257/yqIdBHy70uI=/devtools/?uri=ws://127.0.0.1:52257/yqIdBHy70uI=/ws
+W/Firestore(30539): (26.1.0) [WriteStream]: (8899ba2) Stream closed with status: Status{code=UNAVAILABLE, description=Unable to resolve host firestore.googleapis.com, cause=java.lang.RuntimeException: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:223)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.doResolve(DnsNameResolver.java:282)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$Resolve.run(DnsNameResolver.java:318)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1156)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:651)
+W/Firestore(30539): 	at java.lang.Thread.run(Thread.java:1119)
+W/Firestore(30539): Caused by: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:156)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupAllHostAddr(Inet6AddressImpl.java:103)
+W/Firestore(30539): 	at java.net.InetAddress.getAllByName(InetAddress.java:1152)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$JdkAddressResolver.resolveAddress(DnsNameResolver.java:632)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:219)
+W/Firestore(30539): 	... 5 more
+W/Firestore(30539): Caused by: android.system.GaiException: android_getaddrinfo failed: EAI_NODATA (No address associated with hostname)
+W/Firestore(30539): 	at libcore.io.Linux.android_getaddrinfo(Native Method)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at libcore.io.BlockGuardOs.android_getaddrinfo(BlockGuardOs.java:222)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:135)
+W/Firestore(30539): 	... 9 more
+W/Firestore(30539): }.
+W/ManagedChannelImpl(30539): [{0}] Failed to resolve name. status={1}
+W/Firestore(30539): (26.1.0) [WriteStream]: (8899ba2) Stream closed with status: Status{code=UNAVAILABLE, description=Unable to resolve host firestore.googleapis.com, cause=java.lang.RuntimeException: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:223)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.doResolve(DnsNameResolver.java:282)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$Resolve.run(DnsNameResolver.java:318)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1156)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:651)
+W/Firestore(30539): 	at java.lang.Thread.run(Thread.java:1119)
+W/Firestore(30539): Caused by: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:156)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupAllHostAddr(Inet6AddressImpl.java:103)
+W/Firestore(30539): 	at java.net.InetAddress.getAllByName(InetAddress.java:1152)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$JdkAddressResolver.resolveAddress(DnsNameResolver.java:632)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:219)
+W/Firestore(30539): 	... 5 more
+W/Firestore(30539): Caused by: android.system.GaiException: android_getaddrinfo failed: EAI_NODATA (No address associated with hostname)
+W/Firestore(30539): 	at libcore.io.Linux.android_getaddrinfo(Native Method)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at libcore.io.BlockGuardOs.android_getaddrinfo(BlockGuardOs.java:222)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:135)
+W/Firestore(30539): 	... 9 more
+W/Firestore(30539): }.
+W/ManagedChannelImpl(30539): [{0}] Failed to resolve name. status={1}
+W/Firestore(30539): (26.1.0) [WriteStream]: (8899ba2) Stream closed with status: Status{code=UNAVAILABLE, description=Unable to resolve host firestore.googleapis.com, cause=java.lang.RuntimeException: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:223)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.doResolve(DnsNameResolver.java:282)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$Resolve.run(DnsNameResolver.java:318)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1156)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:651)
+W/Firestore(30539): 	at java.lang.Thread.run(Thread.java:1119)
+W/Firestore(30539): Caused by: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:156)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupAllHostAddr(Inet6AddressImpl.java:103)
+W/Firestore(30539): 	at java.net.InetAddress.getAllByName(InetAddress.java:1152)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$JdkAddressResolver.resolveAddress(DnsNameResolver.java:632)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:219)
+W/Firestore(30539): 	... 5 more
+W/Firestore(30539): Caused by: android.system.GaiException: android_getaddrinfo failed: EAI_NODATA (No address associated with hostname)
+W/Firestore(30539): 	at libcore.io.Linux.android_getaddrinfo(Native Method)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at libcore.io.BlockGuardOs.android_getaddrinfo(BlockGuardOs.java:222)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:135)
+W/Firestore(30539): 	... 9 more
+W/Firestore(30539): }.
+W/ManagedChannelImpl(30539): [{0}] Failed to resolve name. status={1}
+W/Firestore(30539): (26.1.0) [WriteStream]: (8899ba2) Stream closed with status: Status{code=UNAVAILABLE, description=Unable to resolve host firestore.googleapis.com, cause=java.lang.RuntimeException: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:223)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.doResolve(DnsNameResolver.java:282)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$Resolve.run(DnsNameResolver.java:318)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1156)
+W/Firestore(30539): 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:651)
+W/Firestore(30539): 	at java.lang.Thread.run(Thread.java:1119)
+W/Firestore(30539): Caused by: java.net.UnknownHostException: Unable to resolve host "firestore.googleapis.com": No address associated with hostname
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:156)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupAllHostAddr(Inet6AddressImpl.java:103)
+W/Firestore(30539): 	at java.net.InetAddress.getAllByName(InetAddress.java:1152)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver$JdkAddressResolver.resolveAddress(DnsNameResolver.java:632)
+W/Firestore(30539): 	at io.grpc.internal.DnsNameResolver.resolveAddresses(DnsNameResolver.java:219)
+W/Firestore(30539): 	... 5 more
+W/Firestore(30539): Caused by: android.system.GaiException: android_getaddrinfo failed: EAI_NODATA (No address associated with hostname)
+W/Firestore(30539): 	at libcore.io.Linux.android_getaddrinfo(Native Method)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at libcore.io.BlockGuardOs.android_getaddrinfo(BlockGuardOs.java:222)
+W/Firestore(30539): 	at libcore.io.ForwardingOs.android_getaddrinfo(ForwardingOs.java:133)
+W/Firestore(30539): 	at java.net.Inet6AddressImpl.lookupHostByName(Inet6AddressImpl.java:135)
+W/Firestore(30539): 	... 9 more
+W/Firestore(30539): }.

@@ -1,0 +1,22 @@
+Analyzing profile_screen.dart...                                
+
+warning - Unused import: 'package:fl_chart/fl_chart.dart' - lib\screens\profile\profile_screen.dart:17:8 - unused_import
+   info - The private field _isSaving could be 'final' - lib\screens\profile\profile_screen.dart:29:8 - prefer_final_fields
+warning - The value of the field '_isSaving' isn't used - lib\screens\profile\profile_screen.dart:29:8 - unused_field
+  error - The named parameter 'icon' is required, but there's no corresponding argument - lib\screens\profile\profile_screen.dart:380:25 - missing_required_argument
+  error - The named parameter 'color' isn't defined - lib\screens\profile\profile_screen.dart:380:104 - undefined_named_parameter
+  error - The named parameter 'icon' is required, but there's no corresponding argument - lib\screens\profile\profile_screen.dart:382:25 - missing_required_argument
+  error - The named parameter 'color' isn't defined - lib\screens\profile\profile_screen.dart:382:94 - undefined_named_parameter
+  error - The named parameter 'icon' is required, but there's no corresponding argument - lib\screens\profile\profile_screen.dart:384:25 - missing_required_argument
+  error - The named parameter 'color' isn't defined - lib\screens\profile\profile_screen.dart:384:98 - undefined_named_parameter
+  error - The method '_ActionTile' isn't defined for the type '_ProfileScreenState' - lib\screens\profile\profile_screen.dart:392:9 - undefined_method
+  error - The method '_ActionTile' isn't defined for the type '_ProfileScreenState' - lib\screens\profile\profile_screen.dart:398:9 - undefined_method
+  error - The method '_ActionTile' isn't defined for the type '_ProfileScreenState' - lib\screens\profile\profile_screen.dart:404:9 - undefined_method
+  error - The method '_ActionTile' isn't defined for the type '_ProfileScreenState' - lib\screens\profile\profile_screen.dart:410:9 - undefined_method
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\profile\profile_screen.dart:420:26 - use_build_context_synchronously
+   info - 'foregroundColor' is deprecated and shouldn't be used. use colors in eyeStyle and dataModuleStyle instead - lib\screens\profile\profile_screen.dart:524:17 - deprecated_member_use
+warning - Dead code - lib\screens\profile\profile_screen.dart:583:56 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\screens\profile\profile_screen.dart:583:59 - dead_null_aware_expression
+warning - The declaration '_RecentActivityItem' isn't referenced - lib\screens\profile\profile_screen.dart:685:7 - unused_element
+
+18 issues found. (ran in 4.5s)
