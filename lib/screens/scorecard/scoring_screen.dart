@@ -68,14 +68,36 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
       pars = List.filled(18, 4);
     }
     
+    // Parse hole yardages based on selected tee
+    List<int> yardages = [];
+    try {
+      final List<dynamic> parsedTeeData = jsonDecode(course.teeData);
+      for (var teeData in parsedTeeData) {
+        if (teeData['name'] == widget.tee) {
+          final List<dynamic> yList = teeData['yardages'];
+          yardages = yList.map((e) => e as int).toList();
+          break;
+        }
+      }
+    } catch (_) {}
+
+    // Fill defaults if yardage data is missing
+    if (yardages.length < 18) {
+      yardages = List.filled(18, 0);
+    }
+
     // Handle Front 9 vs Back 9
     List<int> activePars = [];
+    List<int> activeYardages = [];
     if (widget.holesPlayed == 9) {
       activePars = pars.sublist(0, 9);
+      activeYardages = yardages.sublist(0, 9);
     } else if (widget.holesPlayed == -9) {
       activePars = pars.sublist(9, 18);
+      activeYardages = yardages.sublist(9, 18);
     } else {
       activePars = pars; 
+      activeYardages = yardages;
     }
 
     setState(() {
@@ -83,7 +105,7 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
       _holePars = activePars;
       // Default starting score for each hole is its par
       _holeScores = List.from(activePars);
-      _holeYardages = List.filled(activePars.length, 0);
+      _holeYardages = activeYardages;
       _holePutts = List.filled(activePars.length, null);
       _holeFairways = List.filled(activePars.length, null);
       _holePenalties = List.filled(activePars.length, null);
@@ -473,6 +495,18 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
               ),
             ],
           ),
+          if (_holeYardages[_currentHoleIndex] > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text(
+                '${_holeYardages[_currentHoleIndex]} yds',
+                style: const TextStyle(
+                  color: AppColors.grey500,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           
           const Spacer(),
           

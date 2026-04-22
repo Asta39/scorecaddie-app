@@ -124,12 +124,10 @@ class _ProviderOnboardingScreenState extends ConsumerState<ProviderOnboardingScr
     final role = ref.watch(userProfileProvider).valueOrNull?.role ?? 'caddie';
     final isCoach = role == 'coach';
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      appBar: AppBar(
         backgroundColor: AppColors.white,
-        appBar: AppBar(
-          backgroundColor: AppColors.white,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900),
@@ -302,7 +300,6 @@ class _ProviderOnboardingScreenState extends ConsumerState<ProviderOnboardingScr
             ],
           ),
         ),
-      ),
     );
   }
 
