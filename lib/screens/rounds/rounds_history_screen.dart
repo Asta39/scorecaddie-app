@@ -150,7 +150,7 @@ class _HistoryRoundCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${round.holesPlayed} holes • ${_formatDate(round.playedAt)}',
+                      '${round.holesPlayed == -9 ? 'Back 9' : '${round.holesPlayed} holes'} • ${_formatDate(round.playedAt)}',
                       style: const TextStyle(
                         color: AppColors.grey500,
                         fontSize: 13,

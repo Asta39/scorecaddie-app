@@ -96,7 +96,7 @@ class RoundDetailScreen extends ConsumerWidget {
                   children: [
                     _buildStatBox('SCORE', round.totalScore.toString(), color: AppColors.grey900),
                     _buildStatBox('TO PAR', (round.totalScore - round.coursePar) == 0 ? 'E' : (round.totalScore - round.coursePar) > 0 ? '+${round.totalScore - round.coursePar}' : '${round.totalScore - round.coursePar}', color: _getScoreColor(round.totalScore - round.coursePar)),
-                    _buildStatBox('HOLES', round.holesPlayed.toString()),
+                    _buildStatBox('HOLES', round.holesPlayed == -9 ? 'Back 9' : round.holesPlayed.toString()),
                   ],
                 ),
                 

@@ -152,7 +152,7 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
           firestoreId: drift.Value(firestoreId),
           courseId: widget.courseId,
           courseName: drift.Value(_course?.name ?? 'Unknown'),
-          holesPlayed: drift.Value(widget.holesPlayed.abs()),
+          holesPlayed: drift.Value(widget.holesPlayed),
           tee: drift.Value(widget.tee),
           totalScore: totalScore,
           coursePar: coursePar,
