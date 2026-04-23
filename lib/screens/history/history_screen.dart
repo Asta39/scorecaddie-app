@@ -53,7 +53,7 @@ class HistoryScreen extends ConsumerWidget {
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(r.courseName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                               const SizedBox(height: 4),
-                              Text('${r.holesPlayed} holes • ${r.playedAt.day}/${r.playedAt.month}/${r.playedAt.year}',
+                              Text('${r.holesPlayed == -9 ? 'Back 9' : '${r.holesPlayed} holes'} • ${r.playedAt.day}/${r.playedAt.month}/${r.playedAt.year}',
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.grey500)),
                             ])),
                             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

@@ -85,14 +85,12 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       return const LoadingTransitionScreen(message: 'Loading your profile...');
     }
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: AppColors.white,
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
               const SizedBox(height: 40),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -178,7 +176,6 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
             ],
           ),
         ),
-      ),
     );
   }
 }

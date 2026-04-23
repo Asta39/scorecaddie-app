@@ -69,12 +69,10 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: AppColors.white,
-        body: SafeArea(
-          child: SingleChildScrollView(
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
             child: Form(
               key: _formKey,
@@ -162,7 +160,6 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
             ),
           ),
         ),
-      ),
     );
   }
 

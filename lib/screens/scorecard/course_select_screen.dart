@@ -301,7 +301,7 @@ class _CourseSetupModalState extends State<_CourseSetupModal> {
     Navigator.pop(context);
     context.push('/scoring', extra: {
       'courseId': widget.course.id,
-      'holesPlayed': _holesPlayed.abs(),
+      'holesPlayed': _holesPlayed,
       'tee': _selectedTee,
     });
   }

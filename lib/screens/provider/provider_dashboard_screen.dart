@@ -63,7 +63,7 @@ class _ProviderDashboardScreenState extends ConsumerState<ProviderDashboardScree
                   interactionsAsync.when(
                     data: (interactions) => _WeeklyBarChart(interactions: interactions),
                     loading: () => const SizedBox(height: 200),
-                    error: (_, _) => const SizedBox(),
+                    error: (err, stack) => const SizedBox(),
                   ),
                   const SizedBox(height: 32),
                   const Text('Recent Activity', 
@@ -84,7 +84,7 @@ class _ProviderDashboardScreenState extends ConsumerState<ProviderDashboardScree
               ),
             ),
             loading: () => const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator())),
-            error: (_, _) => const SliverToBoxAdapter(child: SizedBox()),
+            error: (err, stack) => const SliverToBoxAdapter(child: SizedBox()),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],

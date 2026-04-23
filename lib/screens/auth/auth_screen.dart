@@ -88,12 +88,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget build(BuildContext context) {
     final bool showingAuth = (_currentPage == 3) || (_currentPage == 2 && _useEmail);
     
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: AppColors.white,
-        body: Stack(
-          children: [
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: Stack(
+        children: [
             // Background Decorative Element
             if (!showingAuth)
               Positioned(
@@ -165,7 +163,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             ),
           ],
         ),
-      ),
     );
   }
 

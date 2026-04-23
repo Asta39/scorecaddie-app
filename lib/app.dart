@@ -26,7 +26,7 @@ class ScoreCaddieApp extends ConsumerWidget {
       builder: (context, child) {
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: const SystemUiOverlayStyle(
-            statusBarColor: Colors.white,
+            statusBarColor: Colors.transparent,
             statusBarIconBrightness: Brightness.dark,
             statusBarBrightness: Brightness.light,
             systemNavigationBarColor: Colors.white,
