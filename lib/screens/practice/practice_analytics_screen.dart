@@ -8,8 +8,8 @@ import '../../providers/app_providers.dart';
 import '../../core/models/analytics_models.dart';
 import '../../widgets/highlights/practice_analytics_highlight_card_widget.dart';
 import '../../core/services/highlight_card_service.dart';
-import '../../core/utils/unit_formatter.dart';
 import 'package:screenshot/screenshot.dart';
+import '../../widgets/loading_spinner.dart';
 
 class PracticeAnalyticsScreen extends ConsumerStatefulWidget {
   const PracticeAnalyticsScreen({super.key});
@@ -27,9 +27,7 @@ class _PracticeAnalyticsScreenState extends ConsumerState<PracticeAnalyticsScree
     final formatter = ref.watch(unitFormatterProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF2F2F7),
         elevation: 0,
         scrolledUnderElevation: 0,
         title: const Text('Analytics', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: AppColors.grey900, letterSpacing: -0.5)),
@@ -47,7 +45,7 @@ class _PracticeAnalyticsScreenState extends ConsumerState<PracticeAnalyticsScree
         ],
       ),
       body: analyticsAsync.when(
-        loading: () => const Center(child: CupertinoActivityIndicator()),
+        loading: () => const LoadingSpinner(),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (stats) => SingleChildScrollView(
           physics: const BouncingScrollPhysics(),

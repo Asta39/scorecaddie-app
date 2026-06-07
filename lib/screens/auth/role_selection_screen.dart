@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart' as db;
 import 'loading_transition_screen.dart';
+import '../../widgets/top_notification.dart';
 
 class RoleSelectionScreen extends ConsumerStatefulWidget {
   const RoleSelectionScreen({super.key});
@@ -30,9 +31,19 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
         await ref.read(profileServiceProvider).ensureProfile(
           user.uid,
           displayName: user.displayName,
-          photoUrl: user.photoURL,
+          photoUrl: user.photoUrl,
           email: user.email,
         );
+        
+        // After ensureProfile, check if profile is now complete
+        // (user already completed onboarding before — e.g. returning user)
+        if (mounted) {
+          final profile = ref.read(userProfileProvider).valueOrNull;
+          if (profile != null && profile.profileComplete) {
+            context.go('/');
+            return;
+          }
+        }
       }
       if (mounted) {
         setState(() => _isChecking = false);
@@ -50,9 +61,9 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       if (user == null) return;
 
       await ref.read(profileServiceProvider).updateProfile(
-        user.uid,
+        user.id,
         db.UserProfilesCompanion(
-          firebaseUid: drift.Value(user.uid),
+          uid: drift.Value(user.id),
           role: drift.Value(_selectedRole),
           updatedAt: drift.Value(DateTime.now()),
         ),
@@ -68,12 +79,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppColors.doubleBogey,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ));
+        TopNotification.showError(context, 'Error: $e');
         setState(() => _isSaving = false);
       }
     }
@@ -88,7 +94,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: AppColors.white,
+        backgroundColor: const Color(0xFFF2F2F7),
         body: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,15 +143,6 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                     ),
                     const SizedBox(height: 20),
                     _RoleCard(
-                      title: 'Caddie',
-                      description: 'Provide expert assistance, manage rounds, and grow your reputation.',
-                      icon: LucideIcons.briefcase,
-                      isSelected: _selectedRole == 'caddie',
-                      onTap: () => setState(() => _selectedRole = 'caddie'),
-                      color: AppColors.blue700,
-                    ),
-                    const SizedBox(height: 20),
-                    _RoleCard(
                       title: 'Coach',
                       description: 'Train students, share specialized drills, and analyze performance.',
                       icon: LucideIcons.graduationCap,
@@ -164,14 +161,9 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                   height: 64,
                   child: FilledButton(
                     onPressed: (_selectedRole != null && !_isSaving) ? _handleRoleSelection : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.grey900,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      elevation: 0,
-                    ),
                     child: _isSaving 
                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
-                      : const Text('Continue', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                      : const Text('Continue', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w800, fontSize: 16)),
                   ),
                 ),
               ),

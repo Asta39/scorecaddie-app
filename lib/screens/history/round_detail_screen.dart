@@ -20,10 +20,8 @@ class RoundDetailScreen extends ConsumerWidget {
     final scoresAsync = ref.watch(holeScoresProvider(roundId));
 
     return Scaffold(
-      backgroundColor: AppColors.grey50,
       appBar: AppBar(
         title: const Text('Round Summary', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-        backgroundColor: AppColors.white,
         scrolledUnderElevation: 0,
         actions: [
           roundAsync.when(
@@ -33,10 +31,10 @@ class RoundDetailScreen extends ConsumerWidget {
                 onPressed: () => _shareRoundHighlight(context, ref, round, scores),
               ),
               loading: () => const SizedBox(),
-              error: (_, __) => const SizedBox(),
+              error: (_, _) => const SizedBox(),
             ),
             loading: () => const SizedBox(),
-            error: (_, __) => const SizedBox(),
+            error: (_, _) => const SizedBox(),
           ),
           const SizedBox(width: 8),
         ],
@@ -117,7 +115,38 @@ class RoundDetailScreen extends ConsumerWidget {
             ),
           ),
           
-          const SizedBox(height: 24),
+          // Round Notes
+          if (round.notes.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.grey50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.grey100),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(LucideIcons.fileText, size: 20, color: AppColors.grey500),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Notes', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.grey500)),
+                          const SizedBox(height: 4),
+                          Text(round.notes, style: const TextStyle(color: AppColors.grey900, fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
           
           // Scorecard Title
           const Padding(

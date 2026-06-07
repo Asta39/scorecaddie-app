@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart' as drift;
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
 import 'package:go_router/go_router.dart';
+import '../../widgets/top_notification.dart';
 
 class CustomDrillBuilderScreen extends ConsumerStatefulWidget {
   const CustomDrillBuilderScreen({super.key});
@@ -70,9 +70,7 @@ class _CustomDrillBuilderScreenState extends ConsumerState<CustomDrillBuilderScr
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Custom Drill Created!'), backgroundColor: AppColors.emerald500),
-      );
+      TopNotification.showSuccess(context, 'Custom Drill Created!');
       context.pop();
     }
   }
@@ -80,7 +78,6 @@ class _CustomDrillBuilderScreenState extends ConsumerState<CustomDrillBuilderScr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
       appBar: AppBar(
         title: const Text('New Custom Drill', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
@@ -165,7 +162,7 @@ class _CustomDrillBuilderScreenState extends ConsumerState<CustomDrillBuilderScr
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _steps.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                separatorBuilder: (_, _) => const SizedBox(height: 16),
                 itemBuilder: (context, index) {
                   return Container(
                     padding: const EdgeInsets.all(16),

@@ -3,12 +3,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
-import '../../core/database/database.dart';
 import '../../core/utils/handicap.dart';
-import 'dart:io';
+import '../../widgets/profile_image.dart';
 
 class PlayerProfileScreen extends ConsumerWidget {
   final String userId;
@@ -23,247 +22,337 @@ class PlayerProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(publicProfileProvider(userId));
+    final statsAsync = ref.watch(publicProfileStatsProvider(userId));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF2F2F7),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900),
+          icon: Icon(LucideIcons.chevronLeft, color: isDark ? Colors.white : AppColors.grey900),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(name ?? 'Player Profile', style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w900, fontSize: 20)),
-        centerTitle: false,
+        title: Text(name ?? 'Player Profile', 
+          style: TextStyle(color: isDark ? Colors.white : AppColors.grey900, fontWeight: FontWeight.w900, fontSize: 18)),
+        centerTitle: true,
       ),
       body: profileAsync.when(
         data: (profile) {
-          if (profile == null) return const Center(child: Text('Profile not found'));
+          if (profile == null) {
+            return _buildErrorState(context, 'Profile not found', 'This player may have deleted their account or changed their ID.');
+          }
           
-          final isPrivate = profile['privacyLevel'] == 'Private';
-          final hcp = (profile['handicap'] as num?)?.toDouble();
-          final bestScore = profile['bestScore'] as int?;
-
-          return SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
-            child: Column(
-              children: [
-                _buildHeader(profile, hcp, bestScore),
-                const SizedBox(height: 40),
-                
-                if (isPrivate)
-                  _buildPrivatePlaceholder()
-                else
-                  _buildDetailedStats(profile),
-              ],
+          return statsAsync.when(
+            data: (stats) => _buildContent(context, profile, stats, isDark),
+            loading: () => const Center(child: CupertinoActivityIndicator()),
+            error: (e, _) => _buildErrorState(
+              context, 
+              'Unable to Load Stats', 
+              e.toString().contains('42501') 
+                ? 'Permission denied. Please check database security policies.'
+                : 'Error: $e', 
+              onRetry: () => ref.invalidate(publicProfileStatsProvider(userId))
             ),
           );
         },
         loading: () => const Center(child: CupertinoActivityIndicator()),
-        error: (e, s) => Center(child: Text('Error: $e')),
+        error: (e, s) => _buildErrorState(
+          context, 
+          'Network Error', 
+          'Please check your internet connection and try again.', 
+          onRetry: () => ref.invalidate(publicProfileProvider(userId))
+        ),
       ),
     );
   }
 
-  Widget _buildHeader(Map<String, dynamic> profile, double? hcp, int? bestScore) {
-    final createdAt = (profile['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-    
-    return Column(
-      children: [
-        _buildLargeAvatar(profile['avatarUrl'], profile['name'] ?? 'G'),
-        const SizedBox(height: 20),
-        Text(profile['name'] ?? 'Golfer', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.grey900, letterSpacing: -0.5)),
-        const SizedBox(height: 4),
-        Text(
-          'MEMBER SINCE ${DateFormat('MMM yyyy').format(createdAt)}',
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildContent(BuildContext context, Map<String, dynamic> profile, Map<String, dynamic>? stats, bool isDark) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (hcp != null) ...[
-              _buildHandicapBadge(hcp),
-              const SizedBox(width: 12),
+            // ── Centered Identity Header ──────────────────────────────────────
+            _buildIdentityHeader(profile),
+            const SizedBox(height: 32),
+
+            // ── Career Stats Grid ─────────────────────────────────────────────
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('CAREER STATS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2)),
+            ),
+            const SizedBox(height: 12),
+            _buildStatsGrid(profile, stats),
+            
+            const SizedBox(height: 32),
+
+            // ── Recent Activity ───────────────────────────────────────────────
+            if (stats?['recentScore'] != null) ...[
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('RECENT ROUND', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2)),
+              ),
+              const SizedBox(height: 12),
+              _buildRecentRoundCard(stats!['recentScore'], isDark),
+              const SizedBox(height: 32),
             ],
-            if (bestScore != null)
-              _buildBestScoreBadge(bestScore),
+
+            // ── Achievements ──────────────────────────────────────────────────
+            if (stats?['achievements'] != null && (stats!['achievements'] as List).isNotEmpty) ...[
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('ACHIEVEMENTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2)),
+              ),
+              const SizedBox(height: 12),
+              _buildAchievementsRow(stats['achievements'], isDark),
+              const SizedBox(height: 32),
+            ],
+
+            // ── Account Info ──────────────────────────────────────────────────
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('PLAYER INFO', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2)),
+            ),
+            const SizedBox(height: 12),
+            _buildInfoList(profile, stats, isDark),
           ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildLargeAvatar(String? url, String name) {
-    ImageProvider? imageProvider;
-    if (url != null && url.isNotEmpty) {
-      if (url.startsWith('http')) {
-        imageProvider = NetworkImage(url);
-      } else {
-        final file = File(url);
-        if (file.existsSync()) imageProvider = FileImage(file);
-      }
-    }
-
-    return Container(
-      width: 110,
-      height: 110,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 4),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 10))],
-        image: imageProvider != null ? DecorationImage(image: imageProvider, fit: BoxFit.cover) : null,
-      ),
-      child: imageProvider == null 
-          ? Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'G', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 44, color: AppColors.grey200)))
-          : null,
-    );
-  }
-
-  Widget _buildHandicapBadge(double hcp) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.emerald900,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: AppColors.emerald900.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6))],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('HANDICAP INDEX', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
-          const SizedBox(width: 12),
-          Text(
-            HandicapCalculator.format(hcp),
-            style: const TextStyle(color: AppColors.golfLime, fontWeight: FontWeight.w900, fontSize: 18),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _buildBestScoreBadge(int score) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.grey900,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 12, offset: const Offset(0, 6))],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('BEST SCORE', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
-          const SizedBox(width: 12),
-          Text(
-            score.toString(),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailedStats(Map<String, dynamic> profile) {
+  Widget _buildIdentityHeader(Map<String, dynamic> profile) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('PLAYER OVERVIEW', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2)),
+        ProfileImage(
+          url: profile['avatarUrl'],
+          name: profile['name'] ?? 'G',
+          size: 100,
+          isCircle: true,
+        ),
         const SizedBox(height: 16),
-        _buildInfoGroup([
-          _buildInfoRow(LucideIcons.trendingUp, 'Skill Level', profile['skillLevel'] ?? 'Amateur'),
-          _buildDivider(),
-          _buildInfoRow(LucideIcons.footprints, 'Play Style', profile['playStyle'] ?? 'Mixed'),
-          _buildDivider(),
-          _buildInfoRow(LucideIcons.flag, 'Preferred Tees', profile['preferredTees'] ?? 'Standard'),
-          _buildDivider(),
-          _buildInfoRow(LucideIcons.mapPin, 'Home Course', profile['homeCourse'] ?? 'None set'),
-          _buildDivider(),
-          _buildInfoRow(LucideIcons.maximize, 'Distance Units', profile['units'] ?? 'Yards'),
-        ]),
-        
-        const SizedBox(height: 40),
-        const Text('ACCOUNT INFORMATION', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2)),
-        const SizedBox(height: 16),
-        _buildInfoGroup([
-          _buildInfoRow(LucideIcons.mail, 'Email Status', 'Verified Player'),
-          _buildDivider(),
-          _buildInfoRow(LucideIcons.shield, 'Privacy Level', profile['privacyLevel'] ?? 'Public'),
-        ]),
+        Text(profile['name'] ?? 'Golfer', 
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.grey900, letterSpacing: -0.5)),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.golfLime,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            (profile['role'] ?? 'PLAYER').toUpperCase(),
+            style: const TextStyle(color: AppColors.grey900, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildInfoGroup(List<Widget> children) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.grey100),
-      ),
-      child: Column(children: children),
+  Widget _buildStatsGrid(Map<String, dynamic> profile, Map<String, dynamic>? stats) {
+    final hcp = (profile['handicapIndex'] as num?)?.toDouble() ?? 0.0;
+    
+    return Row(
+      children: [
+        Expanded(child: _StatBox(label: 'HANDICAP', value: HandicapCalculator.format(hcp), color: AppColors.golfLime, textColor: AppColors.grey900)),
+        const SizedBox(width: 12),
+        Expanded(child: _StatBox(label: 'BEST', value: stats?['bestScore']?.toString() ?? '—', color: AppColors.grey900)),
+        const SizedBox(width: 12),
+        Expanded(child: _StatBox(label: 'AVG', value: stats?['avgScore']?.toString() ?? '—', color: Colors.white, textColor: AppColors.grey800, hasBorder: true)),
+      ],
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
+  Widget _buildRecentRoundCard(Map<String, dynamic> round, bool isDark) {
+    final date = DateTime.parse(round['date']);
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.grey800 : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, size: 18, color: AppColors.grey600),
+            width: 52, height: 52,
+            decoration: BoxDecoration(color: AppColors.golfLime.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
+            child: Center(
+              child: Text('${round['score']}', 
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.golfLime)),
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.grey500)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(round['course'], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                Text(DateFormat('MMMM d, yyyy').format(date), style: const TextStyle(color: AppColors.grey500, fontSize: 12, fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.grey900)),
+          const Icon(LucideIcons.chevronRight, color: AppColors.grey200, size: 18),
         ],
       ),
     );
   }
 
-  Widget _buildDivider() => Padding(
-    padding: const EdgeInsets.only(left: 66),
-    child: Divider(height: 1, color: AppColors.grey100.withValues(alpha: 0.5)),
-  );
+  Widget _buildAchievementsRow(List<dynamic> achievements, bool isDark) {
+    return SizedBox(
+      height: 90,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        itemCount: achievements.length,
+        itemBuilder: (context, i) {
+          final a = achievements[i];
+          return Container(
+            width: 90,
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.grey800 : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.golfLime.withValues(alpha: 0.1)),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(_getIcon(a['icon']), color: AppColors.golfLime, size: 24),
+                const SizedBox(height: 6),
+                Text(a['title'], style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-  Widget _buildPrivatePlaceholder() {
+  Widget _buildInfoList(Map<String, dynamic> profile, Map<String, dynamic>? stats, bool isDark) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: AppColors.grey100),
+        color: isDark ? AppColors.grey800 : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: isDark ? AppColors.grey700 : AppColors.grey100),
       ),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.grey50, shape: BoxShape.circle),
-            child: const Icon(LucideIcons.lock, size: 40, color: AppColors.grey200),
-          ),
-          const SizedBox(height: 24),
-          const Text('Private Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.grey900)),
-          const SizedBox(height: 8),
-          const Text(
-            'Detailed stats are hidden based on this player\'s privacy settings.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.grey500, fontSize: 14, height: 1.4),
-          ),
+          _InfoTile(icon: LucideIcons.mapPin, label: 'Home Club', value: stats?['homeCourse'] ?? 'None set', isFirst: true),
+          _divider(isDark),
+          _InfoTile(icon: LucideIcons.flag, label: 'Total Rounds', value: '${stats?['totalRounds'] ?? 0} played'),
+          _divider(isDark),
+          _InfoTile(icon: LucideIcons.trendingUp, label: 'Skill Level', value: profile['skillLevel'] ?? 'Amateur'),
+          _divider(isDark),
+          _InfoTile(icon: LucideIcons.footprints, label: 'Play Style', value: profile['playStyle'] ?? 'Mixed', isLast: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider(bool isDark) => Padding(
+    padding: const EdgeInsets.only(left: 56), 
+    child: Divider(height: 1, color: isDark ? AppColors.grey700 : AppColors.grey100.withValues(alpha: 0.5))
+  );
+
+  Widget _buildErrorState(BuildContext context, String title, String sub, {VoidCallback? onRetry}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(LucideIcons.alertCircle, size: 48, color: AppColors.doubleBogey),
+            const SizedBox(height: 16),
+            Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            Text(sub, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.grey500)),
+            if (onRetry != null) ...[
+              const SizedBox(height: 24),
+              CupertinoButton(
+                color: AppColors.golfLime,
+                onPressed: onRetry,
+                child: const Text('Try Again'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getIcon(String icon) {
+    switch (icon) {
+      case 'trophy': return LucideIcons.trophy;
+      case 'medal': return LucideIcons.medal;
+      case 'flame': return LucideIcons.flame;
+      default: return LucideIcons.award;
+    }
+  }
+}
+
+class _StatBox extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final Color textColor;
+  final bool hasBorder;
+  const _StatBox({required this.label, required this.value, required this.color, this.textColor = Colors.white, this.hasBorder = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color, 
+        borderRadius: BorderRadius.circular(20),
+        border: hasBorder ? Border.all(color: AppColors.grey200) : null,
+      ),
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: textColor, letterSpacing: -0.5)),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: textColor.withValues(alpha: 0.5), letterSpacing: 0.5)),
         ],
       ),
     );
   }
 }
 
-final publicProfileProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, uid) async {
-  final sync = ref.read(syncServiceProvider);
-  return sync.getPublicProfileData(uid);
+class _InfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isFirst;
+  final bool isLast;
+  const _InfoTile({required this.icon, required this.label, required this.value, this.isFirst = false, this.isLast = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppColors.grey400),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.grey500))),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+}
+
+final publicProfileProvider = StreamProvider.family<Map<String, dynamic>?, String>((ref, uid) {
+  return ref.read(friendServiceProvider).streamProfile(uid);
+});
+
+final publicProfileStatsProvider = StreamProvider.family<Map<String, dynamic>?, String>((ref, uid) {
+  return ref.read(friendServiceProvider).streamPlayerStats(uid);
 });

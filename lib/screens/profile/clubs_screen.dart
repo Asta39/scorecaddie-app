@@ -10,6 +10,7 @@ import 'package:drift/drift.dart' as drift;
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
+import '../../widgets/top_notification.dart';
 
 class ClubsScreen extends ConsumerWidget {
   const ClubsScreen({super.key});
@@ -19,10 +20,9 @@ class ClubsScreen extends ConsumerWidget {
     final clubsAsync = ref.watch(clubsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: AppColors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900),
           onPressed: () => context.pop(),
@@ -70,7 +70,7 @@ class ClubsScreen extends ConsumerWidget {
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.grey100)),
           child: ListTile(
-            onTap: () => _showClubDetails(context, club),
+            onTap: () => _showClubDetails(context, club, ref),
             contentPadding: const EdgeInsets.all(12),
             leading: Container(
               width: 60, height: 60,
@@ -102,13 +102,13 @@ class ClubsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _AddClubDialog(onAdd: (type, brand, model, loft, notes, photoPath) {
-        _addClub(ref, type, brand, model, loft, notes, photoPath);
+      builder: (context) => _AddClubDialog(onAdd: (type, brand, model, loft, distance, notes, photoPath) {
+        _addClub(ref, type, brand, model, loft, distance, notes, photoPath);
       }),
     );
   }
 
-  Future<void> _addClub(WidgetRef ref, String type, String brand, String model, double? loft, String? notes, String photoPath) async {
+  Future<void> _addClub(WidgetRef ref, String type, String brand, String model, double? loft, double? distance, String? notes, String photoPath) async {
     final db = ref.read(databaseProvider);
     final user = ref.read(authStateProvider).valueOrNull;
     if (user == null) return;
@@ -119,6 +119,7 @@ class ClubsScreen extends ConsumerWidget {
       brand: drift.Value(brand.isNotEmpty ? brand : null),
       model: drift.Value(model.isNotEmpty ? model : null),
       loft: drift.Value(loft),
+      averageDistance: drift.Value(distance),
       notes: drift.Value(notes?.isNotEmpty == true ? notes : null),
       photoUrl: drift.Value(photoPath),
     ));
@@ -127,7 +128,7 @@ class ClubsScreen extends ConsumerWidget {
     ref.read(achievementServiceProvider).checkAllAchievements(user.uid);
   }
 
-  void _showClubDetails(BuildContext context, Club club) {
+  void _showClubDetails(BuildContext context, Club club, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -197,6 +198,7 @@ class ClubsScreen extends ConsumerWidget {
                     _buildDetailRow('Brand', club.brand ?? '—'),
                     _buildDetailRow('Model', club.model ?? '—'),
                     _buildDetailRow('Loft', club.loft != null ? '${club.loft}°' : '—'),
+                    _buildDetailRow('Avg Distance', club.averageDistance != null ? '${club.averageDistance!.toInt()} ${ref.read(unitFormatterProvider).units}' : '—'),
                     if (club.notes != null && club.notes!.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       const Text('NOTES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1)),
@@ -246,7 +248,7 @@ class ClubsScreen extends ConsumerWidget {
 }
 
 class _AddClubDialog extends StatefulWidget {
-  final Function(String type, String brand, String model, double? loft, String? notes, String photoPath) onAdd;
+  final Function(String type, String brand, String model, double? loft, double? distance, String? notes, String photoPath) onAdd;
   const _AddClubDialog({required this.onAdd});
 
   @override
@@ -258,6 +260,7 @@ class _AddClubDialogState extends State<_AddClubDialog> {
   final _brandController = TextEditingController();
   final _modelController = TextEditingController();
   final _loftController = TextEditingController();
+  final _distanceController = TextEditingController();
   final _notesController = TextEditingController();
   File? _image;
   final _picker = ImagePicker();
@@ -286,13 +289,14 @@ class _AddClubDialogState extends State<_AddClubDialog> {
         _brandController.text,
         _modelController.text,
         double.tryParse(_loftController.text),
+        double.tryParse(_distanceController.text),
         _notesController.text,
         savedImage.path,
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving club: $e')));
+        TopNotification.showError(context, 'Error saving club: $e');
         setState(() => _isSaving = false);
       }
     }
@@ -342,7 +346,13 @@ class _AddClubDialogState extends State<_AddClubDialog> {
               ],
             ),
             const SizedBox(height: 12),
-            _buildDialogField(_modelController, 'Model'),
+            Row(
+              children: [
+                Expanded(child: _buildDialogField(_modelController, 'Model')),
+                const SizedBox(width: 8),
+                Expanded(child: _buildDialogField(_distanceController, 'Avg Distance', keyboardType: TextInputType.number)),
+              ],
+            ),
             const SizedBox(height: 12),
             _buildDialogField(_notesController, 'Notes/Serial #', maxLines: 3),
           ],

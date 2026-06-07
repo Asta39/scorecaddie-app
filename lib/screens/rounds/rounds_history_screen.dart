@@ -1,10 +1,13 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
+import '../../widgets/loading_spinner.dart';
 
 class RoundsHistoryScreen extends ConsumerWidget {
   const RoundsHistoryScreen({super.key});
@@ -14,33 +17,25 @@ class RoundsHistoryScreen extends ConsumerWidget {
     final roundsAsync = ref.watch(roundsProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F5F0), // Warm off-white
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
         elevation: 0,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Round History',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            color: AppColors.grey900,
-            fontSize: 20,
-          ),
-        ),
-        centerTitle: true,
+        title: const Text('Round History', style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w900, fontSize: 20)),
       ),
       body: roundsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.emerald700)),
+        loading: () => const LoadingSpinner(),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (rounds) {
           if (rounds.isEmpty) {
             return _buildEmptyState(context);
           }
           return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             itemCount: rounds.length,
             physics: const BouncingScrollPhysics(),
             itemBuilder: (context, index) => _HistoryRoundCard(round: rounds[index]),
@@ -57,11 +52,11 @@ class RoundsHistoryScreen extends ConsumerWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.grey100,
+            decoration: const BoxDecoration(
+              color: AppColors.white,
               shape: BoxShape.circle,
             ),
-            child: const Icon(LucideIcons.flag, size: 48, color: AppColors.grey400),
+            child: const Icon(LucideIcons.flag, size: 48, color: AppColors.grey200),
           ),
           const SizedBox(height: 24),
           const Text(
@@ -74,13 +69,12 @@ class RoundsHistoryScreen extends ConsumerWidget {
             style: TextStyle(color: AppColors.grey500, fontSize: 16),
           ),
           const SizedBox(height: 32),
-          ElevatedButton(
+          FilledButton(
             onPressed: () => context.push('/select-course'),
-            style: ElevatedButton.styleFrom(
+            style: FilledButton.styleFrom(
               backgroundColor: AppColors.emerald700,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
             child: const Text('Start First Round', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
@@ -103,34 +97,39 @@ class _HistoryRoundCard extends StatelessWidget {
         : AppColors.doubleBogey;
     final badgeText = scoreVsPar == 0 ? 'E' : scoreVsPar > 0 ? '+$scoreVsPar' : '$scoreVsPar';
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         onTap: () => context.push('/round/${round.id}'),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(24),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withValues(alpha: 0.03),
                 offset: const Offset(0, 4),
-                blurRadius: 12,
+                blurRadius: 10,
               ),
             ],
           ),
           child: Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: AppColors.emerald50,
-                  borderRadius: BorderRadius.circular(16),
+                  color: AppColors.grey50,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(LucideIcons.mapPin, color: AppColors.emerald700, size: 24),
+                child: Center(
+                  child: Text(
+                    badgeText,
+                    style: TextStyle(color: badgeColor, fontWeight: FontWeight.w900, fontSize: 16),
+                  ),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -138,24 +137,15 @@ class _HistoryRoundCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      round.courseName ?? 'Unknown Course',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 17,
-                        color: AppColors.grey900,
-                        letterSpacing: -0.5,
-                      ),
+                      round.courseName,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.grey900),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${round.holesPlayed} holes • ${_formatDate(round.playedAt)}',
-                      style: const TextStyle(
-                        color: AppColors.grey500,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      DateFormat('MMM d, yyyy').format(round.playedAt),
+                      style: const TextStyle(color: AppColors.grey400, fontSize: 13, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -163,42 +153,32 @@ class _HistoryRoundCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    '${round.totalScore}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 24,
-                      color: AppColors.grey900,
-                      letterSpacing: -1,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: badgeColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      badgeText,
-                      style: TextStyle(
-                        color: badgeColor,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 12,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (round.notes.isNotEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 6),
+                          child: Icon(LucideIcons.fileText, size: 14, color: AppColors.grey400),
+                        ),
+                      Text(
+                        '${round.totalScore}',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: AppColors.grey900),
                       ),
-                    ),
+                    ],
+                  ),
+                  Text(
+                    '${round.holesPlayed} Holes',
+                    style: const TextStyle(color: AppColors.grey400, fontSize: 11, fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
+              const SizedBox(width: 8),
+              const Icon(LucideIcons.chevronRight, size: 16, color: AppColors.grey300),
             ],
           ),
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }

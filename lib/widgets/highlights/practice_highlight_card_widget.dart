@@ -49,8 +49,8 @@ class PracticeHighlightCardWidget extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.golfLime.withOpacity(0.15),
-                    AppColors.golfLime.withOpacity(0),
+                    AppColors.golfLime.withValues(alpha: 0.15),
+                    AppColors.golfLime.withValues(alpha: 0),
                   ],
                 ),
               ),
@@ -131,9 +131,9 @@ class PracticeHighlightCardWidget extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(40),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.03),
+                    color: Colors.white.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(40),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                   ),
                   child: LineChart(
                     LineChartData(
@@ -192,8 +192,8 @@ class PracticeHighlightCardWidget extends StatelessWidget {
                             show: true,
                             gradient: LinearGradient(
                               colors: [
-                                AppColors.golfLime.withOpacity(0.3),
-                                AppColors.golfLime.withOpacity(0),
+                                AppColors.golfLime.withValues(alpha: 0.3),
+                                AppColors.golfLime.withValues(alpha: 0),
                               ],
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
@@ -243,7 +243,7 @@ class PracticeHighlightCardWidget extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(48),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.03),
+                    color: Colors.white.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(40),
                   ),
                   child: Row(
@@ -279,9 +279,9 @@ class PracticeHighlightCardWidget extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(48),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(48),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,7 +317,7 @@ class PracticeHighlightCardWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(32),
       ),
       child: Column(
@@ -336,7 +336,7 @@ class PracticeHighlightCardWidget extends StatelessWidget {
   String _calculateAvgDistance() {
     final validShots = shots.where((s) => s.distance != null).toList();
     if (validShots.isEmpty) return "—";
-    final avg = validShots.fold(0.0, (sum, s) => sum + s.distance!) / validShots.length;
+    final avg = validShots.fold(0.0, (sum, s) => sum + (s.distance ?? 0.0)) / validShots.length;
     return formatter.formatDistance(avg);
   }
 

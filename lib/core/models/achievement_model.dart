@@ -84,5 +84,12 @@ class Achievement {
     Achievement(id: 'caddie_helper', title: 'App Guru', description: 'Use ScoreCaddie for 30 consecutive days', icon: LucideIcons.smartphone, category: AchievementCategory.activity),
     Achievement(id: 'par_4_eagle', title: 'Driver Master', description: 'Make an eagle on a Par 4', icon: LucideIcons.wind, category: AchievementCategory.scoring, points: 300),
     Achievement(id: 'sub_30_putts', title: 'Putting God', description: 'Shoot a round with 25 or fewer putts', icon: LucideIcons.anchor, category: AchievementCategory.consistency, points: 200),
+    
+    // --- Streak Milestones ---
+    Achievement(id: 'streak_week_1', title: 'Ignition', description: 'Start your first weekly streak', icon: LucideIcons.flame, category: AchievementCategory.consistency, points: 10),
+    Achievement(id: 'streak_week_4', title: 'Monthly Regular', description: 'Maintain a 4-week round streak', icon: LucideIcons.calendar, category: AchievementCategory.consistency, points: 50),
+    Achievement(id: 'streak_week_12', title: 'Committed Golfer', description: 'Maintain a 12-week round streak', icon: LucideIcons.medal, category: AchievementCategory.consistency, points: 150),
+    Achievement(id: 'streak_week_26', title: 'Half Year Hustler', description: 'Maintain a 26-week round streak', icon: LucideIcons.trophy, category: AchievementCategory.consistency, points: 500),
+    Achievement(id: 'streak_week_52', title: 'Iron Man', description: 'The ultimate 52-week round streak', icon: LucideIcons.crown, category: AchievementCategory.consistency, points: 1000),
   ];
 }

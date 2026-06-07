@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 
@@ -35,7 +34,6 @@ class _LoadingTransitionScreenState extends ConsumerState<LoadingTransitionScree
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -43,17 +41,11 @@ class _LoadingTransitionScreenState extends ConsumerState<LoadingTransitionScree
             // Animated Golf Ball / Icon
             RotationTransition(
               turns: _animation,
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppColors.emerald700.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  LucideIcons.loader2,
-                  size: 48,
-                  color: AppColors.emerald700,
-                ),
+              child: Image.asset(
+                'assets/images/final-logo-01.png',
+                width: 80,
+                height: 80,
+                fit: BoxFit.contain,
               ),
             ),
             const SizedBox(height: 32),
@@ -75,7 +67,7 @@ class _LoadingTransitionScreenState extends ConsumerState<LoadingTransitionScree
             ),
             const SizedBox(height: 48),
             TextButton(
-              onPressed: () => ref.read(firebaseAuthServiceProvider).signOut(),
+              onPressed: () => ref.read(supabaseAuthServiceProvider).signOut(),
               child: const Text('Sign Out', style: TextStyle(color: AppColors.grey400, fontWeight: FontWeight.bold)),
             ),
           ],

@@ -7,43 +7,131 @@ import 'package:uuid/uuid.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
-import '../../core/cloud/sync_service.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../core/database/database.dart' as db_pkg;
 
 class PracticeRangeScreen extends ConsumerWidget {
   const PracticeRangeScreen({super.key});
 
-  Future<void> _startSession(BuildContext context, WidgetRef ref, String type, {int? drillId, int? targetDistance}) async {
-    final db = ref.read(databaseProvider);
-    final user = ref.read(authStateProvider).valueOrNull;
-    final syncService = ref.read(syncServiceProvider);
-    
-    if (user == null) return;
+  Future<void> _startSession(BuildContext context, WidgetRef ref, String type, {int? drillId, String? coachDrillId, int? targetDistance}) async {
+    _showLoggingChoice(context, ref, (isVoice) async {
+      final database = ref.read(databaseProvider);
+      final user = ref.read(authStateProvider).valueOrNull;
+      final syncService = ref.read(syncServiceProvider);
 
-    final firestoreId = const Uuid().v4();
-    
-    // 1. Local Insert
-    final sessionId = await db.into(db.practiceSessions).insert(
-      PracticeSessionsCompanion.insert(
-        userId: user.uid,
-        firestoreId: drift.Value(firestoreId),
-        startTime: drift.Value(DateTime.now()),
-        sessionType: drift.Value(type),
-        drillId: drift.Value(drillId),
-        targetDistance: drift.Value(targetDistance),
+      if (user == null) return;
+      final supabaseId = const Uuid().v4();
+
+      // 1. Local Insert
+      final sessionId = await database.into(database.practiceSessions).insert(
+        db_pkg.PracticeSessionsCompanion.insert(
+          userId: user.uid,
+          supabaseId: drift.Value(supabaseId),
+          startTime: drift.Value(DateTime.now()),
+          sessionType: drift.Value(type),
+          drillId: drift.Value(drillId),
+          coachDrillId: drift.Value(coachDrillId),
+          targetDistance: drift.Value(targetDistance),
+        ),
+      );
+
+      // 2. Instant Sync
+      final fullSession = await (database.select(database.practiceSessions)..where((s) => s.id.equals(sessionId))).get().then((list) => list.firstOrNull);
+      if (fullSession != null) {
+        syncService.syncPracticeSession(fullSession).catchError((e) => debugPrint('Sync error: $e'));
+      }
+
+      // 3. Navigate based on choice
+      if (context.mounted) {
+        context.push('/practice/session/$sessionId?isVoice=$isVoice');
+      }
+    });
+  }
+
+  void _showLoggingChoice(BuildContext context, WidgetRef ref, Function(bool isVoice) onSelected) {
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 40),
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(32),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: AppColors.golfLime.withValues(alpha: 0.1), shape: BoxShape.circle),
+                child: const Icon(LucideIcons.mic, color: AppColors.emerald700, size: 32),
+              ),
+              const SizedBox(height: 24),
+              const Text('Start Grinding', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.grey900, decoration: TextDecoration.none)),
+              const SizedBox(height: 12),
+              const Text(
+                'Choose your logging style.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: AppColors.grey500, fontWeight: FontWeight.w500, decoration: TextDecoration.none, height: 1.5),
+              ),
+              const SizedBox(height: 32),
+              _buildChoiceBtn(
+                label: 'Voice AI (Daniel)', 
+                sub: 'Premium, hands-free', 
+                icon: LucideIcons.sparkles, 
+                color: AppColors.emerald700,
+                onTap: () {
+                  Navigator.pop(context);
+                  onSelected(true);
+                }
+              ),
+              const SizedBox(height: 12),
+              _buildChoiceBtn(
+                label: 'Manual Entry', 
+                sub: 'Classic logging', 
+                icon: LucideIcons.edit3, 
+                color: AppColors.grey400,
+                onTap: () {
+                  Navigator.pop(context);
+                  onSelected(false);
+                }
+              ),
+            ],
+          ),
+        ),
       ),
     );
+  }
 
-    // 2. Instant Sync
-    final fullSession = await (db.select(db.practiceSessions)..where((s) => s.id.equals(sessionId))).get().then((list) => list.firstOrNull);
-    if (fullSession != null) {
-      syncService.syncPracticeSession(fullSession).catchError((e) => debugPrint('Sync error: $e'));
-    }
-
-    // 3. Navigate to active tracking
-    if (context.mounted) {
-      context.push('/practice/session/$sessionId');
-    }
+  Widget _buildChoiceBtn({required String label, required String sub, required IconData icon, required Color color, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.grey100),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.grey900, decoration: TextDecoration.none)),
+                  Text(sub, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.grey400, decoration: TextDecoration.none)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -52,20 +140,11 @@ class PracticeRangeScreen extends ConsumerWidget {
     final user = ref.watch(authStateProvider).valueOrNull;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7), // iOS System Background
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF2F2F7),
         elevation: 0,
         scrolledUnderElevation: 0,
         title: const Text('Practice', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 26, color: AppColors.grey900, letterSpacing: -0.5)),
         centerTitle: false,
-        actions: [
-          IconButton(
-            onPressed: () => context.push('/practice/analytics'),
-            icon: const Icon(LucideIcons.barChart2, color: AppColors.grey900),
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
@@ -92,17 +171,42 @@ class PracticeRangeScreen extends ConsumerWidget {
                       _buildModeCard(
                         context,
                         ref,
-                        'AI Analysis',
-                        'Pro swing tracking',
-                        LucideIcons.bot,
+                        'Performance',
+                        'Range insights',
+                        LucideIcons.barChart2,
                         AppColors.golfLime,
-                        () => context.push('/practice/ai-analysis'),
+                        () => context.push('/practice/analytics'),
                         isAccent: true,
                       ),
                     ],
                   ),
 
                   const SizedBox(height: 40),
+
+                  // Phase 3: Assigned Drills Section
+                  ref.watch(assignedDrillsProvider).when(
+                    data: (assigned) {
+                      if (assigned.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionHeader('ASSIGNED BY COACH', null),
+                          const SizedBox(height: 16),
+                          ...assigned.map((a) {
+                            final drill = a['drill'];
+                            final coachName = a['coach']['name'] ?? 'Your Coach';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildAssignedDrillCard(context, ref, drill, coachName),
+                            );
+                          }),
+                          const SizedBox(height: 28),
+                        ],
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, _) => const SizedBox.shrink(),
+                  ),
                   
                   // Popular Drills Title
                   _buildSectionHeader('POPULAR DRILLS', () {}),
@@ -221,6 +325,63 @@ class PracticeRangeScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAssignedDrillCard(BuildContext context, WidgetRef ref, Map<String, dynamic> drill, String coachName) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.emerald700,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(color: AppColors.emerald700.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(0, 10)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
+                child: const Icon(LucideIcons.award, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ASSIGNED BY ${coachName.toUpperCase()}', 
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)
+                    ),
+                    const SizedBox(height: 2),
+                    Text(drill['name'] ?? 'Assigned Drill', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.white, letterSpacing: -0.3)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              _buildDrillTag(LucideIcons.clock, '${drill['duration_minutes']}m', Colors.white.withValues(alpha: 0.7)),
+              const SizedBox(width: 16),
+              _buildDrillTag(LucideIcons.flame, (drill['difficulty'] as String? ?? 'MED').toUpperCase(), Colors.white.withValues(alpha: 0.7)),
+              const Spacer(),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                child: const Text('Start Now', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.emerald700)),
+                onPressed: () => _startSession(context, ref, 'COACH_DRILL', coachDrillId: drill['id']),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

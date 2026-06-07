@@ -22,5 +22,5 @@ void main() {
   img.drawLine(image, x1: 320, y1: 180, x2: 256, y2: 220, color: img.ColorRgb8(255, 255, 255));
 
   File('assets/images/app_icon.png').writeAsBytesSync(img.encodePng(image));
-  print('App icon generated at assets/images/app_icon.png');
+  stdout.writeln('App icon generated at assets/images/app_icon.png');
 }

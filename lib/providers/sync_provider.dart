@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'app_providers.dart';
 
 class SyncController extends StateNotifier<AsyncValue<void>> {
@@ -15,12 +16,12 @@ class SyncController extends StateNotifier<AsyncValue<void>> {
     ref.listen(authStateProvider, (previous, next) {
       final user = next.valueOrNull;
       if (user != null) {
-        print('SYNC: User authenticated, starting sync timer.');
+        debugPrint('SYNC: User authenticated, starting sync timer.');
         _startSyncTimer();
         // Initial immediate sync on login
         syncNow();
       } else {
-        print('SYNC: No user, stopping sync timer.');
+        debugPrint('SYNC: No user, stopping sync timer.');
         _stopSyncTimer();
       }
     });
@@ -28,7 +29,7 @@ class SyncController extends StateNotifier<AsyncValue<void>> {
     // If already logged in on init
     final user = ref.read(authStateProvider).valueOrNull;
     if (user != null) {
-      print('SYNC: Found existing user on init, starting sync.');
+      debugPrint('SYNC: Found existing user on init, starting sync.');
       _startSyncTimer();
       syncNow();
     }
@@ -36,7 +37,7 @@ class SyncController extends StateNotifier<AsyncValue<void>> {
 
   void _startSyncTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => syncNow());
+    _timer = Timer.periodic(const Duration(seconds: 60), (_) => syncNow());
   }
 
   void _stopSyncTimer() {
@@ -48,19 +49,19 @@ class SyncController extends StateNotifier<AsyncValue<void>> {
 
   Future<void> syncNow() async {
     if (_isSyncing) {
-      print('SYNC: Already syncing, skipping this tick.');
+      debugPrint('SYNC: Already syncing, skipping this tick.');
       return;
     }
     _isSyncing = true;
     final syncService = ref.read(syncServiceProvider);
     state = const AsyncValue.loading();
     try {
-      print('SYNC: Starting priority pull and push...');
+      debugPrint('SYNC: Starting priority pull and push...');
       await syncService.syncAllPending();
       state = const AsyncValue.data(null);
-      print('SYNC: Completed successfully.');
+      debugPrint('SYNC: Completed successfully.');
     } catch (e, st) {
-      print('SYNC ERROR: $e');
+      debugPrint('SYNC ERROR: $e');
       state = AsyncValue.error(e, st);
     } finally {
       _isSyncing = false;

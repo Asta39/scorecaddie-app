@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'dart:convert';
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/models/achievement_model.dart';
+import '../../widgets/achievement_dialog.dart';
 
 class AchievementsGalleryScreen extends ConsumerWidget {
   const AchievementsGalleryScreen({super.key});
@@ -14,10 +16,11 @@ class AchievementsGalleryScreen extends ConsumerWidget {
     final profileAsync = ref.watch(userProfileProvider);
     
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: AppColors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         title: const Text('Achievements', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: AppColors.grey900)),
         centerTitle: false,
       ),
@@ -26,7 +29,7 @@ class AchievementsGalleryScreen extends ConsumerWidget {
           final earnedIds = _parseBadges(profile?.badgesJson);
           return _buildContent(context, earnedIds);
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CupertinoActivityIndicator()),
         error: (e, s) => Center(child: Text('Error: $e')),
       ),
     );
@@ -48,48 +51,84 @@ class AchievementsGalleryScreen extends ConsumerWidget {
     final totalEarned = earnedIds.length;
     final totalBadges = Achievement.allAchievements.length;
 
+    // Calculate total points
+    int totalPoints = 0;
+    for (var a in Achievement.allAchievements) {
+      if (earnedIds.contains(a.id)) {
+        totalPoints += a.points;
+      }
+    }
+
     return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: _buildProgressCard(totalEarned, totalBadges),
+            child: _buildProgressCard(totalEarned, totalBadges, totalPoints),
           ),
         ),
-        ...categories.map((cat) => _buildCategorySection(cat, earnedIds)).toList(),
+        ...categories.map((cat) => _buildCategorySection(cat, earnedIds)),
+        const SliverPadding(padding: EdgeInsets.only(bottom: 120)),
       ],
     );
   }
 
-  Widget _buildProgressCard(int earned, int total) {
+  Widget _buildProgressCard(int earned, int total, int points) {
     final percent = total > 0 ? (earned / total) : 0.0;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [AppColors.emerald700, AppColors.emerald900]),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: AppColors.emerald700.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6))],
+        color: AppColors.golfLime,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Total Progress', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+          const Text('TOTAL PROGRESS', style: TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
           const SizedBox(height: 12),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('$earned', style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900)),
-              Text(' / $total', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 18, fontWeight: FontWeight.w700)),
+              Text('$earned', style: const TextStyle(color: Colors.black, fontSize: 40, fontWeight: FontWeight.w900, letterSpacing: -1)),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6, left: 4),
+                child: Text('/ $total', style: TextStyle(color: Colors.black.withValues(alpha: 0.5), fontSize: 18, fontWeight: FontWeight.w800)),
+              ),
+              const Spacer(),
+              Text('${(percent * 100).toInt()}%', style: const TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w900)),
             ],
           ),
           const SizedBox(height: 16),
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             child: LinearProgressIndicator(
               value: percent,
-              backgroundColor: Colors.white.withValues(alpha: 0.2),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-              minHeight: 8,
+              backgroundColor: Colors.black.withValues(alpha: 0.08),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
+              minHeight: 10,
             ),
+          ),
+          const SizedBox(height: 24),
+          const Divider(color: Colors.black12, height: 1),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.05), shape: BoxShape.circle),
+                child: const Icon(LucideIcons.sparkles, color: Colors.black, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('REWARDS COLLECTED', style: TextStyle(color: Colors.black54, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                  Text('$points PTS', style: const TextStyle(color: Colors.black, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -111,7 +150,7 @@ class AchievementsGalleryScreen extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Text(
                   category.name.toUpperCase(),
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.grey500, letterSpacing: 1),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2),
                 ),
               ],
             ),
@@ -121,9 +160,9 @@ class AchievementsGalleryScreen extends ConsumerWidget {
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              childAspectRatio: 0.8,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              childAspectRatio: 0.85,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
             ),
             itemCount: catAchievements.length,
             itemBuilder: (context, i) {
@@ -143,24 +182,27 @@ class AchievementsGalleryScreen extends ConsumerWidget {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: isEarned ? AppColors.grey50 : AppColors.grey50.withValues(alpha: 0.5),
+              color: isEarned ? Colors.white : Colors.white.withValues(alpha: 0.4),
               shape: BoxShape.circle,
+              boxShadow: isEarned ? [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))] : null,
             ),
             child: Icon(
               a.icon,
-              size: 28,
-              color: isEarned ? AppColors.emerald700 : AppColors.grey300,
+              size: 26,
+              color: isEarned ? AppColors.emerald700 : AppColors.grey200,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             a.title,
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               color: isEarned ? AppColors.grey900 : AppColors.grey300,
             ),
           ),
@@ -170,32 +212,7 @@ class AchievementsGalleryScreen extends ConsumerWidget {
   }
 
   void _showBadgeDetail(BuildContext context, Achievement a, bool isEarned) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(a.icon, size: 64, color: isEarned ? AppColors.emerald700 : AppColors.grey200),
-            const SizedBox(height: 24),
-            Text(a.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 12),
-            Text(
-              a.description,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, color: AppColors.grey500),
-            ),
-            const SizedBox(height: 32),
-            if (!isEarned)
-              const Text('Locked Milestone', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.grey400)),
-            if (isEarned)
-              Text('Earned +${a.points} pts', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.emerald700)),
-          ],
-        ),
-      ),
-    );
+    AchievementDialog.show(context, a, isEarned: isEarned);
   }
 
   Widget _getCategoryIcon(AchievementCategory cat) {

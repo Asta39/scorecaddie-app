@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'terms_screen.dart';
+import 'privacy_screen.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
+import '../../widgets/top_notification.dart';
 
 /// Redesigned Auth screen with iOS-inspired onboarding and auth.
 class AuthScreen extends ConsumerStatefulWidget {
@@ -24,6 +26,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _useEmail = false;
   bool _isRegistering = false;
   bool _obscurePassword = true;
+  bool _agreedToTerms = false;
 
   @override
   void dispose() {
@@ -36,7 +39,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     try {
-      final authService = ref.read(firebaseAuthServiceProvider);
+      final authService = ref.read(supabaseAuthServiceProvider);
       await authService.signInWithGoogle();
     } catch (e) {
       _showError(e.toString());
@@ -46,24 +49,49 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   Future<void> _handleEmailAuth() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    if (email.isEmpty || password.isEmpty) {
       _showError('Please fill in all fields.');
       return;
     }
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      _showError('Please enter a valid email address.');
+      return;
+    }
+    if (_isRegistering && password.length < 6) {
+      _showError('Password must be at least 6 characters.');
+      return;
+    }
+    if (_isLoading) return; // Prevent double-tap
 
     setState(() => _isLoading = true);
     try {
-      final authService = ref.read(firebaseAuthServiceProvider);
+      final authService = ref.read(supabaseAuthServiceProvider);
       if (_isRegistering) {
-        await authService.registerWithEmail(
+        final user = await authService.registerWithEmail(
           _emailController.text.trim(),
           _passwordController.text.trim(),
         );
+        // Supabase requires email confirmation by default.
+        // If signup succeeded but there's no active session, tell the user.
+        if (user != null && authService.currentUser?.emailConfirmedAt == null) {
+          if (mounted) {
+            TopNotification.showSuccess(context, 'Account created! Check your email to confirm before signing in.');
+            // Switch to sign-in view so user can sign in after confirming email
+            setState(() => _isRegistering = false);
+          }
+          return;
+        }
+        // If no email confirmation required, the authStateProvider change
+        // will trigger the router redirect automatically
       } else {
         await authService.signInWithEmail(
           _emailController.text.trim(),
           _passwordController.text.trim(),
         );
+        // The authStateProvider change will trigger the redirect automatically
       }
     } catch (e) {
       _showError(e.toString());
@@ -74,14 +102,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.doubleBogey,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
+    TopNotification.showError(context, message);
   }
 
   @override
@@ -91,7 +112,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: AppColors.white,
+        backgroundColor: const Color(0xFFF2F2F7),
         body: Stack(
           children: [
             // Background Decorative Element
@@ -142,7 +163,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             child: const Text(
                               'Skip',
                               style: TextStyle(
-                                color: AppColors.grey400,
+                                color: AppColors.grey600,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 16,
                               ),
@@ -180,19 +201,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             onPageChanged: (index) => setState(() => _currentPage = index),
             children: [
               _buildOnboardingSlide(
-                imagePath: 'assets/images/onboarding_golfer.png',
+                imagePath: 'assets/images/onboarding_page_1.jpeg',
                 title: 'Professional Grade\nScoring',
                 description: 'Log every stroke, putt, and penalty with effortless hole-by-hole tracking tailored for your game.',
                 color: AppColors.emerald700,
               ),
               _buildOnboardingSlide(
-                imagePath: 'assets/images/onboarding_bag.png',
+                imagePath: 'assets/images/onboarding_page_2.jpeg',
                 title: 'Your Digital\nCaddie',
                 description: 'Track your clubs, manage your equipment, and get the insights you need to improve your handicap.',
                 color: AppColors.blue700,
               ),
               _buildOnboardingSlide(
-                imagePath: 'assets/images/onboarding_ball.png',
+                imagePath: 'assets/images/onboarding_page_3.jpeg',
                 title: 'Data-Driven\nPerformance',
                 description: 'Visualize your progress with advanced analytics and securely sync your data to the cloud.',
                 color: AppColors.purple700,
@@ -220,17 +241,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             flex: 5,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset(
+                  imagePath,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 200,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Image.asset('assets/images/final-logo-01.png', height: 80, fit: BoxFit.contain),
                   ),
-                  child: Icon(LucideIcons.flag, size: 80, color: color),
                 ),
               ),
             ),
@@ -280,8 +304,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             onTap: () {
               if (_currentPage < 2) {
                 _pageController.nextPage(
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.elasticOut,
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeInOut,
                 );
               } else {
                 setState(() => _currentPage = 3);
@@ -329,6 +353,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Center(
+            child: Image.asset(
+              'assets/images/final-logo-01.png',
+              height: 100,
+              fit: BoxFit.contain,
+            ),
+          ),
           const SizedBox(height: 20),
           Text(
             _isRegistering ? 'Create Account' : 'Welcome Back',
@@ -374,20 +405,58 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: AppColors.emerald700,
-                      borderRadius: BorderRadius.circular(6),
+                  GestureDetector(
+                    onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: _agreedToTerms ? AppColors.emerald700 : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _agreedToTerms ? AppColors.emerald700 : AppColors.grey300,
+                          width: 2,
+                        ),
+                      ),
+                      child: _agreedToTerms 
+                        ? const Icon(LucideIcons.check, color: Colors.white, size: 14)
+                        : null,
                     ),
-                    child: const Icon(LucideIcons.check, color: Colors.white, size: 14),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'I agree to the Terms and Privacy Policy',
-                      style: TextStyle(color: AppColors.grey500, fontSize: 13, fontWeight: FontWeight.w600),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: const TextStyle(color: AppColors.grey500, fontSize: 13, fontWeight: FontWeight.w600),
+                        children: [
+                          const TextSpan(text: 'I agree to the '),
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: GestureDetector(
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(builder: (context) => const TermsScreen()),
+                              ),
+                              child: const Text(
+                                'Terms',
+                                style: TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ),
+                          const TextSpan(text: ' and '),
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: GestureDetector(
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(builder: (context) => const PrivacyScreen()),
+                              ),
+                              child: const Text(
+                                'Privacy Policy',
+                                style: TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -396,7 +465,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             
             const SizedBox(height: 40),
             _buildPrimaryButton(
-              onPressed: _isLoading ? null : _handleEmailAuth,
+              onPressed: (_isLoading || (_isRegistering && !_agreedToTerms)) ? null : _handleEmailAuth,
               label: _isRegistering ? 'Create Account' : 'Sign In',
             ),
           ] else ...[
@@ -516,21 +585,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       height: 64,
       child: FilledButton(
         onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.grey900,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          elevation: 0,
-        ),
         child: _isLoading 
           ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
           : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 20),
+                  Icon(icon, size: 20, color: AppColors.white),
                   const SizedBox(width: 12),
                 ],
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                Text(label, style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.w800, fontSize: 16)),
               ],
             ),
       ),
@@ -548,15 +612,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.grey100, width: 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          foregroundColor: AppColors.grey900,
+          side: const BorderSide(color: AppColors.grey200, width: 1.5),
+          backgroundColor: AppColors.white,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 20, color: AppColors.grey900),
+            Icon(icon, size: 20),
             const SizedBox(width: 12),
-            Text(label, style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w800, fontSize: 16)),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
           ],
         ),
       ),

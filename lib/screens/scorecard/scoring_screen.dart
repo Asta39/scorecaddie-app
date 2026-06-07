@@ -1,26 +1,31 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:uuid/uuid.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/theme/glass_card.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
-import '../../core/cloud/sync_service.dart';
+import '../../core/utils/whs_engine.dart';
+import '../../core/models/achievement_model.dart';
+import '../../widgets/achievement_dialog.dart';
+import '../../widgets/top_notification.dart';
 
 class ScoringScreen extends ConsumerStatefulWidget {
   final int courseId;
   final int holesPlayed;
-  final String tee;
+  final int? teeId;
+  final int courseHandicap;
 
   const ScoringScreen({
     super.key,
     required this.courseId,
     required this.holesPlayed,
-    required this.tee,
+    this.teeId,
+    required this.courseHandicap,
   });
 
   @override
@@ -33,14 +38,15 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
   
   // State for the round
   Course? _course;
-  List<int> _holePars = [];
+  List<CourseHole> _masterHoles = [];
   List<int> _holeScores = [];
-  List<int> _holeYardages = [];
   
   // Advanced Stats
   List<int?> _holePutts = [];
   List<String?> _holeFairways = [];
   List<int?> _holePenalties = [];
+  List<bool> _holeGIRs = [];
+
   
   bool _isLoading = true;
   bool _isSaving = false;
@@ -55,38 +61,39 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
   Future<void> _loadCourseData() async {
     final db = ref.read(databaseProvider);
     final course = await db.getCourse(widget.courseId);
+    final holes = await db.getHolesForCourse(widget.courseId, teeId: widget.teeId);
     
-    // Parse hole pars if they exist, otherwise default to par 4
-    List<int> pars = [];
-    try {
-      final List<dynamic> parsed = jsonDecode(course.holePars);
-      pars = parsed.map((e) => e as int).toList();
-    } catch (_) {}
-
-    // Fill defaults if data is missing
-    if (pars.length < 18) {
-      pars = List.filled(18, 4);
-    }
-    
-    // Handle Front 9 vs Back 9
-    List<int> activePars = [];
+    // Handle Front 9 vs Back 9 vs 18
+    List<CourseHole> activeHoles = [];
     if (widget.holesPlayed == 9) {
-      activePars = pars.sublist(0, 9);
+      activeHoles = holes.where((h) => h.holeNumber <= 9).toList();
     } else if (widget.holesPlayed == -9) {
-      activePars = pars.sublist(9, 18);
+      activeHoles = holes.where((h) => h.holeNumber > 9).toList();
     } else {
-      activePars = pars; 
+      activeHoles = holes; 
+    }
+
+    // Fallback if no holes in DB
+    if (activeHoles.isEmpty) {
+       int startNum = widget.holesPlayed == -9 ? 10 : 1;
+       activeHoles = List.generate(widget.holesPlayed.abs(), (i) => CourseHole(
+         id: i, 
+         courseId: widget.courseId, 
+         holeNumber: startNum + i, 
+         par: 4,
+         handicapIndex: i + 1
+       ));
     }
 
     setState(() {
       _course = course;
-      _holePars = activePars;
-      // Default starting score for each hole is its par
-      _holeScores = List.from(activePars);
-      _holeYardages = List.filled(activePars.length, 0);
-      _holePutts = List.filled(activePars.length, null);
-      _holeFairways = List.filled(activePars.length, null);
-      _holePenalties = List.filled(activePars.length, null);
+      _masterHoles = activeHoles;
+      _holeScores = List.filled(activeHoles.length, 0); // Initialize with 0 for unplayed
+      _holePutts = List.filled(activeHoles.length, null);
+      _holeFairways = List.filled(activeHoles.length, null);
+      _holePenalties = List.filled(activeHoles.length, null);
+      _holeGIRs = List.filled(activeHoles.length, false);
+
       _isLoading = false;
     });
   }
@@ -97,516 +104,576 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
     super.dispose();
   }
 
-  Future<void> _finishRound() async {
+  int _calculateESCCap(int holeIndex) {
+    final hole = _masterHoles[holeIndex];
+    return WHSEngine.calculateESCCap(
+      hole.par, 
+      widget.courseHandicap, 
+      hole.handicapIndex ?? (holeIndex + 1)
+    );
+  }
+
+  Future<void> _finishRound({bool useForAnalytics = true}) async {
     if (_isSaving) return;
     setState(() => _isSaving = true);
 
     try {
       final db = ref.read(databaseProvider);
-      
-      // Calculate totals
-      int totalScore = _holeScores.reduce((a, b) => a + b);
-      int coursePar = _holePars.reduce((a, b) => a + b);
-      int scoreVsPar = totalScore - coursePar;
-      
-      int? front9Score;
-      int? back9Score;
-      
-      if (widget.holesPlayed == 18) {
-        front9Score = _holeScores.sublist(0, 9).reduce((a, b) => a + b);
-        back9Score = _holeScores.sublist(9, 18).reduce((a, b) => a + b);
-      } else if (widget.holesPlayed == 9) {
-        front9Score = totalScore;
-      } else {
-        back9Score = totalScore;
+      final user = ref.read(authStateProvider).valueOrNull;
+
+      // 1. Calculate ESC Adjusted Gross Score
+      int adjustedGross = 0;
+      for (int i = 0; i < _holeScores.length; i++) {
+        final cap = _calculateESCCap(i);
+        adjustedGross += _holeScores[i] > cap ? cap : _holeScores[i];
       }
 
-      // Generate Firestore ID for Instant Sync
-      final firestoreId = const Uuid().v4();
+      // 2. Fetch Tee Ratings for Differential
+      double cRating = 72.0;
+      int sRating = 113;
+      double? specificCR;
+      int? specificSlope;
 
-      // Insert Round
+      if (widget.teeId != null) {
+        final tees = await db.getTeesForCourse(widget.courseId);
+        final matches = tees.where((t) => t.id == widget.teeId);
+        
+        if (matches.isNotEmpty) {
+          final selectedTee = matches.first;
+          cRating = selectedTee.courseRating;
+          sRating = selectedTee.slopeRating;
+          
+          final isFront9 = widget.holesPlayed == 9;
+          specificCR = isFront9 ? selectedTee.courseRatingFront : selectedTee.courseRatingBack;
+          specificSlope = isFront9 ? selectedTee.slopeRatingFront : selectedTee.slopeRatingBack;
+        }
+      }
+
+      // FIX: Calculate coursePar from the ACTUAL holes played, not the tee's 18-hole par.
+      // This fixes the "-37 To Par" bug for 9-hole rounds.
+      final int actualCoursePar = _masterHoles.map((h) => h.par).reduce((a, b) => a + b);
+
+      // 3. Calculate Differential
+      final handicapStatus = ref.read(handicapProvider).valueOrNull;
+      final playerHI = handicapStatus?.currentIndex ?? 36.0;
+
+      double differential;
+      if (widget.holesPlayed.abs() == 9) {
+        // WHS 2024: Use specific 9-hole ratings if available, otherwise fallback to half of 18-hole
+        final nineHoleCR = specificCR ?? (cRating / 2);
+        final nineHoleSlope = specificSlope ?? sRating;
+        
+        differential = WHSEngine.calculate9HoleTotalDifferential(
+          nineHoleAdjustedGrossScore: adjustedGross,
+          nineHoleCourseRating: nineHoleCR,
+          nineHoleSlopeRating: nineHoleSlope,
+          playerHandicapIndex: playerHI,
+        );
+      } else {
+        differential = WHSEngine.calculateScoreDifferential(
+          adjustedGrossScore: adjustedGross, 
+          courseRating: cRating, 
+          slopeRating: sRating
+        );
+      }
+
+      final int playedHolesCount = useForAnalytics ? _holeScores.length : _currentHoleIndex + 1;
+      final totalScore = _holeScores.take(playedHolesCount).reduce((a, b) => a + b);
+      final supabaseId = const Uuid().v4();
+
+
+      // FIX: Calculate front9/back9 scores for ALL round types (not just 9-hole)
+      int? front9 = widget.holesPlayed == 9 ? totalScore : null;
+      int? back9 = widget.holesPlayed == -9 ? totalScore : null;
+      if (widget.holesPlayed.abs() == 18) {
+        front9 = 0;
+        back9 = 0;
+        for (int i = 0; i < _holeScores.length; i++) {
+          if (_masterHoles[i].holeNumber <= 9) {
+            front9 = front9! + _holeScores[i];
+          } else {
+            back9 = back9! + _holeScores[i];
+          }
+        }
+      }
+
+      // Capture current HI as handicapBefore for WHS tracking
+      final double? handicapBefore = handicapStatus?.currentIndex;
+
+      // 4. Save Round
       final roundId = await db.into(db.rounds).insert(
         RoundsCompanion.insert(
-          firestoreId: drift.Value(firestoreId),
+          supabaseId: drift.Value(supabaseId),
           courseId: widget.courseId,
+          useForAnalytics: drift.Value(useForAnalytics),
+          teeId: drift.Value(widget.teeId),
           courseName: drift.Value(_course?.name ?? 'Unknown'),
-          holesPlayed: drift.Value(widget.holesPlayed.abs()),
-          tee: drift.Value(widget.tee),
+          holesPlayed: drift.Value(useForAnalytics ? widget.holesPlayed.abs() : _currentHoleIndex + 1),
           totalScore: totalScore,
-          coursePar: coursePar,
-          scoreVsPar: scoreVsPar,
-          front9Score: drift.Value(front9Score),
-          back9Score: drift.Value(back9Score),
+          totalNet: drift.Value(totalScore - widget.courseHandicap),
+          adjustedGrossScore: drift.Value(adjustedGross),
+          coursePar: actualCoursePar,
+          scoreVsPar: totalScore - actualCoursePar,
+          scoreDifferential: drift.Value(differential),
+          handicapBefore: drift.Value(handicapBefore),
+          front9Score: drift.Value(front9),
+          back9Score: drift.Value(back9),
           playedAt: drift.Value(DateTime.now()),
-          userId: drift.Value(ref.read(authStateProvider).valueOrNull?.uid),
+          userId: drift.Value(user?.uid),
         ),
       );
 
-      // (Hole scores insertion logic remains the same, just set the roundId)
+      // 5. Save Hole Scores
       final List<HoleScoresCompanion> holeCompanions = [];
-      int startingHole = widget.holesPlayed == -9 ? 10 : 1;
       
       for (int i = 0; i < _holeScores.length; i++) {
-        holeCompanions.add(
-          HoleScoresCompanion.insert(
-            roundId: roundId,
-            holeNumber: startingHole + i,
-            par: _holePars[i],
-            score: _holeScores[i],
-            yardage: drift.Value(_holeYardages[i] == 0 ? null : _holeYardages[i]),
-            putts: drift.Value(_holePutts[i]),
-            fairwayHit: drift.Value(_holeFairways[i]),
-            penalties: drift.Value(_holePenalties[i]),
-          )
-        );
+        final isPlayed = i < playedHolesCount;
+        holeCompanions.add(HoleScoresCompanion.insert(
+          roundId: roundId,
+          holeNumber: _masterHoles[i].holeNumber,
+          par: _masterHoles[i].par,
+          score: isPlayed ? _holeScores[i] : 0, // Zero out unplayed holes
+          putts: drift.Value(_holePutts[i]),
+          fairwayHit: drift.Value(_holeFairways[i]),
+          penalties: drift.Value(_holePenalties[i]),
+          gir: drift.Value(_holeGIRs[i]),
+        ));
       }
-      
       await db.insertHoleScores(holeCompanions);
-      
-      // Force refresh of the providers to show the new data on dashboard
+
+
+      // 6. Refresh UI & Sync
       ref.invalidate(roundsProvider);
-      ref.invalidate(recentRoundsProvider);
-      ref.invalidate(totalRoundsProvider);
-      ref.invalidate(averageScoreProvider);
-      ref.invalidate(bestScoreProvider);
       
-      // Update Master Course Pars if they changed
-      if (_course != null) {
-        try {
-          List<int> masterPars = [];
-          try {
-            final List<dynamic> parsed = jsonDecode(_course!.holePars);
-            masterPars = parsed.map((e) => e as int).toList();
-          } catch (_) {
-            masterPars = List.filled(18, 4);
-          }
-
-          bool changed = false;
-          int offset = widget.holesPlayed == -9 ? 9 : 0;
-          for (int i = 0; i < _holePars.length; i++) {
-            if (masterPars[offset + i] != _holePars[i]) {
-              masterPars[offset + i] = _holePars[i];
-              changed = true;
-            }
-          }
-
-          if (changed) {
-            final updatedCourse = _course!.copyWith(
-              holePars: jsonEncode(masterPars),
-              par18: drift.Value(masterPars.reduce((a, b) => a + b)),
-              isUserEdited: true,
-            );
-            await db.updateCourse(updatedCourse);
-            
-            // Sync updated course to cloud
-            try {
-              await ref.read(syncServiceProvider).syncCourse(updatedCourse);
-            } catch (e) {
-              debugPrint('Error syncing updated course: $e');
-            }
-          }
-        } catch (e) {
-          debugPrint('Error updating master course pars: $e');
-        }
+      // Check achievements and show dialogs
+      List<Achievement> newlyEarned = [];
+      if (user != null) {
+        newlyEarned = await ref.read(achievementServiceProvider).checkAllAchievements(user.id);
       }
 
-      // Round sync is now handled by insertRoundWithSync helper
-      // debugPrint('Successfully initiated instant sync for round $roundId');
-      
-      // Trigger cloud sync (fire-and-forget)
+      // Sync in background
       Future.microtask(() async {
-        try {
-          final savedRound = await db.getRound(roundId);
-          final savedHoles = await db.getHoleScoresForRound(roundId);
-          await ref.read(syncServiceProvider).syncRound(savedRound, savedHoles);
-          debugPrint('Successfully synced round to Firebase');
-          
-          // Trigger Achievement Check
-          final uid = ref.read(authStateProvider).valueOrNull?.uid;
-          if (uid != null) {
-            await ref.read(achievementServiceProvider).checkAllAchievements(uid);
-          }
-        } catch (e) {
-          debugPrint('Error syncing round or checking achievements: $e');
-        }
+        final savedRound = await db.getRound(roundId);
+        final savedHoles = await db.getHoleScoresForRound(roundId);
+        await ref.read(syncServiceProvider).syncRound(savedRound, savedHoles);
       });
 
       if (!mounted) return;
-      context.go('/');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Round saved successfully!'), backgroundColor: AppColors.emerald700),
-      );
+
+      // Show achievement dialogs sequentially
+      for (var achievement in newlyEarned) {
+        if (mounted) {
+          await AchievementDialog.show(context, achievement);
+        }
+      }
+
+      // Prompt for round notes
+      if (mounted) {
+        final notes = await _showNotesPrompt();
+        if (notes != null && notes.isNotEmpty) {
+          await (db.update(db.rounds)..where((r) => r.id.equals(roundId))).write(
+            RoundsCompanion(notes: drift.Value(notes)),
+          );
+        }
+      }
+
+      if (mounted) {
+        context.go('/');
+        TopNotification.showSuccess(context, 'Round saved! WHS Differential calculated.');
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving round: $e'), backgroundColor: AppColors.doubleBogey),
-        );
+        TopNotification.showError(context, 'Error: $e');
       }
     }
-  }
-
-  void _updateScore(int delta) {
-    setState(() {
-      int newScore = _holeScores[_currentHoleIndex] + delta;
-      if (newScore >= 1) { // Minimum score is a hole in one
-        _holeScores[_currentHoleIndex] = newScore;
-      }
-    });
-  }
-
-  // To allow users to edit par if it was missing/wrong
-  void _updatePar(int delta) {
-    setState(() {
-      int newPar = _holePars[_currentHoleIndex] + delta;
-      if (newPar >= 3 && newPar <= 6) { // restrict par from 3 to 6
-        _holePars[_currentHoleIndex] = newPar;
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: AppColors.grey50,
-        body: Center(child: CircularProgressIndicator(color: AppColors.emerald700)),
+    if (_isLoading) return const Scaffold(body: Center(child: CupertinoActivityIndicator()));
+
+    int currentTotal = _holeScores.take(_currentHoleIndex + 1).reduce((a, b) => a + b);
+    int parSoFar = _masterHoles.take(_currentHoleIndex + 1).map((h) => h.par).reduce((a, b) => a + b);
+    int toPar = currentTotal - parSoFar;
+    String toParText = toPar == 0 ? 'E' : (toPar > 0 ? '+$toPar' : '$toPar');
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(icon: Icon(LucideIcons.x, color: isDark ? Colors.white : AppColors.grey900), onPressed: _showQuitDialog),
+            title: Column(
+              children: [
+                Text(_course?.name ?? 'Course', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: isDark ? Colors.white : AppColors.grey900)),
+                Text('Score: $toParText • CH: ${widget.courseHandicap}', style: const TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.w700, fontSize: 11)),
+              ],
+            ),
+            centerTitle: true,
+            actions: [
+              TextButton(
+                onPressed: _showFinishEarlyDialog,
+                child: const Text(
+                  'FINISH',
+                  style: TextStyle(
+                    color: AppColors.emerald700,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          body: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _buildHoleProgressDots(),
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (idx) => setState(() => _currentHoleIndex = idx),
+                    itemCount: _holeScores.length,
+                    itemBuilder: (context, index) => _buildHoleView(index),
+                  ),
+                ),
+                _buildBottomActionBar(),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
-    // Calc current match status
-    int currentTotal = _holeScores.take(_currentHoleIndex + 1).reduce((a, b) => a + b);
-    int parSoFar = _holePars.take(_currentHoleIndex + 1).reduce((a, b) => a + b);
-    int currentToPar = currentTotal - parSoFar;
-    String toParText = currentToPar == 0 ? 'E' : currentToPar > 0 ? '+$currentToPar' : currentToPar.toString();
-
-    return Scaffold(
-      backgroundColor: AppColors.grey50,
-      appBar: AppBar(
-        backgroundColor: AppColors.grey50,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.x, color: AppColors.grey900),
-          onPressed: () => _showQuitDialog(),
-        ),
-        title: Column(
-          children: [
-            Text(
-              _course?.name ?? 'Course',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.grey900,
-                  ),
-            ),
-            Text(
-              '${widget.tee} Tee • Score: $toParText',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.emerald700,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ],
-        ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Hole Navigation Dots
-            Container(
-              height: 60,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _holeScores.length,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemBuilder: (context, index) {
-                  final isActive = index == _currentHoleIndex;
-                  final isCompleted = index < _currentHoleIndex; // Roughly speaking
-                  final actualHole = (widget.holesPlayed == -9 ? 10 : 1) + index;
-                  
-                  return GestureDetector(
-                    onTap: () {
-                      _pageController.animateToPage(
-                        index,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 6),
-                      width: isActive ? 40 : 36,
-                      height: isActive ? 40 : 36,
-                      decoration: BoxDecoration(
-                        color: isActive 
-                            ? AppColors.grey900 
-                            : (isCompleted ? AppColors.emerald100 : AppColors.white),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isActive ? AppColors.grey900 : AppColors.grey300,
-                          width: isActive ? 2 : 1,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '$actualHole',
-                        style: TextStyle(
-                          color: isActive 
-                              ? AppColors.white 
-                              : (isCompleted ? AppColors.emerald700 : AppColors.grey500),
-                          fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                          fontSize: isActive ? 16 : 14,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+  Widget _buildHoleProgressDots() {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _holeScores.length,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemBuilder: (context, i) {
+          final isActive = i == _currentHoleIndex;
+          return GestureDetector(
+            onTap: () => _pageController.animateToPage(i, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: 32,
+              decoration: BoxDecoration(
+                color: isActive ? AppColors.grey900 : Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: isActive ? AppColors.grey900 : AppColors.grey200),
               ),
+              alignment: Alignment.center,
+              child: Text('${_masterHoles[i].holeNumber}', style: TextStyle(color: isActive ? Colors.white : AppColors.grey400, fontWeight: FontWeight.w800, fontSize: 12)),
             ),
-            
-            // Main Scoring Area wrapper
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                physics: const BouncingScrollPhysics(),
-                onPageChanged: (idx) => setState(() => _currentHoleIndex = idx),
-                itemCount: _holeScores.length,
-                itemBuilder: (context, index) {
-                  // We rebuild variables for the page being rendered
-                  final pScore = _holeScores[index];
-                  final pPar = _holePars[index];
-                  final pHoleNum = (widget.holesPlayed == -9 ? 10 : 1) + index;
-                  
-                  return _buildHoleView(pHoleNum, pPar, pScore);
-                },
-              ),
-            ),
-            
-            // Bottom Action Bar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-              child: SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: FilledButton(
-                  onPressed: _isSaving ? null : () {
-                    if (_currentHoleIndex < _holeScores.length - 1) {
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 400),
-                        curve: Curves.easeInOut,
-                      );
-                    } else {
-                      _finishRound();
-                    }
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _currentHoleIndex < _holeScores.length - 1 
-                        ? AppColors.grey900 
-                        : AppColors.emerald700,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  child: _isSaving 
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
-                      : Text(
-                          _currentHoleIndex < _holeScores.length - 1 ? 'Next Hole' : 'Finish Round',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                        ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildHoleView(int holeNum, int par, int score) {
-    // Coloring logic for UI flair
+  Widget _buildHoleView(int index) {
+    final hole = _masterHoles[index];
+    final score = _holeScores[index];
+    final cap = _calculateESCCap(index);
+
     Color scoreColor = AppColors.grey900;
-    if (score < par) scoreColor = AppColors.birdie; // Birdie or better
-    if (score > par && score <= par + 2) scoreColor = AppColors.bogey; // Bogey / Double
-    if (score > par + 2) scoreColor = AppColors.doubleBogey; // 3+ over
-    
+    if (score < hole.par) {
+      scoreColor = AppColors.emerald500;
+    } else if (score > hole.par) {
+      scoreColor = AppColors.grey400;
+    }
+    if (score >= hole.par + 2) {
+      scoreColor = AppColors.doubleBogey;
+    }
+
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(24),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            'HOLE $holeNum',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2,
-                  color: AppColors.grey400,
-                ),
-          ),
-          const SizedBox(height: 8),
-          
-          // Editable Par Control
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(
-                icon: const Icon(LucideIcons.minusCircle, color: AppColors.grey400),
-                onPressed: () => _updatePar(-1),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('HOLE ${hole.holeNumber}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: AppColors.grey400, letterSpacing: 1.5)),
+                  Text('PAR ${hole.par} • SI ${hole.handicapIndex}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.grey900)),
+                ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.grey200),
-                ),
-                child: Text(
-                  'Par $par',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.grey700),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(LucideIcons.plusCircle, color: AppColors.grey400),
-                onPressed: () => _updatePar(1),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: AppColors.doubleBogey.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                child: Text('MAX: $cap', style: const TextStyle(color: AppColors.doubleBogey, fontWeight: FontWeight.w900, fontSize: 10)),
               ),
             ],
           ),
-          
           const Spacer(),
           
-          // Big Score Editor
-          GlassCard(
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-            borderRadius: 32,
+          // SMART STEPPER
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 20)]),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Minus Button
-                _ScoreAdjustButton(
-                  icon: LucideIcons.minus,
-                  onTap: () => _updateScore(-1),
+                _StepperBtn(
+                  icon: LucideIcons.minus, 
+                  onTap: () {
+                    if (_holeScores[index] == 0) return;
+                    _updateScore(-1, index);
+                  }
                 ),
-                
-                // Actual Score Number
-                SizedBox(
-                  width: 100,
-                  child: Center(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
-                      child: Text(
-                        '$score',
-                        key: ValueKey<int>(score),
-                        style: TextStyle(
-                          fontSize: 100,
-                          height: 1.0,
-                          fontWeight: FontWeight.w800,
-                          color: scoreColor,
-                          letterSpacing: -4,
-                        ),
-                      ),
-                    ),
-                  ),
+                Text(
+                  score == 0 ? '-' : '$score', 
+                  style: TextStyle(fontSize: 100, fontWeight: FontWeight.w900, color: score == 0 ? AppColors.grey200 : scoreColor, letterSpacing: -5)
                 ),
-                
-                // Plus Button
-                _ScoreAdjustButton(
-                  icon: LucideIcons.plus,
-                  onTap: () => _updateScore(1),
+                _StepperBtn(
+                  icon: LucideIcons.plus, 
+                  onTap: () {
+                    if (_holeScores[index] == 0) {
+                      setState(() => _holeScores[index] = hole.par);
+                    } else {
+                      _updateScore(1, index);
+                    }
+                  }
                 ),
               ],
             ),
           ),
           
           const Spacer(),
-          
-          // Stats Row
-          _buildAdvancedStatsSelectors(holeNum - 1),
-          
+          _buildHoleStats(index),
           const Spacer(),
         ],
       ),
     );
   }
-  
-  Widget _buildAdvancedStatsSelectors(int holeIndex) {
-    if (widget.holesPlayed != 18 && widget.holesPlayed != 9 && widget.holesPlayed != -9) {
-      return const SizedBox.shrink(); // Fallback
-    }
-    
-    // Par 3s don't have fairways hit trackable usually, but we'll include it or omit it conditionally
-    final isPar3 = _holePars[holeIndex] == 3;
 
+  void _updateScore(int delta, int index) {
+    setState(() {
+      final newScore = _holeScores[index] + delta;
+      if (newScore >= 1) _holeScores[index] = newScore;
+    });
+    HapticFeedback.lightImpact();
+  }
+
+  void _updateGIR(int index) {
+    setState(() {
+      _holeGIRs[index] = !_holeGIRs[index];
+    });
+    HapticFeedback.selectionClick();
+  }
+
+
+  Widget _buildHoleStats(int index) {
+    final isPar3 = _masterHoles[index].par == 3;
     return Column(
       children: [
-        // Putts
-        _buildStatRow(
-          title: 'Putts',
-          options: ['0', '1', '2', '3+'],
-          selectedValue: _holePutts[holeIndex] == null ? null : _holePutts[holeIndex]! >= 3 ? '3+' : _holePutts[holeIndex].toString(),
-          onSelect: (val) {
-            setState(() {
-              if (val == '3+') _holePutts[holeIndex] = 3;
-              else _holePutts[holeIndex] = int.parse(val);
-            });
-          },
-        ),
-        
-        if (!isPar3) const SizedBox(height: 16),
-        if (!isPar3)
-          // Fairway
-          _buildStatRow(
-            title: 'Fairway',
-            options: ['Left', 'Hit', 'Right'],
-            selectedValue: _holeFairways[holeIndex],
-            onSelect: (val) => setState(() => _holeFairways[holeIndex] = val),
-          ),
-          
+        _StatRow(label: 'PUTTS', value: _holePutts[index]?.toString(), options: ['1','2','3'], onSelect: (v) => setState(() => _holePutts[index] = int.parse(v))),
+        if (!isPar3) ...[
+          const SizedBox(height: 16),
+          _StatRow(label: 'FAIRWAY', value: _holeFairways[index], options: ['Left','Hit','Right'], onSelect: (v) => setState(() => _holeFairways[index] = v)),
+        ],
         const SizedBox(height: 16),
-        // Penalties
-        _buildStatRow(
-          title: 'Penalties',
-          options: ['0', '1', '2+'],
-          selectedValue: _holePenalties[holeIndex] == null ? null : _holePenalties[holeIndex]! >= 2 ? '2+' : _holePenalties[holeIndex].toString(),
-          onSelect: (val) {
-            setState(() {
-              if (val == '2+') _holePenalties[holeIndex] = 2;
-              else _holePenalties[holeIndex] = int.parse(val);
-            });
-          },
-        ),
+        const SizedBox(height: 16),
+        _StatRow(label: 'PENALTIES', value: _holePenalties[index]?.toString(), options: ['0','1','2'], onSelect: (v) => setState(() => _holePenalties[index] = int.parse(v))),
+        const SizedBox(height: 16),
+        _GIRRow(isSelected: _holeGIRs[index], onTap: () => _updateGIR(index)),
       ],
+    );
+
+  }
+
+  Widget _buildBottomActionBar() {
+    final isLast = _currentHoleIndex == _holeScores.length - 1;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      child: SizedBox(
+        width: double.infinity,
+        height: 64,
+        child: FilledButton(
+          onPressed: _isSaving ? null : () => isLast ? _finishRound(useForAnalytics: true) : _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
+          style: FilledButton.styleFrom(backgroundColor: isLast ? AppColors.emerald700 : AppColors.grey900, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+          child: _isSaving ? const CupertinoActivityIndicator(color: Colors.white) : Text(isLast ? 'FINISH ROUND' : 'NEXT HOLE', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        ),
+      ),
     );
   }
 
-  Widget _buildStatRow({required String title, required List<String> options, required String? selectedValue, required Function(String) onSelect}) {
+  Future<String?> _showNotesPrompt() async {
+    final shouldAdd = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Add Round Notes?'),
+        content: const Text('Would you like to add notes about this round?'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('No Thanks'),
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Add Notes'),
+          ),
+        ],
+      ),
+    );
+    if (shouldAdd != true || !mounted) return null;
+
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final controller = TextEditingController();
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                ),
+                const Text('Round Notes', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+                const SizedBox(height: 4),
+                const Text('How did you play today?', style: TextStyle(color: AppColors.grey500)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Strong driving today, struggled with putting...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx, controller.text),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.grey900,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Text('Save Notes', style: TextStyle(fontWeight: FontWeight.w800)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showFinishEarlyDialog() {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Finish Early?'),
+        content: const Text(
+          'Ending the round now will save your progress, but because you haven\'t completed all holes, this round will NOT be used for your WHS handicap or performance analytics.\n\nAre you sure you want to finish now?',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              _finishRound(useForAnalytics: false);
+            },
+            child: const Text('Finish & Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQuitDialog() {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Quit Round?'),
+        content: const Text('Progress will be lost.'),
+        actions: [
+          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(ctx)),
+          CupertinoDialogAction(isDestructiveAction: true, child: const Text('Quit'), onPressed: () { Navigator.pop(ctx); Navigator.pop(context); }),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepperBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _StepperBtn({required this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: Container(
+        width: 60, height: 60,
+        decoration: BoxDecoration(color: AppColors.grey50, shape: BoxShape.circle),
+        child: Icon(icon, color: AppColors.grey900, size: 28),
+      ),
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  final String label;
+  final String? value;
+  final List<String> options;
+  final Function(String) onSelect;
+  const _StatRow({required this.label, required this.value, required this.options, required this.onSelect});
+  @override
+  Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.grey500)),
+        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1)),
         Row(
           children: options.map((opt) {
-            final isSelected = opt == selectedValue;
+            final isSelected = value == opt;
             return GestureDetector(
               onTap: () => onSelect(opt),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+              child: Container(
                 margin: const EdgeInsets.only(left: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.emerald700 : AppColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isSelected ? AppColors.emerald700 : AppColors.grey200),
-                ),
-                child: Text(
-                  opt,
-                  style: TextStyle(
-                    color: isSelected ? AppColors.white : AppColors.grey700,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  ),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(color: isSelected ? AppColors.emerald700 : Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: isSelected ? AppColors.emerald700 : AppColors.grey100)),
+                child: Text(opt, style: TextStyle(color: isSelected ? Colors.white : AppColors.grey900, fontWeight: FontWeight.w800, fontSize: 12)),
               ),
             );
           }).toList(),
@@ -614,59 +681,39 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
       ],
     );
   }
-
-  void _showQuitDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Quit Round?', style: TextStyle(fontWeight: FontWeight.w700)),
-        content: const Text('Your current progress will be lost. Are you sure you want to exit?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.grey600)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.pop();
-            },
-            child: const Text('Quit', style: TextStyle(color: AppColors.doubleBogey, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-class _ScoreAdjustButton extends StatelessWidget {
-  final IconData icon;
+class _GIRRow extends StatelessWidget {
+  final bool isSelected;
   final VoidCallback onTap;
-
-  const _ScoreAdjustButton({required this.icon, required this.onTap});
-
+  const _GIRRow({required this.isSelected, required this.onTap});
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.grey100,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        splashColor: AppColors.grey300,
-        child: Container(
-          width: 64,
-          height: 64,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.grey200, width: 2),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text('GREEN IN REGULATION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1)),
+        GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.emerald700 : Colors.white, 
+              borderRadius: BorderRadius.circular(12), 
+              border: Border.all(color: isSelected ? AppColors.emerald700 : AppColors.grey100)
+            ),
+            child: Row(
+              children: [
+                if (isSelected) const Icon(LucideIcons.check, color: Colors.white, size: 14),
+                if (isSelected) const SizedBox(width: 6),
+                Text(isSelected ? 'YES' : 'NO', style: TextStyle(color: isSelected ? Colors.white : AppColors.grey900, fontWeight: FontWeight.w800, fontSize: 12)),
+              ],
+            ),
           ),
-          child: Icon(icon, size: 32, color: AppColors.grey700),
         ),
-      ),
+      ],
     );
   }
 }
+

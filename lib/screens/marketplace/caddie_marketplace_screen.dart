@@ -11,18 +11,30 @@ import '../../core/database/database.dart' as db;
 import '../../core/services/interaction_service.dart';
 import '../../core/utils/url_helper.dart';
 import '../../widgets/profile_image.dart';
+import '../../widgets/loading_spinner.dart';
+
+final marketplaceRoleFilterProvider = StateProvider<String>((ref) => 'all');
 
 class CaddieMarketplaceScreen extends ConsumerStatefulWidget {
-  const CaddieMarketplaceScreen({super.key});
+  final String initialRole;
+  
+  const CaddieMarketplaceScreen({super.key, this.initialRole = 'all'});
 
   @override
   ConsumerState<CaddieMarketplaceScreen> createState() => _CaddieMarketplaceScreenState();
 }
 
 class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScreen> {
-  String _selectedRole = 'all'; // all, caddie, coach
+  late String _selectedRole;
   final _searchController = TextEditingController();
   int? _requiredExperience; // null means any, otherwise 2, 3, 5
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedRole = widget.initialRole;
+  }
+  
   String? _selectedPersonality;
   String? _selectedCourse;
 
@@ -44,17 +56,28 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String>(marketplaceRoleFilterProvider, (prev, next) {
+      if (next != _selectedRole) {
+        setState(() => _selectedRole = next);
+      }
+    });
+
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF2F2F7),
         appBar: AppBar(
-          backgroundColor: const Color(0xFFF2F2F7),
           elevation: 0,
           scrolledUnderElevation: 0,
           title: Text('Marketplace', 
             style: _getSFStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.grey900)),
           centerTitle: false,
+          actions: [
+            IconButton(
+              icon: const Icon(LucideIcons.sliders, color: AppColors.grey900),
+              onPressed: _showFilterSheet,
+            ),
+            const SizedBox(width: 8),
+          ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(50),
             child: Container(
@@ -102,7 +125,7 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildSearchBar(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 _buildRoleSwitcher(),
                 const SizedBox(height: 24),
                 const Padding(
@@ -122,7 +145,7 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
             }
 
             final filtered = providers.where((p) {
-              final matchesRole = _selectedRole == 'all' || p.role == _selectedRole;
+              final matchesRole = _selectedRole == 'all' || p.role?.toLowerCase() == _selectedRole.toLowerCase();
               
               final nameMatch = p.name.toLowerCase().contains(_searchController.text.toLowerCase());
               final courseMatch = p.coursesJson.toLowerCase().contains(_searchController.text.toLowerCase());
@@ -162,7 +185,7 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
               ),
             );
           },
-          loading: () => const SliverFillRemaining(child: Center(child: CupertinoActivityIndicator())),
+          loading: () => const SliverFillRemaining(child: LoadingSpinner()),
           error: (err, _) => SliverFillRemaining(child: Center(child: Text('Error: $err'))),
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -192,15 +215,18 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
     final isSelected = _selectedRole == role;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedRole = role),
+        onTap: () {
+          setState(() => _selectedRole = role);
+          ref.read(marketplaceRoleFilterProvider.notifier).state = role;
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
+            color: isSelected ? AppColors.golfLime : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             boxShadow: isSelected ? [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))
+              BoxShadow(color: AppColors.golfLime.withValues(alpha: 0.4), blurRadius: 4, offset: const Offset(0, 2))
             ] : null,
           ),
           child: Text(
@@ -208,7 +234,7 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
             textAlign: TextAlign.center,
             style: _getSFStyle(
               fontSize: 13,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
               color: isSelected ? AppColors.grey900 : AppColors.grey600,
             ),
           ),
@@ -237,7 +263,7 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
           itemBuilder: (context, index) => _InquiryCard(interaction: pending[index]),
         );
       },
-      loading: () => const Center(child: CupertinoActivityIndicator()),
+      loading: () => const LoadingSpinner(),
       error: (err, _) => Center(child: Text('Error: $err')),
     );
   }
@@ -262,7 +288,7 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
           itemBuilder: (context, index) => _ProviderCard(provider: pros[index]),
         );
       },
-      loading: () => const Center(child: CupertinoActivityIndicator()),
+      loading: () => const LoadingSpinner(),
       error: (err, _) => Center(child: Text('Error: $err')),
     );
   }
@@ -279,6 +305,184 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
           const SizedBox(height: 8),
           Text(subtitle, textAlign: TextAlign.center, style: _getSFStyle(color: AppColors.grey500, fontSize: 14)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    final hasActiveFilters = _requiredExperience != null || 
+        (_selectedPersonality != null && _selectedPersonality != 'Any') || 
+        (_selectedCourse != null && _selectedCourse != 'Any');
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          _buildFilterChip(
+            label: _requiredExperience == null ? 'Experience' : '$_requiredExperience+ Yrs',
+            isActive: _requiredExperience != null,
+            onTap: () => _showExperiencePicker(),
+          ),
+          const SizedBox(width: 8),
+          _buildFilterChip(
+            label: _selectedPersonality == null || _selectedPersonality == 'Any' ? 'Personality' : _selectedPersonality!,
+            isActive: _selectedPersonality != null && _selectedPersonality != 'Any',
+            onTap: () => _showPersonalityPicker(),
+          ),
+          const SizedBox(width: 8),
+          _buildFilterChip(
+            label: _selectedCourse == null || _selectedCourse == 'Any' ? 'Course' : _selectedCourse!,
+            isActive: _selectedCourse != null && _selectedCourse != 'Any',
+            onTap: () => _showCoursePicker(),
+          ),
+          if (hasActiveFilters)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () {
+                  setState(() {
+                    _requiredExperience = null;
+                    _selectedPersonality = null;
+                    _selectedCourse = null;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(color: AppColors.grey200, shape: BoxShape.circle),
+                  child: const Icon(LucideIcons.x, size: 14, color: AppColors.grey600),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({required String label, required bool isActive, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.emerald700 : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isActive ? AppColors.emerald700 : AppColors.grey200),
+          boxShadow: isActive ? [
+            BoxShadow(color: AppColors.emerald700.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 2))
+          ] : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: _getSFStyle(
+              fontSize: 13, 
+              fontWeight: isActive ? FontWeight.w700 : FontWeight.w600, 
+              color: isActive ? Colors.white : AppColors.grey700
+            )),
+            const SizedBox(width: 6),
+            Icon(CupertinoIcons.chevron_down, size: 12, color: isActive ? Colors.white : AppColors.grey400),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showExperiencePicker() {
+    final items = ['Any', '2+ Yrs', '3+ Yrs', '5+ Yrs'];
+    final values = [null, 2, 3, 5];
+    
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Required Experience', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        actions: items.map((item) => CupertinoActionSheetAction(
+          onPressed: () {
+            setState(() {
+              _requiredExperience = values[items.indexOf(item)];
+            });
+            Navigator.pop(context);
+          },
+          child: Text(item, style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w600)),
+        )).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  void _showPersonalityPicker() {
+    final personalities = ['Any', 'Quiet & Focused', 'Talkative & Fun', 'Strategic', 'Laid-back'];
+    
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Personality Type', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        actions: personalities.map((p) => CupertinoActionSheetAction(
+          onPressed: () {
+            setState(() {
+              _selectedPersonality = p;
+            });
+            Navigator.pop(context);
+          },
+          child: Text(p, style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w600)),
+        )).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  void _showCoursePicker() {
+    final allCourses = ref.read(coursesProvider).valueOrNull ?? [];
+    final courseNames = {'Any', ...allCourses.map((c) => c.name)}.toList()..sort();
+    
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Material(
+        color: Colors.transparent,
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.6,
+          padding: const EdgeInsets.all(32),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Select Course', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+              const SizedBox(height: 24),
+              Expanded(
+                child: ListView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: courseNames.length,
+                  itemBuilder: (context, i) => Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.grey100)),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      title: Text(courseNames[i], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                      onTap: () {
+                        setState(() {
+                          _selectedCourse = courseNames[i];
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -307,35 +511,24 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
               ),
             ),
           ),
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: () => _showFilterSheet(),
-            child: const Icon(LucideIcons.sliders, size: 18, color: AppColors.emerald700),
-          ),
         ],
       ),
     );
   }
 
   void _showFilterSheet() {
-    // 1. Get courses from the database provider
     final allCourses = ref.read(coursesProvider).valueOrNull ?? [];
     final courseNames = {'Any', ...allCourses.map((c) => c.name)}.toList()..sort();
-
-    // 2. Define personality types from onboarding setup
     final personalities = [
-      'Any',
-      'Quiet & Focused',
-      'Talkative & Fun',
-      'Strategic',
-      'Laid-back'
+      'Any', 'Quiet & Focused', 'Talkative & Fun', 'Strategic', 'Laid-back'
     ];
-
     showCupertinoModalPopup(
       context: context,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+      builder: (context) => Material(
+        color: Colors.transparent,
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -413,6 +606,7 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
               ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -548,8 +742,8 @@ class _ProviderCard extends ConsumerWidget {
         onPressed: () => context.push('/marketplace/provider/${provider.userId}'),
         child: Row(
           children: [
-            _ProviderAvatar(userId: provider.userId),
-            const SizedBox(width: 16),
+          _ProviderAvatar(userId: provider.userId, avatarUrl: provider.avatarUrl),
+          const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -568,7 +762,7 @@ class _ProviderCard extends ConsumerWidget {
                       const Spacer(),
                       Row(
                         children: [
-                          const Icon(LucideIcons.star, size: 14, color: Colors.amber),
+                          const Icon(Icons.star_rounded, size: 16, color: Colors.amber),
                           const SizedBox(width: 4),
                           Text(provider.rating.toStringAsFixed(1), 
                             style: _getSFStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.grey900)),
@@ -600,12 +794,20 @@ class _ProviderCard extends ConsumerWidget {
                       Row(
                         children: [
                           _QuickAction(
-                            icon: LucideIcons.messageCircle, 
-                            color: AppColors.emerald700,
+                            icon: provider.role == 'caddie' ? LucideIcons.messageSquare : LucideIcons.messageCircle, 
+                            color: provider.role == 'caddie' ? AppColors.blue700 : AppColors.emerald700,
                             onTap: () async {
-                              final phone = provider.whatsapp ?? provider.phone;
-                              await UrlHelper.launchWhatsApp(phone);
-                              ref.read(interactionServiceProvider).logInteraction(providerId: provider.userId, type: 'whatsapp');
+                              if (provider.role == 'caddie') {
+                                // Log interaction so AppShell can prompt later if they leave
+                                ref.read(interactionServiceProvider).logInteraction(providerId: provider.userId, type: 'chat');
+                                if (context.mounted) {
+                                  context.push('/chat/${provider.userId}');
+                                }
+                              } else {
+                                final phone = provider.whatsapp ?? provider.phone;
+                                await UrlHelper.launchWhatsApp(phone);
+                                ref.read(interactionServiceProvider).logInteraction(providerId: provider.userId, type: 'whatsapp');
+                              }
                             },
                           ),
                           const SizedBox(width: 10),
@@ -615,6 +817,7 @@ class _ProviderCard extends ConsumerWidget {
                             onTap: () async {
                               await UrlHelper.launchCaller(provider.phone);
                               ref.read(interactionServiceProvider).logInteraction(providerId: provider.userId, type: 'call');
+                              // AppShell will handle the confirmation prompt when they return to the app
                             },
                           ),
                         ],
@@ -652,8 +855,9 @@ class _QuickAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
@@ -668,16 +872,17 @@ class _QuickAction extends StatelessWidget {
 
 class _ProviderAvatar extends ConsumerWidget {
   final String userId;
-  const _ProviderAvatar({required this.userId});
+  final String? avatarUrl;
+  const _ProviderAvatar({required this.userId, this.avatarUrl});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(specificUserProfileProvider(userId));
 
     return profileAsync.when(
-      data: (profile) => ProfileImage(url: profile?.avatarUrl, size: 70, borderRadius: 14),
-      loading: () => Container(width: 70, height: 70, decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(14))),
-      error: (_, __) => const ProfileImage(url: null, size: 70, borderRadius: 14),
+      data: (profile) => ProfileImage(url: profile?.avatarUrl ?? avatarUrl, size: 70, borderRadius: 14),
+      loading: () => ProfileImage(url: avatarUrl, size: 70, borderRadius: 14), // Use fallback immediately
+      error: (_, _) => ProfileImage(url: avatarUrl, size: 70, borderRadius: 14),
     );
   }
 }

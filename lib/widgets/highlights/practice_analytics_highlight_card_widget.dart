@@ -373,7 +373,7 @@ class PracticeAnalyticsHighlightCardWidget extends StatelessWidget {
     // Synthetic distribution based on overall accuracy
     return [
       PieChartSectionData(color: AppColors.golfLime, value: accuracy.toDouble(), title: 'GREAT', radius: 30, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
-      PieChartSectionData(color: AppColors.emerald500, value: 20, title: 'GOOD', radius: 25, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+      PieChartSectionData(color: AppColors.golfLime.withValues(alpha: 0.6), value: 20, title: 'GOOD', radius: 25, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
       PieChartSectionData(color: Colors.orangeAccent, value: (100 - accuracy).toDouble().clamp(0, 100), title: 'MISSED', radius: 20, showTitle: false),
     ];
   }

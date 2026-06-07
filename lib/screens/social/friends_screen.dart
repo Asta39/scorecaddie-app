@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:io';
-import 'package:drift/drift.dart' as drift;
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
-import '../../core/services/friend_service.dart';
+import '../../widgets/top_notification.dart';
 
 class FriendsScreen extends ConsumerWidget {
   const FriendsScreen({super.key});
@@ -18,10 +18,17 @@ class FriendsScreen extends ConsumerWidget {
     final friendsAsync = ref.watch(friendsProvider);
     final requestsAsync = ref.watch(friendRequestsProvider);
 
+    // AUTO-SYNC ACCEPTED REQUESTS (For the Sender)
+    ref.listen(acceptedSentRequestsProvider, (prev, next) {
+      if (next.hasValue && next.value!.isNotEmpty) {
+        for (var req in next.value!) {
+          ref.read(friendServiceProvider).finalizeHandshake(req['id']);
+        }
+      }
+    });
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF2F2F7),
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -54,16 +61,20 @@ class FriendsScreen extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('MY FRIENDS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2)),
-                  TextButton.icon(
-                    onPressed: () => _showAddFriendDialog(context, ref),
-                    icon: const Icon(LucideIcons.plus, size: 14),
-                    label: const Text('Add New', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.emerald700,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      backgroundColor: AppColors.emerald50,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    ),
+                  Row(
+                    children: [
+                      _buildHeaderAction(
+                        icon: LucideIcons.scan, 
+                        label: 'Scan QR', 
+                        onTap: () => _showQRScanner(context, ref)
+                      ),
+                      const SizedBox(width: 8),
+                      _buildHeaderAction(
+                        icon: LucideIcons.plus, 
+                        label: 'Add ID', 
+                        onTap: () => _showAddFriendDialog(context, ref)
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -87,6 +98,20 @@ class FriendsScreen extends ConsumerWidget {
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderAction({required IconData icon, required String label, required VoidCallback onTap}) {
+    return TextButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 14),
+      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.emerald700,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        backgroundColor: AppColors.emerald50,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
@@ -131,8 +156,8 @@ class FriendsScreen extends ConsumerWidget {
                   onTap: () async {
                     await ref.read(friendServiceProvider).respondToRequest(req['id'], true);
                     ref.invalidate(friendsProvider);
-                    final uid = ref.read(authStateProvider).valueOrNull?.uid;
-                    if (uid != null) ref.read(achievementServiceProvider).checkAllAchievements(uid);
+                    final user = ref.read(authStateProvider).valueOrNull;
+                    if (user != null) ref.read(achievementServiceProvider).checkAllAchievements(user.id);
                   }
                 ),
                 const SizedBox(width: 8),
@@ -190,36 +215,68 @@ class FriendsScreen extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          InkWell(
-            onTap: () => context.push('/player/${friend.friendId}?name=${Uri.encodeComponent(friend.friendName ?? 'Golfer')}'),
-            borderRadius: BorderRadius.vertical(
-              top: isFirst ? const Radius.circular(28) : Radius.zero,
-              bottom: isLast ? const Radius.circular(28) : Radius.zero,
+          Dismissible(
+            key: ValueKey(friend.id),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 24),
+              decoration: BoxDecoration(
+                color: AppColors.doubleBogey,
+                borderRadius: BorderRadius.vertical(
+                  top: isFirst ? const Radius.circular(28) : Radius.zero,
+                  bottom: isLast ? const Radius.circular(28) : Radius.zero,
+                ),
+              ),
+              child: const Icon(LucideIcons.trash2, color: Colors.white),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  _buildAvatar(friend.friendAvatar, friend.friendName ?? 'G', size: 56),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(friend.friendName ?? 'Golfer', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: AppColors.grey900)),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(LucideIcons.barChart2, size: 12, color: AppColors.emerald700),
-                            const SizedBox(width: 4),
-                            const Text('View performance', style: TextStyle(color: AppColors.emerald700, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
-                          ],
-                        ),
-                      ],
+            confirmDismiss: (dir) => _showRemoveFriendDialog(context, friend, ref),
+            child: InkWell(
+              onTap: () => context.push('/player/${friend.friendId}?name=${Uri.encodeComponent(friend.friendName ?? 'Golfer')}'),
+              borderRadius: BorderRadius.vertical(
+                top: isFirst ? const Radius.circular(28) : Radius.zero,
+                bottom: isLast ? const Radius.circular(28) : Radius.zero,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    _buildAvatar(friend.friendAvatar, friend.friendName ?? 'G', size: 56),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(friend.friendName ?? 'Golfer', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: AppColors.grey900)),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              if (friend.isCoach) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: AppColors.purple700.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                                  child: const Text('COACH', style: TextStyle(color: AppColors.purple700, fontSize: 9, fontWeight: FontWeight.w900)),
+                                ),
+                                const SizedBox(width: 8),
+                              ] else if (friend.isStudent) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: AppColors.emerald700.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                                  child: const Text('STUDENT', style: TextStyle(color: AppColors.emerald700, fontSize: 9, fontWeight: FontWeight.w900)),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              const Icon(LucideIcons.barChart2, size: 12, color: AppColors.emerald700),
+                              const SizedBox(width: 4),
+                              const Text('View performance', style: TextStyle(color: AppColors.emerald700, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const Icon(LucideIcons.chevronRight, color: AppColors.grey200, size: 20),
-                ],
+                    const Icon(LucideIcons.chevronRight, color: AppColors.grey200, size: 20),
+                  ],
+                ),
               ),
             ),
           ),
@@ -259,6 +316,90 @@ class FriendsScreen extends ConsumerWidget {
     );
   }
 
+  void _showQRScanner(BuildContext context, WidgetRef ref) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Material(
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.8,
+          decoration: const BoxDecoration(color: Colors.black, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+          child: Stack(
+            children: [
+              MobileScanner(
+                onDetect: (capture) async {
+                  final List<Barcode> barcodes = capture.barcodes;
+                  for (final barcode in barcodes) {
+                    final rawValue = barcode.rawValue;
+                    if (rawValue != null && rawValue.startsWith('scorecaddie://friend/add/')) {
+                      final uid = rawValue.replaceFirst('scorecaddie://friend/add/', '');
+                      Navigator.pop(context);
+                      _handleUidFound(context, ref, uid);
+                      break;
+                    }
+                  }
+                },
+              ),
+              Positioned(
+                top: 24, right: 24,
+                child: IconButton(
+                  icon: const Icon(LucideIcons.x, color: Colors.white, size: 28),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+              Center(
+                child: Container(
+                  width: 250, height: 250,
+                  decoration: BoxDecoration(border: Border.all(color: AppColors.golfLime, width: 2), borderRadius: BorderRadius.circular(20)),
+                ),
+              ),
+              const Positioned(
+                bottom: 80, left: 0, right: 0,
+                child: Text('Center the QR code to scan', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleUidFound(BuildContext context, WidgetRef ref, String identifier) async {
+    final profile = await ref.read(friendServiceProvider).fetchProfile(identifier);
+    if (profile == null) {
+      debugPrint('FRIENDS_SCREEN: Player not found for: $identifier');
+      if (context.mounted) {
+        TopNotification.showError(context, 'Player not found. Make sure the Friend Code is correct and the player has synced their profile.');
+      }
+      return;
+    }
+    if (context.mounted) _showConfirmationDialog(context, ref, profile['uid'] as String, profile);
+  }
+
+  Future<bool> _showRemoveFriendDialog(BuildContext context, Friend friend, WidgetRef ref) async {
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Remove Friend?'),
+        content: Text('Are you sure you want to permanently remove ${friend.friendName} from your friends list?'),
+        actions: [
+          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context, false)),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Remove'),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ref.read(friendServiceProvider).removeFriend(friend.friendId);
+      ref.invalidate(friendsProvider);
+      return true;
+    }
+    return false;
+  }
+
   void _showAddFriendDialog(BuildContext context, WidgetRef ref) {
     final idController = TextEditingController();
 
@@ -273,12 +414,14 @@ class FriendsScreen extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(height: 8),
-                const Text('Enter your friend\'s Firebase UID to connect.'),
+                const Text('Enter your friend\'s Friend Code to connect.\nExample: SC-A3B9-X7K1'),
                 const SizedBox(height: 16),
                 CupertinoTextField(
                   controller: idController,
-                  placeholder: 'Paste UID here',
+                  placeholder: 'e.g. SC-A3B9-X7K1',
                   padding: const EdgeInsets.all(12),
+                  autocorrect: false,
+                  textCapitalization: TextCapitalization.characters,
                   decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(10)),
                   autofocus: true,
                 ),
@@ -299,12 +442,12 @@ class FriendsScreen extends ConsumerWidget {
                   final profile = await ref.read(friendServiceProvider).fetchProfile(idController.text.trim());
                   setDialogState(() => isSearching = false);
                   if (profile == null) {
-                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Player not found.'), behavior: SnackBarBehavior.floating));
+                    if (context.mounted) TopNotification.showError(context, 'Player not found. Check the Friend Code and try again.');
                     return;
                   }
                   if (context.mounted) {
                     Navigator.pop(context);
-                    _showConfirmationDialog(context, ref, idController.text.trim(), profile);
+                    _showConfirmationDialog(context, ref, profile['uid'] as String, profile);
                   }
                 },
                 child: const Text('Search'),
@@ -339,7 +482,11 @@ class FriendsScreen extends ConsumerWidget {
               final success = await ref.read(friendServiceProvider).sendFriendRequest(uid);
               if (context.mounted) {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? 'Invite sent!' : 'Unable to send invite.'), behavior: SnackBarBehavior.floating));
+                if (success) {
+                  TopNotification.showSuccess(context, 'Invite sent!');
+                } else {
+                  TopNotification.showError(context, 'Failed to send invite. Database link error.');
+                }
               }
             },
             child: const Text('Send Invite'),

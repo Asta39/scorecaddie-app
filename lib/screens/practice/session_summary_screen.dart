@@ -8,9 +8,8 @@ import '../../core/database/database.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/highlights/practice_highlight_card_widget.dart';
 import '../../core/services/highlight_card_service.dart';
+import '../../core/services/practice_analysis_service.dart';
 import 'package:screenshot/screenshot.dart';
-import 'dart:io';
-import '../../core/utils/unit_formatter.dart';
 
 class SessionSummaryScreen extends ConsumerWidget {
   final int sessionId;
@@ -22,7 +21,6 @@ class SessionSummaryScreen extends ConsumerWidget {
     final db = ref.watch(databaseProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.white,
       appBar: AppBar(
         title: const Text('Session Summary', style: TextStyle(fontWeight: FontWeight.bold)),
         leading: IconButton(
@@ -31,7 +29,7 @@ class SessionSummaryScreen extends ConsumerWidget {
         ),
       ),
       body: FutureBuilder<Map<String, dynamic>>(
-        future: _loadSummaryData(db),
+        future: _loadSummaryData(db, ref),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           
@@ -87,7 +85,7 @@ class SessionSummaryScreen extends ConsumerWidget {
     );
   }
 
-  Future<Map<String, dynamic>> _loadSummaryData(AppDatabase db) async {
+  Future<Map<String, dynamic>> _loadSummaryData(AppDatabase db, WidgetRef ref) async {
     debugPrint('SUMMARY: Loading data for sessionId: $sessionId');
     final session = await (db.select(db.practiceSessions)..where((s) => s.id.equals(sessionId))).get().then((list) => list.first);
     final shots = await (db.select(db.practiceShots)..where((s) => s.sessionId.equals(sessionId))).get();
@@ -99,80 +97,70 @@ class SessionSummaryScreen extends ConsumerWidget {
       drill = await (db.select(db.drills)..where((d) => d.id.equals(session.drillId!))).get().then((rows) => rows.firstOrNull);
     }
 
-    // Calculate quality breakdown
-    final Map<String, int> counts = {'GREAT': 0, 'GOOD': 0, 'OKAY': 0, 'MISS': 0};
+    final clubs = await db.select(db.clubs).get();
+    
+    // Group shots by club
+    final Map<int, List<PracticeShot>> clubShots = {};
     for (var s in shots) {
-      if (s.quality != null) counts[s.quality!] = (counts[s.quality!] ?? 0) + 1;
-    }
-
-    // Club stats
-    final Map<int, List<String>> clubQualities = {};
-    for (var s in shots) {
-      clubQualities.putIfAbsent(s.clubId, () => []).add(s.quality ?? 'OKAY');
+      clubShots.putIfAbsent(s.clubId, () => []).add(s);
     }
 
     final List<Map<String, dynamic>> clubStats = [];
-    final clubs = await db.select(db.clubs).get();
-    for (var clubId in clubQualities.keys) {
+    for (var entry in clubShots.entries) {
+      final clubId = entry.key;
+      final cShots = entry.value;
+      
       final clubList = clubs.where((c) => c.id == clubId).toList();
-      final clubName = clubList.isNotEmpty ? clubList.first.type : 'Unknown Club';
-      final qs = clubQualities[clubId]!;
-      final greatPct = (qs.where((q) => q == 'GREAT').length / qs.length * 100).round();
+      final clubName = clubList.isNotEmpty ? clubList.first.type : 'Unknown';
+      
+      // Accuracy = (GREAT + GOOD) / Total
+      final successCount = cShots.where((s) => s.quality == 'GREAT' || s.quality == 'GOOD').length;
+      final successPct = cShots.isEmpty ? 0 : (successCount / cShots.length * 100).round();
+      
+      // Avg Distance
+      final dists = cShots.where((s) => s.distance != null).map((s) => s.distance!).toList();
+      final avgDist = dists.isEmpty ? 0 : (dists.reduce((a, b) => a + b) / dists.length).round();
+      
+      // Common Shape
+      final shapes = cShots.where((s) => s.shotShape != null).map((s) => s.shotShape!).toList();
+      final commonShape = _calculateMode(shapes) ?? 'Straight';
+
       clubStats.add({
         'name': clubName,
-        'count': qs.length,
-        'greatPct': greatPct,
+        'count': cShots.length,
+        'successPct': successPct,
+        'avgDist': avgDist,
+        'commonShape': commonShape,
       });
     }
 
-    final insights = _generateInsights(shots, clubStats);
+    // Call Gemini for Insights
+    final analysisService = ref.read(practiceAnalysisServiceProvider);
+    final insights = await analysisService.analyzeSession(
+      session: session,
+      shots: shots,
+      clubStats: clubStats,
+      drill: drill,
+    );
 
     return {
       'session': session,
       'shots': shots,
       'drill': drill,
-      'counts': counts,
       'clubStats': clubStats,
       'clubs': clubs,
       'insights': insights,
     };
   }
 
-  String _generateInsights(List<PracticeShot> shots, List<Map<String, dynamic>> clubStats) {
-    if (shots.isEmpty) return 'No shots recorded. Start hitting to get AI insights!';
-
-    final totalShots = shots.length;
-    final successShots = shots.where((s) => s.quality == 'GREAT' || s.quality == 'GOOD').length;
-    final successPct = (successShots / totalShots * 100).round();
-
-    String mainNote = '';
-    if (successPct >= 75) {
-      mainNote = 'Outstanding consistency! You hit $successPct% quality shots today.';
-    } else if (successPct >= 50) {
-      mainNote = 'Solid session. You were locked in for $successPct% of your shots.';
-    } else {
-      mainNote = 'A bit inconsistent today ($successPct%). Focus on your setup and tempo.';
+  String? _calculateMode(List<String> list) {
+    if (list.isEmpty) return null;
+    final counts = <String, int>{};
+    for (var item in list) {
+      counts[item] = (counts[item] ?? 0) + 1;
     }
-
-    // Find best/worst club
-    if (clubStats.isNotEmpty) {
-      clubStats.sort((a, b) => (b['greatPct'] as int).compareTo(a['greatPct'] as int));
-      final bestClub = clubStats.first;
-      final worstClub = clubStats.last;
-
-      if (bestClub['count'] >= 3 && (bestClub['greatPct'] as int) > 60) {
-        mainNote += ' Your ${bestClub['name']} was pure today.';
-      }
-      
-      if (worstClub['count'] >= 3 && (worstClub['greatPct'] as int) < 40) {
-        mainNote += ' Your ${worstClub['name']} needs some attention in the next session.';
-      }
-    }
-
-    // Advice based on drill
-    mainNote += ' Keep grinding!';
-    
-    return mainNote;
+    final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.first.key;
   }
 
   Widget _buildVideoGallery(BuildContext context, List<PracticeShot> videoShots, List<Club> clubs, WidgetRef ref) {
@@ -308,29 +296,30 @@ class SessionSummaryScreen extends ConsumerWidget {
         decoration: BoxDecoration(
           color: AppColors.grey50,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.grey100),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
-              child: const Icon(LucideIcons.utilityPole, size: 16, color: AppColors.grey600),
+              child: const Icon(LucideIcons.club, size: 16, color: AppColors.grey600),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(stat['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('${stat['count']} balls hit', style: TextStyle(color: AppColors.grey600, fontSize: 12)),
+                  Text(stat['name'], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  Text('${stat['count']} shots • ${stat['avgDist']}y avg', style: TextStyle(color: AppColors.grey600, fontSize: 12, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('${stat['greatPct']}%', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.emerald600)),
-                const Text('Greatness', style: TextStyle(fontSize: 10, color: AppColors.grey500)),
+                Text('${stat['successPct']}%', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.emerald700)),
+                Text(stat['commonShape'].toString().toUpperCase(), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 0.5)),
               ],
             ),
           ],
@@ -444,7 +433,7 @@ class SessionSummaryScreen extends ConsumerWidget {
             children: [
               Icon(LucideIcons.sparkles, color: AppColors.birdie, size: 20),
               SizedBox(width: 8),
-              Text('AI INSIGHTS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.grey900)),
+              Text('DANIEL INSIGHTS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.grey900)),
             ],
           ),
           const SizedBox(height: 12),
@@ -489,7 +478,7 @@ class _VideoPlayerModalState extends State<_VideoPlayerModal> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: MediaQuery.of(context).size.height * 0.8,
       child: Stack(
         children: [

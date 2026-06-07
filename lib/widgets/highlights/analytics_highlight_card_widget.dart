@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/models/analytics_models.dart';
 import '../../core/utils/handicap.dart';
-import 'dart:ui';
 
 class AnalyticsHighlightCardWidget extends StatelessWidget {
   final AdvancedStats stats;
@@ -38,8 +37,8 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.emerald500.withValues(alpha: 0.15),
-                    AppColors.emerald500.withValues(alpha: 0),
+                    AppColors.golfLime.withValues(alpha: 0.15),
+                    AppColors.golfLime.withValues(alpha: 0),
                   ],
                 ),
               ),
@@ -80,7 +79,7 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
             Text(
               'CAREER STATS',
               style: GoogleFonts.inter(
-                color: AppColors.emerald500,
+                color: AppColors.golfLime,
                 fontSize: 24,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 4,
@@ -98,7 +97,7 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
             ),
           ],
         ),
-        const Icon(LucideIcons.award, color: AppColors.emerald500, size: 80),
+        const Icon(LucideIcons.award, color: AppColors.golfLime, size: 80),
       ],
     );
   }
@@ -217,7 +216,7 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
                   Text(
                     avg > 0 ? avg.toStringAsFixed(1) : '—',
                     style: GoogleFonts.inter(
-                      color: isGood ? AppColors.emerald400 : Colors.white,
+                      color: isGood ? AppColors.golfLime : Colors.white,
                       fontSize: 48,
                       fontWeight: FontWeight.w900,
                     ),
@@ -246,7 +245,7 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
             ),
             Row(
               children: [
-                _buildLegendItem('Front', AppColors.emerald400),
+                _buildLegendItem('Front', AppColors.golfLime.withValues(alpha: 0.5)),
                 const SizedBox(width: 32),
                 _buildLegendItem('Back', AppColors.golfLime),
               ],
@@ -294,11 +293,11 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
                 LineChartBarData(
                   spots: stats.front9Scores.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
                   isCurved: true,
-                  color: AppColors.emerald400,
+                  color: AppColors.golfLime.withValues(alpha: 0.5),
                   barWidth: 6,
                   isStrokeCapRound: true,
                   dotData: const FlDotData(show: false),
-                  belowBarData: BarAreaData(show: true, color: AppColors.emerald400.withValues(alpha: 0.05)),
+                  belowBarData: BarAreaData(show: true, color: AppColors.golfLime.withValues(alpha: 0.05)),
                 ),
                 LineChartBarData(
                   spots: stats.back9Scores.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
@@ -351,7 +350,7 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
               ),
             ],
           ),
-          const Icon(LucideIcons.award, color: AppColors.emerald500, size: 80),
+          const Icon(LucideIcons.award, color: AppColors.golfLime, size: 80),
         ],
       ),
     );

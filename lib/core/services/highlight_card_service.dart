@@ -5,6 +5,7 @@ import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../widgets/top_notification.dart';
 
 final highlightCardServiceProvider = Provider((ref) => HighlightCardService());
 
@@ -22,7 +23,7 @@ class HighlightCardService {
     try {
       // 1. Capture the widget as an image
       // Optimized for Instagram Stories (1080x1920)
-      final Uint8List? imageBytes = await _screenshotController.captureFromWidget(
+      final Uint8List imageBytes = await _screenshotController.captureFromWidget(
         Material(
           color: Colors.transparent,
           child: cardWidget,
@@ -32,8 +33,6 @@ class HighlightCardService {
         pixelRatio: 3.0, // Force high resolution density
         targetSize: const Size(1080, 1920),
       );
-
-      if (imageBytes == null) throw Exception('Failed to capture screenshot');
 
       // 2. Save to temporary directory
       final tempDir = await getTemporaryDirectory();
@@ -50,9 +49,7 @@ class HighlightCardService {
     } catch (e) {
       debugPrint('Error sharing highlight: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error sharing highlight: $e')),
-        );
+        TopNotification.showError(context, 'Error sharing highlight: $e');
       }
     }
   }

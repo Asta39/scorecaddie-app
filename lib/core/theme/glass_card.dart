@@ -22,7 +22,7 @@ class GlassCard extends StatelessWidget {
     this.width,
     this.height,
     this.borderRadius = 16,
-    this.blur = 20,
+    this.blur = 5,
     this.tintColor,
     this.tintOpacity = 0.08,
     this.useBlur = true,
@@ -83,7 +83,7 @@ class GlassBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
             color: AppColors.white.withValues(alpha: 0.85),

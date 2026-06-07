@@ -1,24 +1,48 @@
 import 'package:flutter/foundation.dart';
 
 @immutable
+class CourseStat {
+  final String courseName;
+  final int roundsPlayed;
+  final double avgScore;
+  final double avgVsPar;
+  final int bestScore;
+  final int? bestVsPar;
+
+  const CourseStat({
+    required this.courseName,
+    required this.roundsPlayed,
+    required this.avgScore,
+    required this.avgVsPar,
+    required this.bestScore,
+    this.bestVsPar,
+  });
+}
+
+@immutable
 class AdvancedStats {
   final int roundsPlayed;
   final double fairwayHitPercentage;
   final double greensInRegulationPercentage;
   final double puttsPerRound;
   final double penaltiesPerRound;
-  final Map<int, double> parAverages; // Map of Par value (3, 4, 5) -> average score
+  final Map<int, double> parAverages;
   final double front9Avg;
   final double back9Avg;
-  final int roundsPlayedToHandicap; // Progress out of 5
+  final int roundsPlayedToHandicap;
   final double? handicapIndex;
-  final List<double> recentScores; // Last 20 rounds scoreVsPar
-  final List<double> handicapHistory; // Last 20 rounds handicap trend
+  final List<double> recentScores;
+  final List<double> handicapHistory;
   final List<double> movingAverage;
   final List<double> front9Scores;
   final List<double> back9Scores;
   final double? scoreTrend;
   final double? puttsTrend;
+  final int nineHoleRoundsPlayed;
+  final int eighteenHoleRoundsPlayed;
+  final double nineHoleAvgVsPar;
+  final double eighteenHoleAvgVsPar;
+  final List<CourseStat> courseStats;
 
   const AdvancedStats({
     required this.roundsPlayed,
@@ -38,6 +62,11 @@ class AdvancedStats {
     required this.back9Scores,
     this.scoreTrend,
     this.puttsTrend,
+    this.nineHoleRoundsPlayed = 0,
+    this.eighteenHoleRoundsPlayed = 0,
+    this.nineHoleAvgVsPar = 0,
+    this.eighteenHoleAvgVsPar = 0,
+    this.courseStats = const [],
   });
 
   factory AdvancedStats.empty() => const AdvancedStats(

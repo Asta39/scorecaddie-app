@@ -14,9 +14,7 @@ class HelpScreen extends StatelessWidget {
     final faqs = _getFAQsForRole(currentRole);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF2F2F7),
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: CupertinoButton(
@@ -40,7 +38,7 @@ class HelpScreen extends StatelessWidget {
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grey400, letterSpacing: 1.2),
           ),
           const SizedBox(height: 16),
-          ...faqs.map((faq) => _buildFAQTile(faq)).toList(),
+          ...faqs.map((faq) => _buildFAQTile(faq)),
           const SizedBox(height: 40),
           _buildSupportCard(),
           const SizedBox(height: 100),
@@ -142,7 +140,7 @@ class HelpScreen extends StatelessWidget {
       return [
         _FAQItem(
           question: 'How do students find me?',
-          answer: 'Ensure your profile is set to \"Public\" and your availability is toggled on in the dashboard. Complete your bio and specializations to appear higher in searches.',
+          answer: 'Ensure your profile is set to "Public" and your availability is toggled on in the dashboard. Complete your bio and specializations to appear higher in searches.',
         ),
         _FAQItem(
           question: 'How are payments handled?',
@@ -150,18 +148,18 @@ class HelpScreen extends StatelessWidget {
         ),
         _FAQItem(
           question: 'Can I share drills with students?',
-          answer: 'Yes! Use the \"New Drill\" action on your dashboard to create custom training routines that your students can access.',
+          answer: 'Yes! Use the "New Drill" action on your dashboard to create custom training routines that your students can access.',
         ),
       ];
     } else if (role == 'caddie') {
       return [
         _FAQItem(
           question: 'How do I start a round for a player?',
-          answer: 'Once a player connects with you, you can tap \"Start Round\" on your dashboard, select the course, and begin live tracking for them.',
+          answer: 'Once a player connects with you, you can tap "Start Round" on your dashboard, select the course, and begin live tracking for them.',
         ),
         _FAQItem(
           question: 'What is Caddie Status?',
-          answer: 'Availability toggles whether you appear in the marketplace. \"Available\" means you are ready for on-course bookings.',
+          answer: 'Availability toggles whether you appear in the marketplace. "Available" means you are ready for on-course bookings.',
         ),
         _FAQItem(
           question: 'How do I get more reviews?',

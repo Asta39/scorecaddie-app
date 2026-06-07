@@ -38,7 +38,7 @@ class HighlightCardWidget extends StatelessWidget {
 
     final diff = round.totalScore - round.coursePar;
     final toParStr = diff == 0 ? 'E' : (diff > 0 ? '+$diff' : '$diff');
-    final Color toParColor = diff < 0 ? AppColors.emerald700 : (diff > 0 ? AppColors.doubleBogey : AppColors.grey900);
+    final Color toParColor = diff < 0 ? AppColors.golfLime : (diff > 0 ? AppColors.doubleBogey : AppColors.grey900);
 
     return Container(
       width: 1080,
@@ -52,7 +52,7 @@ class HighlightCardWidget extends StatelessWidget {
             child: Container(
               width: 400, height: 400,
               decoration: BoxDecoration(
-                color: AppColors.emerald700.withValues(alpha: 0.03),
+                color: AppColors.golfLime.withValues(alpha: 0.05),
                 borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(400)),
               ),
             ),
@@ -75,7 +75,7 @@ class HighlightCardWidget extends StatelessWidget {
                           style: GoogleFonts.inter(
                             fontSize: 24,
                             fontWeight: FontWeight.w900,
-                            color: AppColors.emerald700,
+                            color: AppColors.golfLime,
                             letterSpacing: 4,
                           ),
                         ),
@@ -171,7 +171,7 @@ class HighlightCardWidget extends StatelessWidget {
                     const SizedBox(width: 32),
                     _buildStatDetail('GIR', '$girCount/${holeScores.length}', LucideIcons.sparkles, AppColors.golfPurple),
                     const SizedBox(width: 32),
-                    _buildStatDetail('FIR', '$fairwaysHit/$fairwaysPossible', LucideIcons.navigation, AppColors.emerald600),
+                    _buildStatDetail('FIR', '$fairwaysHit/$fairwaysPossible', LucideIcons.navigation, AppColors.golfLime),
                   ],
                 ),
 
@@ -189,11 +189,11 @@ class HighlightCardWidget extends StatelessWidget {
                     children: [
                       Container(
                         width: 120, height: 120,
-                        decoration: const BoxDecoration(color: AppColors.emerald700, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(color: AppColors.golfLime, shape: BoxShape.circle),
                         child: Center(
                           child: Text(
                             userName?.substring(0, 1).toUpperCase() ?? 'G',
-                            style: GoogleFonts.inter(fontSize: 48, fontWeight: FontWeight.w900, color: Colors.white),
+                            style: GoogleFonts.inter(fontSize: 48, fontWeight: FontWeight.w900, color: AppColors.grey900),
                           ),
                         ),
                       ),
@@ -213,7 +213,7 @@ class HighlightCardWidget extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const Icon(LucideIcons.award, color: AppColors.emerald700, size: 64),
+                      const Icon(LucideIcons.award, color: AppColors.golfLime, size: 64),
                     ],
                   ),
                 ),
@@ -299,9 +299,6 @@ class HighlightCardWidget extends StatelessWidget {
             
             Color valColor = textColor ?? AppColors.grey900;
             if (isScore) {
-              final int s = int.tryParse(val) ?? 0;
-              final int p = int.tryParse(holeIdx < values.length ? val : '0') ?? 0; // This is wrong, need par
-              // Since we don't have par here easily, we'll just use bold for score
               valColor = AppColors.grey900;
             }
 

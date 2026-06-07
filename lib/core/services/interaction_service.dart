@@ -33,12 +33,24 @@ class InteractionService {
         .then((rows) => rows.firstOrNull);
     if (existing != null) return;
 
+    final interaction = db.Interaction(
+      id: 0,
+      playerId: user.uid,
+      providerId: providerId,
+      type: type,
+      status: 'pending',
+      timestamp: DateTime.now(),
+    );
+
     await _database.into(_database.interactions).insert(db.InteractionsCompanion.insert(
       playerId: user.uid,
       providerId: providerId,
       type: type,
       status: const drift.Value('pending'),
     ));
+
+    // Push to Supabase
+    await _ref.read(syncServiceProvider).syncInteraction(interaction);
 
     // Also update provider total calls if it is a call-type interaction
     if (type == 'call') {
@@ -61,10 +73,17 @@ class InteractionService {
 
     if (interaction == null) return; // Already deleted or never existed
 
+    final updated = interaction.copyWith(
+      status: booked ? 'booked' : 'ignored',
+    );
+
     await (_database.update(_database.interactions)..where((i) => i.id.equals(interactionId)))
         .write(db.InteractionsCompanion(
           status: drift.Value(booked ? 'booked' : 'ignored'),
         ));
+
+    // Update in Supabase
+    await _ref.read(syncServiceProvider).syncInteraction(updated);
 
     if (booked) {
       final provider = await _getProvider(interaction.providerId);

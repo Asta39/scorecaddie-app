@@ -5,8 +5,8 @@ import 'package:drift/drift.dart' as drift;
 import '../database/database.dart' as db;
 import '../models/achievement_model.dart';
 import '../../providers/app_providers.dart';
+import '../utils/streak_utils.dart';
 
-import '../../providers/app_providers.dart';
 
 class AchievementService {
   final db.AppDatabase _db;
@@ -16,23 +16,38 @@ class AchievementService {
       : _db = db,
         _ref = ref;
 
-  Future<void> checkAllAchievements(String userId) async {
+  Future<List<Achievement>> checkAllAchievements(String userId) async {
+    final List<Achievement> newlyEarned = [];
     try {
       // 1. Get current earned badges
       final profile = await _db.getProfile(userId);
-      if (profile == null) return;
+      if (profile == null) return [];
 
       final Set<String> earnedIds = _parseBadges(profile.badgesJson);
       final Set<String> newEarnedIds = Set.from(earnedIds);
 
       // 2. Load necessary data
       final rounds = await _db.getAllRounds(userId);
-      if (rounds.isEmpty && earnedIds.isEmpty) return; // Optimization
+      if (rounds.isEmpty && earnedIds.isEmpty) return []; // Optimization
 
-      final allHoleScores = await _db.getUserHoleScores(userId);
+      final rawHoleScores = await _db.getUserHoleScores(userId);
       final friends = await _db.getFriends(userId);
       final clubs = await (_db.select(_db.clubs)..where((c) => c.userId.equals(userId))).get();
-      final practiceSessions = await (_db.select(_db.practiceSessions)..where((ps) => ps.userId.equals(userId))).get();
+
+      // CRITICAL: Filter out unplayed holes (score <= 0).
+      // When a user finishes early, unplayed holes are stored with score=0.
+      // These must be excluded from ALL achievement checks to prevent
+      // false positives (e.g., score=0 on a par-4 would be a "double eagle").
+      final allHoleScores = rawHoleScores.where((h) => h.score > 0).toList();
+
+      // Build a lookup of actually-played hole counts per round.
+      // This is used for achievements that require a "complete" round
+      // (e.g., bogey-free round needs all holes played, not just the
+      // ones the user entered before finishing early).
+      final Map<int, int> playedCountByRound = {};
+      for (var h in allHoleScores) {
+        playedCountByRound[h.roundId] = (playedCountByRound[h.roundId] ?? 0) + 1;
+      }
 
       // 3. Check each achievement
       for (final achievement in Achievement.allAchievements) {
@@ -69,7 +84,11 @@ class AchievementService {
             isEarned = allHoleScores.any((h) => h.score == 1 && h.par >= 3);
             break;
           case 'bogey_free':
+            // Must be a full 18-hole round where ALL 18 holes were actually
+            // played (not a partial finish) and every played hole is <= par.
             for (final r in rounds.where((r) => r.holesPlayed >= 18)) {
+              final played = playedCountByRound[r.id] ?? 0;
+              if (played < 18) continue; // Partial round — skip
               final scores = allHoleScores.where((h) => h.roundId == r.id);
               if (scores.isNotEmpty && scores.every((h) => h.score <= h.par)) {
                 isEarned = true;
@@ -89,7 +108,10 @@ class AchievementService {
             isEarned = _checkScoreStreak(allHoleScores, (h) => h.score == h.par - 1, 2);
             break;
           case 'fairway_king':
+            // Must be a full 18-hole round with all 18 holes played
             for (final r in rounds.where((r) => r.holesPlayed >= 18)) {
+              final played = playedCountByRound[r.id] ?? 0;
+              if (played < 18) continue;
               final scores = allHoleScores.where((h) => h.roundId == r.id && h.par > 3);
               if (scores.isNotEmpty && scores.every((h) => h.fairwayHit == 'Hit')) {
                 isEarned = true;
@@ -112,7 +134,10 @@ class AchievementService {
             }
             break;
           case 'no_penalties':
+            // Must be a full 18-hole round with all 18 holes played
             for (final r in rounds.where((r) => r.holesPlayed >= 18)) {
+              final played = playedCountByRound[r.id] ?? 0;
+              if (played < 18) continue;
               final scores = allHoleScores.where((h) => h.roundId == r.id);
               if (scores.isNotEmpty && scores.every((h) => (h.penalties ?? 0) == 0)) {
                 isEarned = true;
@@ -121,10 +146,15 @@ class AchievementService {
             }
             break;
           case 'putt_pro':
+            // Must be a full 18-hole round with all 18 holes played and putts tracked
             for (final r in rounds.where((r) => r.holesPlayed >= 18)) {
+              final played = playedCountByRound[r.id] ?? 0;
+              if (played < 18) continue;
               final scores = allHoleScores.where((h) => h.roundId == r.id);
-              int totalPutts = scores.fold(0, (sum, h) => sum + (h.putts ?? 0));
-              if (scores.length >= 18 && totalPutts > 0 && totalPutts < 30) {
+              final trackedPutts = scores.where((h) => h.putts != null);
+              if (trackedPutts.length < 18) continue; // Need putts for all holes
+              int totalPutts = trackedPutts.fold(0, (sum, h) => sum + h.putts!);
+              if (totalPutts > 0 && totalPutts < 30) {
                 isEarned = true;
                 break;
               }
@@ -133,7 +163,7 @@ class AchievementService {
 
           // --- Activity ---
           case 'round_1':
-            isEarned = rounds.length >= 1;
+            isEarned = rounds.isNotEmpty;
             break;
           case 'round_10':
             isEarned = rounds.length >= 10;
@@ -187,8 +217,7 @@ class AchievementService {
             isEarned = friends.isNotEmpty;
             break;
           case 'friend_round':
-            // Logic would require checking if other participants are friends
-            // For now, assume if groupRoundId is not null, it might be with a friend
+            // Check if any played hole is linked to a group round
             isEarned = allHoleScores.any((h) => h.groupRoundId != null);
             break;
 
@@ -197,7 +226,14 @@ class AchievementService {
             isEarned = clubs.length >= 14;
             break;
           case 'comeback':
-            isEarned = rounds.any((r) => r.front9Score != null && r.back9Score != null && (r.front9Score! - r.back9Score!) >= 10);
+            // Only valid for full 18-hole rounds where both nines were completed
+            isEarned = rounds.any((r) {
+              if (r.front9Score == null || r.back9Score == null) return false;
+              if (r.holesPlayed < 18) return false;
+              final played = playedCountByRound[r.id] ?? 0;
+              if (played < 18) return false;
+              return (r.front9Score! - r.back9Score!) >= 10;
+            });
             break;
           case 'lucky_7':
             isEarned = _checkScoreStreak(allHoleScores, (h) => h.score == h.par, 7);
@@ -212,10 +248,15 @@ class AchievementService {
             isEarned = allHoleScores.any((h) => h.par == 4 && h.score == 2);
             break;
           case 'sub_30_putts':
+            // Must be a full 18-hole round with all 18 putts tracked
             for (final r in rounds.where((r) => r.holesPlayed >= 18)) {
+              final played = playedCountByRound[r.id] ?? 0;
+              if (played < 18) continue;
               final scores = allHoleScores.where((h) => h.roundId == r.id);
-              int totalPutts = scores.fold(0, (sum, h) => sum + (h.putts ?? 0));
-              if (scores.length >= 18 && totalPutts > 0 && totalPutts <= 25) {
+              final trackedPutts = scores.where((h) => h.putts != null);
+              if (trackedPutts.length < 18) continue;
+              int totalPutts = trackedPutts.fold(0, (sum, h) => sum + h.putts!);
+              if (totalPutts > 0 && totalPutts <= 25) {
                 isEarned = true;
                 break;
               }
@@ -224,10 +265,28 @@ class AchievementService {
           case 'caddie_helper':
             // Activity streak could be checked here
             break;
+            
+          // --- Streak Milestones ---
+          case 'streak_week_1':
+            isEarned = _calculateWeeklyStreak(rounds) >= 1;
+            break;
+          case 'streak_week_4':
+            isEarned = _calculateWeeklyStreak(rounds) >= 4;
+            break;
+          case 'streak_week_12':
+            isEarned = _calculateWeeklyStreak(rounds) >= 12;
+            break;
+          case 'streak_week_26':
+            isEarned = _calculateWeeklyStreak(rounds) >= 26;
+            break;
+          case 'streak_week_52':
+            isEarned = _calculateWeeklyStreak(rounds) >= 52;
+            break;
         }
 
         if (isEarned) {
           newEarnedIds.add(achievement.id);
+          newlyEarned.add(achievement);
         }
       }
 
@@ -238,13 +297,15 @@ class AchievementService {
         ));
         _ref.invalidate(userProfileProvider);
       }
+      return newlyEarned;
     } catch (e) {
       debugPrint('ACHIEVEMENT_SERVICE: Error checking achievements: $e');
+      return [];
     }
   }
 
   bool _checkScoreStreak(List<db.HoleScore> allScores, bool Function(db.HoleScore) condition, int length) {
-    // Group by round
+    // Group by round (allScores already filtered for score > 0)
     final Map<int, List<db.HoleScore>> roundScores = {};
     for (var s in allScores) {
       roundScores.putIfAbsent(s.roundId, () => []).add(s);
@@ -253,7 +314,21 @@ class AchievementService {
     for (var roundId in roundScores.keys) {
       final scores = roundScores[roundId]!..sort((a, b) => a.holeNumber.compareTo(b.holeNumber));
       int currentStreak = 0;
+
+      // Track hole number gaps to break streaks across unplayed holes.
+      // e.g., if holes 1-5 are played but 6-9 are unplayed, a streak
+      // should not carry from hole 5 to hole 10.
+      int? lastHoleNumber;
+
       for (var s in scores) {
+        final isConsecutive = lastHoleNumber == null || s.holeNumber == lastHoleNumber + 1;
+        lastHoleNumber = s.holeNumber;
+
+        if (!isConsecutive) {
+          // Gap in hole numbers means unplayed holes in between — break streak
+          currentStreak = 0;
+        }
+
         if (condition(s)) {
           currentStreak++;
           if (currentStreak >= length) return true;
@@ -263,6 +338,10 @@ class AchievementService {
       }
     }
     return false;
+  }
+
+  int _calculateWeeklyStreak(List<db.Round> rounds) {
+    return StreakUtils.calculateWeeklyStreak(rounds);
   }
 
   Set<String> _parseBadges(String? json) {

@@ -18,6 +18,6 @@ void main() async {
      );
   }
   
-  print('Reviews cleared successfully');
+  debugPrint('Reviews cleared successfully');
   exit(0);
 }

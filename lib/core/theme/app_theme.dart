@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
@@ -16,8 +17,9 @@ class AppColors {
 
   // Neutrals
   static const white = Color(0xFFFFFFFF);
-  static const grey50 = Color(0xFFF9FAFB);
-  static const grey100 = Color(0xFFF3F4F6);
+  static const grey25 = Color(0xFFF9FAFB); // Very light grey for slight contrast
+  static const grey50 = Color(0xFFF3F4F6);
+  static const grey100 = Color(0xFFF3F4F6); // Lighter for subtle borders
   static const grey200 = Color(0xFFE5E7EB);
   static const grey300 = Color(0xFFD1D5DB);
   static const grey400 = Color(0xFF9CA3AF);
@@ -36,7 +38,7 @@ class AppColors {
   static const worse = Color(0xFF991B1B);     // Dark red
   
   // Fancy accents
-  static const golfLime = Color(0xFFD4FF00);  // Vibrant lime for fancy cards
+  static const Color golfLime = Color(0xFFA3E635); // Vibrant Golf Lime (Lime 400)
   static const golfBrown = Color(0xFF8B5E3C); // Brown for activity/course
   static const golfSand = Color(0xFFC2B280);  // Sand for views/visibility
   static const golfSky = Color(0xFF0EA5E9);   // Sky Blue for contacts
@@ -54,7 +56,7 @@ class AppColors {
   static const purple900 = Color(0xFF581C87);
   
   static const orange50 = Color(0xFFFFF7ED);
-
+  static const scaffoldBackground = Color(0xFFFFFFFF); // Pure white as requested
 }
 
 class AppTheme {
@@ -64,7 +66,7 @@ class AppTheme {
   static ThemeData _buildTheme(Brightness brightness) {
     final bool isDark = brightness == Brightness.dark;
     final textTheme = GoogleFonts.interTextTheme();
-    final Color bgColor = isDark ? AppColors.grey900 : AppColors.white;
+    final Color bgColor = isDark ? AppColors.grey900 : AppColors.scaffoldBackground;
     final Color surfaceColor = isDark ? AppColors.grey800 : AppColors.white;
     final Color textColor = isDark ? AppColors.white : AppColors.grey900;
 
@@ -72,32 +74,34 @@ class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       scaffoldBackgroundColor: bgColor,
-      colorScheme: isDark
-          ? const ColorScheme.dark(
-              primary: AppColors.emerald400,
-              onPrimary: AppColors.grey900,
-              secondary: AppColors.emerald300,
-              surface: AppColors.grey800,
-              onSurface: AppColors.white,
-              error: AppColors.doubleBogey,
-            )
-          : const ColorScheme.light(
-              primary: AppColors.emerald700,
-              onPrimary: AppColors.white,
-              secondary: AppColors.emerald600,
-              surface: AppColors.white,
-              onSurface: AppColors.grey900,
-              error: AppColors.doubleBogey,
-            ),
+      dividerTheme: DividerThemeData(
+        color: isDark ? AppColors.grey800 : AppColors.grey100,
+        thickness: 1,
+        space: 1,
+      ),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: AppColors.emerald700,
+        primary: AppColors.emerald700,
+        onPrimary: AppColors.white,
+        secondary: AppColors.golfLime,
+        onSecondary: AppColors.grey900,
+        surface: isDark ? AppColors.grey800 : AppColors.white,
+        onSurface: isDark ? AppColors.white : AppColors.grey900,
+        error: AppColors.doubleBogey,
+        onError: AppColors.white,
+        brightness: brightness,
+      ),
       textTheme: textTheme.apply(
         bodyColor: isDark ? AppColors.grey100 : AppColors.grey900,
         displayColor: isDark ? AppColors.white : AppColors.grey900,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: bgColor,
-        foregroundColor: textColor,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
+        systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         titleTextStyle: textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w600,
           color: textColor,
@@ -107,17 +111,46 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: surfaceColor,
         elevation: 0,
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: isDark ? AppColors.grey700 : AppColors.grey100),
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: isDark ? AppColors.grey800 : AppColors.grey100, width: 1),
         ),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: isDark ? AppColors.grey800 : AppColors.white,
-        selectedItemColor: isDark ? AppColors.emerald400 : AppColors.emerald700,
+        selectedItemColor: AppColors.emerald700,
         unselectedItemColor: AppColors.grey500,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.emerald700,
+          foregroundColor: AppColors.white,
+          disabledBackgroundColor: isDark ? AppColors.grey800 : AppColors.grey100,
+          disabledForegroundColor: isDark ? AppColors.grey400 : AppColors.grey500,
+          minimumSize: const Size.fromHeight(56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+          elevation: 0,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.emerald700,
+          side: const BorderSide(color: AppColors.emerald700, width: 2),
+          minimumSize: const Size.fromHeight(56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: isDark ? AppColors.golfLime : AppColors.emerald700,
+          disabledForegroundColor: AppColors.grey500,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }

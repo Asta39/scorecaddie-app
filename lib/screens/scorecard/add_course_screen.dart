@@ -2,13 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart' as drift;
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
-import '../../core/cloud/sync_service.dart';
+import '../../widgets/top_notification.dart';
 
 class AddCourseScreen extends ConsumerStatefulWidget {
   const AddCourseScreen({super.key});
@@ -57,7 +56,7 @@ class _AddCourseScreenState extends ConsumerState<AddCourseScreen> {
     
     try {
       final db = ref.read(databaseProvider);
-      final firestoreId = const Uuid().v4();
+      final supabaseId = const Uuid().v4();
       
       final int front9Par = _holePars.sublist(0, _totalHoles == 18 ? 9 : _totalHoles).reduce((a, b) => a + b);
       int? back9Par;
@@ -69,7 +68,7 @@ class _AddCourseScreenState extends ConsumerState<AddCourseScreen> {
 
       await db.into(db.courses).insert(
         CoursesCompanion.insert(
-          firestoreId: drift.Value(firestoreId),
+          supabaseId: drift.Value(supabaseId),
           name: _nameController.text.trim(),
           location: drift.Value(_locationController.text.trim()),
           totalHoles: drift.Value(_totalHoles),
@@ -81,9 +80,9 @@ class _AddCourseScreenState extends ConsumerState<AddCourseScreen> {
         ),
       );
 
-      // Sync to Firestore
+      // Sync to Supabase
       try {
-        final savedCourse = await db.getCourseByFirestoreId(firestoreId);
+        final savedCourse = await db.getCourseBySupabaseId(supabaseId);
         if (savedCourse != null) {
           await ref.read(syncServiceProvider).syncCourse(savedCourse);
         }
@@ -95,24 +94,19 @@ class _AddCourseScreenState extends ConsumerState<AddCourseScreen> {
       
       if (!mounted) return;
       context.pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Course added successfully!'), backgroundColor: AppColors.emerald700),
-      );
+      TopNotification.showSuccess(context, 'Course added successfully!');
     } catch (e) {
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding course: $e'), backgroundColor: AppColors.doubleBogey),
-      );
+      TopNotification.showError(context, 'Error adding course: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.grey50,
       appBar: AppBar(
-        backgroundColor: AppColors.grey50,
         elevation: 0,
+        scrolledUnderElevation: 0,
         title: const Text('Add Custom Course', style: TextStyle(fontWeight: FontWeight.w800)),
         centerTitle: true,
       ),
