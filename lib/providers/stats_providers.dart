@@ -32,20 +32,46 @@ final holeScoresProvider = StreamProvider.family<List<db.HoleScore>, int>((ref, 
       .watch();
 });
 
+String _normalizeCourseName(String name) {
+  return name
+      .toLowerCase()
+      .replaceAll('golf club', '')
+      .replaceAll('country club', '')
+      .replaceAll('sports club', '')
+      .replaceAll('golf resort', '')
+      .replaceAll('resort', '')
+      .replaceAll('club', '')
+      .replaceAll('(baobab course)', '')
+      .replaceAll('&', '')
+      .replaceAll('and', '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
+
 final coursesProvider = StreamProvider<List<db.Course>>((ref) {
   final database = ref.watch(databaseProvider);
   final user = ref.watch(authStateProvider).valueOrNull;
   return database.watchAllCourses(user?.id).map((courses) {
     final Map<String, db.Course> uniqueCourses = {};
     for (final c in courses) {
-      final normalizedName = c.name.trim().toLowerCase();
-      if (!uniqueCourses.containsKey(normalizedName)) {
-        uniqueCourses[normalizedName] = c;
+      final key = _normalizeCourseName(c.name) + '_' + _normalizeCourseName(c.location ?? '');
+      if (!uniqueCourses.containsKey(key)) {
+        uniqueCourses[key] = c;
       } else {
-        final existing = uniqueCourses[normalizedName]!;
-        if ((existing.region == null || existing.region!.isEmpty) && 
-            c.region != null && c.region!.isNotEmpty) {
-          uniqueCourses[normalizedName] = c;
+        final existing = uniqueCourses[key]!;
+        final existingHasTees = existing.teeData != null && existing.teeData!.isNotEmpty && existing.teeData != '[]';
+        final newHasTees = c.teeData != null && c.teeData!.isNotEmpty && c.teeData != '[]';
+        
+        if (newHasTees && !existingHasTees) {
+          uniqueCourses[key] = c;
+        } else if (!newHasTees && existingHasTees) {
+          // Keep existing which has tees
+        } else {
+          // Both have or don't have tees, default to region check
+          if ((existing.region == null || existing.region!.isEmpty) && 
+              c.region != null && c.region!.isNotEmpty) {
+            uniqueCourses[key] = c;
+          }
         }
       }
     }
@@ -54,6 +80,7 @@ final coursesProvider = StreamProvider<List<db.Course>>((ref) {
     return deduplicated;
   });
 });
+
 
 final roundsProvider = StreamProvider<List<db.Round>>((ref) {
   final database = ref.watch(databaseProvider);

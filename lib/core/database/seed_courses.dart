@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'database.dart';
 
@@ -146,6 +147,7 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(35),
       par9back: const Value(36),
       holePars: const Value('[4,3,5,4,4,3,4,4,4,4,3,5,4,4,3,4,5,4]'),
+      teeData: const Value('[{"name":"Simba","courseRating":71.2,"slopeRating":128,"yardages":[360,150,510,390,340,160,380,480,350,370,155,500,395,345,170,390,490,340]},{"name":"Chui","courseRating":68.5,"slopeRating":118,"yardages":[330,130,470,360,310,140,350,450,320,340,135,470,365,315,150,360,460,310]}]'),
       caddieFee: const Value(1000.0),
       latitude: const Value(-4.0333),
       longitude: const Value(39.7167),
@@ -159,6 +161,7 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(36),
       par9back: const Value(35),
       holePars: const Value('[4,4,5,3,4,4,3,5,4,4,4,5,3,4,3,4,4,4]'),
+      teeData: const Value('[{"name":"Chui","courseRating":68.7,"slopeRating":122,"yardages":[285,290,120,300,425,350,165,455,390,285,290,120,300,425,350,165,455,390]},{"name":"Nyati","courseRating":66.6,"slopeRating":111,"yardages":[260,270,110,280,400,330,150,430,360,260,270,110,280,400,330,150,430,360]}]'),
       caddieFee: const Value(1000.0),
       latitude: const Value(-4.0733),
       longitude: const Value(39.6733),
@@ -172,6 +175,7 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(36),
       par9back: const Value(36),
       holePars: const Value('[4,5,3,4,4,4,3,5,4,4,5,3,4,4,4,3,5,4]'),
+      teeData: const Value('[{"name":"Black","courseRating":74.2,"slopeRating":138,"yardages":[410,540,195,430,390,425,185,550,380,405,535,175,415,380,420,185,545,365]},{"name":"White","courseRating":72.1,"slopeRating":131,"yardages":[385,515,175,405,365,400,165,525,355,380,510,155,390,355,395,165,520,345]},{"name":"Yellow","courseRating":69.8,"slopeRating":124,"yardages":[360,490,155,380,340,375,145,500,330,355,485,135,365,330,370,145,495,325]},{"name":"Red","courseRating":71.5,"slopeRating":122,"yardages":[335,465,135,355,315,350,125,475,305,330,460,115,340,305,345,125,470,305]}]'),
       caddieFee: const Value(1500.0),
       latitude: const Value(-3.8242),
       longitude: const Value(39.7997),
@@ -185,6 +189,7 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(37),
       par9back: const Value(36),
       holePars: const Value('[4,5,3,4,5,4,4,3,5,4,4,3,5,4,4,3,5,4]'),
+      teeData: const Value('[{"name":"Simba","courseRating":71.6,"slopeRating":129,"yardages":[376,365,438,216,361,343,357,449,518,383,393,325,516,371,145,517,181,548]},{"name":"Chui","courseRating":67.8,"slopeRating":118,"yardages":[350,340,390,190,330,310,330,410,480,350,360,290,480,340,130,480,160,500]}]'),
       caddieFee: const Value(1000.0),
       latitude: const Value(-0.2450),
       longitude: const Value(36.0683),
@@ -198,6 +203,7 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(35),
       par9back: const Value(36),
       holePars: const Value('[4,4,3,4,4,3,4,5,4,4,3,5,4,4,3,4,5,4]'),
+      teeData: const Value('[{"name":"Simba","courseRating":70.5,"slopeRating":126,"yardages":[355,365,160,380,350,155,385,505,345,360,165,495,375,340,150,380,500,330]},{"name":"Chui","courseRating":67.2,"slopeRating":115,"yardages":[325,335,140,350,320,135,355,475,315,330,145,465,345,310,130,350,470,300]}]'),
       caddieFee: const Value(1000.0),
       latitude: const Value(0.5143),
       longitude: const Value(35.2697),
@@ -211,6 +217,7 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(35),
       par9back: Value.absent(),
       holePars: const Value('[4,4,3,5,4,4,3,4,4]'),
+      teeData: const Value('[{"name":"Simba","courseRating":35.2,"slopeRating":115,"yardages":[315,335,140,480,345,360,150,380,350]},{"name":"Chui","courseRating":33.8,"slopeRating":108,"yardages":[290,310,120,440,315,330,135,350,320]}]'),
       caddieFee: const Value(800.0),
       latitude: const Value(-0.1022),
       longitude: const Value(34.7500),
@@ -224,6 +231,7 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(35),
       par9back: const Value(35),
       holePars: const Value('[4,4,3,4,4,3,4,5,4,4,4,3,4,4,3,4,4,4]'),
+      teeData: const Value('[{"name":"Kifaru","courseRating":69.9,"slopeRating":121,"yardages":[278,401,161,367,187,398,267,516,299,278,401,161,367,187,398,267,516,299]},{"name":"Nyati","courseRating":67.1,"slopeRating":112,"yardages":[250,370,140,340,160,360,240,480,270,250,370,140,340,160,360,240,480,270]}]'),
       caddieFee: const Value(800.0),
       latitude: const Value(-0.3667),
       longitude: const Value(35.2833),
@@ -237,6 +245,7 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(35),
       par9back: const Value(35),
       holePars: const Value('[4,4,3,4,4,3,4,5,4,4,4,3,4,4,3,4,4,4]'),
+      teeData: const Value('[{"name":"Simba","courseRating":70.0,"slopeRating":122,"yardages":[330,370,150,390,340,170,400,500,350,330,370,150,390,340,170,400,500,350]},{"name":"Chui","courseRating":67.5,"slopeRating":113,"yardages":[300,340,130,360,310,150,370,470,320,300,340,130,360,310,150,370,470,320]}]'),
       caddieFee: const Value(800.0),
       latitude: const Value(0.1000),
       longitude: const Value(35.2000),
@@ -250,6 +259,7 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(35),
       par9back: const Value(35),
       holePars: const Value('[4,4,3,4,4,3,4,5,4,4,4,3,4,4,3,4,4,4]'),
+      teeData: const Value('[{"name":"Simba","courseRating":69.5,"slopeRating":120,"yardages":[320,360,145,380,330,160,390,490,340,320,360,145,380,330,160,390,490,340]},{"name":"Chui","courseRating":66.8,"slopeRating":111,"yardages":[290,330,130,350,300,140,360,460,310,290,330,130,350,300,140,360,460,310]}]'),
       caddieFee: const Value(800.0),
       latitude: const Value(-1.5167),
       longitude: const Value(37.2667),
@@ -263,23 +273,94 @@ Future<void> seedCourses(AppDatabase db) async {
       par9front: const Value(35),
       par9back: const Value(35),
       holePars: const Value('[4,4,3,4,4,3,4,5,4,4,4,3,4,4,3,4,4,4]'),
+      teeData: const Value('[{"name":"White","courseRating":70.2,"slopeRating":124,"yardages":[340,350,155,375,345,150,380,495,335,340,350,155,375,345,150,380,495,335]},{"name":"Red","courseRating":67.5,"slopeRating":113,"yardages":[310,320,135,345,315,130,350,465,305,310,320,135,345,315,130,350,465,305]}]'),
       caddieFee: const Value(1000.0),
       latitude: const Value(-1.1500),
       longitude: const Value(36.9667),
     ),
   ];
 
-  // Upsert all courses
-  await db.batch((batch) {
-    for (var c in courses) {
-      batch.insert(
-        db.courses, 
-        c, 
-        onConflict: DoUpdate(
-          (old) => c,
-          target: [db.courses.name, db.courses.location],
-        ),
-      );
+  // Upsert all courses and populate tees/holes locally
+  for (var c in courses) {
+    final courseId = await db.upsertCourse(c);
+    final teeDataJson = c.teeData.present ? c.teeData.value : null;
+    final holeParsJson = c.holePars.present ? c.holePars.value : null;
+    if (teeDataJson != null && holeParsJson != null) {
+      await _seedTeesAndHolesForCourse(db, courseId, teeDataJson, holeParsJson);
     }
-  });
+  }
 }
+
+Future<void> _seedTeesAndHolesForCourse(
+  AppDatabase db,
+  int courseId,
+  String teeDataJson,
+  String holeParsJson,
+) async {
+  try {
+    final List<dynamic> teesList = jsonDecode(teeDataJson);
+    final List<dynamic> parsList = jsonDecode(holeParsJson);
+
+    for (final teeMap in teesList) {
+      if (teeMap is! Map) continue;
+      final String teeName = teeMap['name'] as String;
+      final List<dynamic> yardages = teeMap['yardages'] as List<dynamic>;
+      final double courseRating = (teeMap['courseRating'] as num?)?.toDouble() ?? 72.0;
+      final int slopeRating = (teeMap['slopeRating'] as num?)?.toInt() ?? 113;
+
+      final String gender = (teeName.toLowerCase() == 'ladies' || teeName.toLowerCase() == 'women') ? 'female' : 'male';
+
+      final existingTees = await (db.select(db.tees)..where((t) => t.courseId.equals(courseId) & t.name.equals(teeName) & t.gender.equals(gender))).get();
+      int teeId;
+      if (existingTees.isNotEmpty) {
+        teeId = existingTees.first.id;
+        await (db.update(db.tees)..where((t) => t.id.equals(teeId))).write(
+          TeesCompanion(
+            courseRating: Value(courseRating),
+            slopeRating: Value(slopeRating),
+            yardage: Value(yardages.fold<int>(0, (sum, y) => sum + (y as int))),
+          ),
+        );
+      } else {
+        teeId = await db.into(db.tees).insert(
+          TeesCompanion.insert(
+            courseId: courseId,
+            name: teeName,
+            gender: Value(gender),
+            courseRating: courseRating,
+            slopeRating: slopeRating,
+            yardage: Value(yardages.fold<int>(0, (sum, y) => sum + (y as int))),
+          ),
+        );
+      }
+
+      for (int i = 0; i < yardages.length; i++) {
+        final holeNumber = i + 1;
+        final par = (i < parsList.length) ? (parsList[i] as int) : 4;
+        final distance = yardages[i] as int;
+        
+        final existingHoles = await (db.select(db.courseHoles)..where((ch) => ch.courseId.equals(courseId) & ch.teeId.equals(teeId) & ch.holeNumber.equals(holeNumber))).get();
+        if (existingHoles.isEmpty) {
+          await db.into(db.courseHoles).insert(
+            CourseHolesCompanion.insert(
+              courseId: courseId,
+              teeId: Value(teeId),
+              holeNumber: holeNumber,
+              par: par,
+              handicapIndex: Value(holeNumber),
+              distance: Value(distance),
+            ),
+          );
+        } else {
+          await (db.update(db.courseHoles)..where((ch) => ch.id.equals(existingHoles.first.id))).write(
+            CourseHolesCompanion(
+              par: Value(par),
+              distance: Value(distance),
+            ),
+          );
+        }
+      }
+    }
+  } catch (_) {}
+}
+
