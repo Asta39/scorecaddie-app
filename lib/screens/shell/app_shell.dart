@@ -436,7 +436,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
             Positioned.fill(
               child: PageView(
                 controller: _pageController,
-                physics: const BouncingScrollPhysics(),
+                physics: const NeverScrollableScrollPhysics(),
                 onPageChanged: (index) {
                   if (!_isPageAnimating && index != _currentIndex) {
                     setState(() {

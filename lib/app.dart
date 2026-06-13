@@ -40,7 +40,32 @@ class ScoreCaddieApp extends ConsumerWidget {
             systemNavigationBarColor: Colors.white,
             systemNavigationBarIconBrightness: Brightness.dark,
           ),
-          child: child ?? const SizedBox.shrink(),
+          child: child != null
+              ? LayoutBuilder(
+                  builder: (context, constraints) {
+                    final mediaQuery = MediaQuery.of(context);
+                    final width = mediaQuery.size.width;
+                    final height = mediaQuery.size.height;
+                    
+                    // Design baseline: 390 width (standard modern mobile screen)
+                    const double baselineWidth = 390.0;
+                    
+                    if (width < baselineWidth && width > 0) {
+                      final double scale = width / baselineWidth;
+                      return FittedBox(
+                        fit: BoxFit.fitWidth,
+                        alignment: Alignment.topCenter,
+                        child: SizedBox(
+                          width: baselineWidth,
+                          height: height / scale,
+                          child: child,
+                        ),
+                      );
+                    }
+                    return child;
+                  },
+                )
+              : const SizedBox.shrink(),
         );
       },
     );
