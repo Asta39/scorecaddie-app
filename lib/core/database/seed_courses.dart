@@ -121,6 +121,21 @@ Future<void> seedCourses(AppDatabase db) async {
       longitude: const Value(36.6433),
     ),
 
+    CoursesCompanion.insert(
+      name: 'Nyeri Golf Club',
+      location: const Value('Nyeri'),
+      totalHoles: const Value(18),
+      par18: const Value(72),
+      par9front: const Value(36),
+      par9back: const Value(36),
+      holePars: const Value('[4,3,5,4,4,5,4,4,3,4,3,5,4,4,5,4,4,3]'),
+      teeData: const Value('[{"name":"Simba","yardages":[348,170,527,447,313,554,400,401,214,374,162,499,441,289,580,370,398,190]},{"name":"Chui","yardages":[331,151,447,400,266,504,366,362,190,331,151,447,329,266,504,367,301,142]}]'),
+      caddieFee: const Value(1000.0),
+      latitude: const Value(-0.4245),
+      longitude: const Value(36.9423),
+    ),
+
+
     // ── Courses with basic data (user can edit par/yardage) ──
 
     CoursesCompanion.insert(
