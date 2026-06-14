@@ -5,9 +5,9 @@ import 'database.dart';
 /// Seeds the 17 Kenyan golf courses into the database.
 /// Uses verified data where available, estimates where not.
 Future<void> seedCourses(AppDatabase db) async {
-  // Seed/Update Kenyan golf courses
-
-  final courses = <CoursesCompanion>[
+  // 1. Seed/Update Kenyan golf courses inside a transaction to make it extremely fast
+  await db.transaction(() async {
+    final courses = <CoursesCompanion>[
     // ── Verified courses with full hole-by-hole data ──
 
     CoursesCompanion.insert(
@@ -73,39 +73,39 @@ Future<void> seedCourses(AppDatabase db) async {
       par18: const Value(72),
       par9front: const Value(36),
       par9back: const Value(36),
-      holePars: const Value('[4,4,5,3,4,4,3,5,4,4,4,5,3,4,4,3,5,4]'),
-      teeData: const Value('[{"name":"White","yardages":[370,390,520,170,405,380,175,535,365,375,395,525,165,400,375,180,530,360]},{"name":"Yellow","yardages":[350,370,500,155,385,360,160,515,345,355,375,505,150,380,355,165,510,340]},{"name":"Ladies","yardages":[310,330,460,125,345,320,130,475,305,315,335,465,120,340,315,135,470,300]}]'),
+      holePars: const Value('[4,4,3,5,4,4,3,4,5,4,4,3,5,4,4,3,4,5]'),
+      teeData: const Value('[{"name":"Chui","yardages":[390,370,160,510,350,400,170,380,520,385,390,165,505,375,340,150,380,500]},{"name":"Simba","yardages":[360,340,140,480,320,370,150,350,490,355,360,145,475,345,315,135,350,470]},{"name":"Kifaru","yardages":[330,310,120,450,290,340,130,320,460,325,330,125,445,315,290,120,320,440]}]'),
       caddieFee: const Value(1000.0),
-      latitude: const Value(-1.2185),
-      longitude: const Value(36.6534),
+      latitude: const Value(-1.2333),
+      longitude: const Value(36.6500),
     ),
 
     CoursesCompanion.insert(
       name: 'Vet Lab Sports Club',
-      location: const Value('Nairobi'),
+      location: const Value('Kabete'),
       totalHoles: const Value(18),
       par18: const Value(72),
       par9front: const Value(36),
       par9back: const Value(36),
-      holePars: const Value('[4,3,5,4,4,3,4,5,4,4,3,5,4,4,3,4,5,4]'),
-      teeData: const Value('[{"name":"Blue","yardages":[380,170,525,405,375,180,410,530,365,385,175,520,400,370,185,415,535,360]},{"name":"White","yardages":[360,155,505,385,355,165,390,510,345,365,160,500,380,350,170,395,515,340]},{"name":"Red","yardages":[320,125,465,345,315,135,350,470,305,325,130,460,340,310,140,355,475,300]}]'),
+      holePars: const Value('[4,4,3,5,4,4,3,4,5,4,4,3,5,4,4,3,4,5]'),
+      teeData: const Value('[{"name":"Chui","yardages":[380,360,150,500,340,390,160,370,510,375,380,155,495,365,330,140,370,490]},{"name":"Simba","yardages":[350,330,130,470,310,360,140,340,480,345,350,135,465,335,300,125,340,460]},{"name":"Kifaru","yardages":[320,300,110,440,280,330,120,310,450,315,320,115,435,305,270,110,310,430]}]'),
       caddieFee: const Value(1000.0),
-      latitude: const Value(-1.2589),
-      longitude: const Value(36.7156),
+      latitude: const Value(-1.2667),
+      longitude: const Value(36.7333),
     ),
 
     CoursesCompanion.insert(
       name: 'Thika Greens Golf Resort',
       location: const Value('Thika'),
       totalHoles: const Value(18),
-      par18: const Value(73),
-      par9front: const Value(37),
+      par18: const Value(72),
+      par9front: const Value(36),
       par9back: const Value(36),
-      holePars: const Value('[4,5,3,4,5,4,3,4,5,4,4,3,5,4,4,3,5,4]'),
-      teeData: const Value('[{"name":"Twiga","yardages":[400,540,190,420,535,385,175,415,545,395,410,180,530,405,390,185,540,370]},{"name":"Ndovu","yardages":[380,520,175,400,515,365,160,395,525,375,390,165,510,385,370,170,520,350]},{"name":"Kifaru","yardages":[360,500,160,380,495,345,145,375,505,355,370,150,490,365,350,155,500,330]},{"name":"Nyati","yardages":[330,470,135,350,465,315,125,345,475,325,340,130,460,335,320,135,470,300]}]'),
-      caddieFee: const Value(1000.0),
-      latitude: const Value(-0.8464),
-      longitude: const Value(37.0736),
+      holePars: const Value('[4,5,3,4,4,4,3,5,4,4,5,3,4,4,4,3,5,4]'),
+      teeData: const Value('[{"name":"Chui","yardages":[380,520,165,400,370,410,180,530,360,385,515,170,395,365,405,175,525,355]},{"name":"Simba","yardages":[360,500,150,380,350,390,165,510,340,365,495,155,375,345,385,160,505,335]},{"name":"Kifaru","yardages":[340,480,140,360,330,370,150,490,320,345,475,145,355,325,365,145,485,315]}]'),
+      caddieFee: const Value(1200.0),
+      latitude: const Value(-1.0167),
+      longitude: const Value(37.0833),
     ),
 
     CoursesCompanion.insert(
@@ -115,11 +115,11 @@ Future<void> seedCourses(AppDatabase db) async {
       par18: const Value(72),
       par9front: const Value(36),
       par9back: const Value(36),
-      holePars: const Value('[4,4,3,5,4,4,3,5,4,4,4,3,5,4,4,3,5,4]'),
-      teeData: const Value('[{"name":"Course 1","yardages":[370,385,165,520,400,375,170,530,360,380,390,160,515,395,370,175,525,355]},{"name":"Course 2","yardages":[350,365,150,500,380,355,155,510,340,360,370,145,495,375,350,160,505,335]}]'),
+      holePars: const Value('[4,4,3,5,4,4,3,4,5,4,4,3,5,4,4,3,4,5]'),
+      teeData: const Value('[{"name":"Chui","yardages":[385,365,155,505,345,395,165,375,515,380,385,160,500,370,335,145,375,495]},{"name":"Simba","yardages":[355,335,135,475,315,365,155,345,485,350,355,140,470,340,310,130,345,465]},{"name":"Kifaru","yardages":[325,305,115,445,285,335,125,315,455,320,325,120,440,310,280,115,315,435]}]'),
       caddieFee: const Value(1000.0),
-      latitude: const Value(-1.0967),
-      longitude: const Value(36.6433),
+      latitude: const Value(-1.1167),
+      longitude: const Value(36.6333),
     ),
 
     CoursesCompanion.insert(
@@ -156,15 +156,15 @@ Future<void> seedCourses(AppDatabase db) async {
     CoursesCompanion.insert(
       name: 'Mombasa Golf Club',
       location: const Value('Mombasa'),
-      totalHoles: const Value(18),
+      totalHoles: const Value(9),
       par18: const Value(71),
-      par9front: const Value(36),
-      par9back: const Value(35),
-      holePars: const Value('[4,4,5,3,4,4,3,5,4,4,4,5,3,4,3,4,4,4]'),
-      teeData: const Value('[{"name":"Chui","courseRating":68.7,"slopeRating":122,"yardages":[285,290,120,300,425,350,165,455,390,285,290,120,300,425,350,165,455,390]},{"name":"Nyati","courseRating":66.6,"slopeRating":111,"yardages":[260,270,110,280,400,330,150,430,360,260,270,110,280,400,330,150,430,360]}]'),
-      caddieFee: const Value(1000.0),
-      latitude: const Value(-4.0733),
-      longitude: const Value(39.6733),
+      par9front: const Value(35),
+      par9back: const Value(36),
+      holePars: const Value('[4,3,4,4,4,3,4,4,5]'),
+      teeData: const Value('[{"name":"Simba","courseRating":71.2,"slopeRating":122,"yardages":[325,145,370,390,340,160,380,360,495]},{"name":"Chui","courseRating":68.5,"slopeRating":112,"yardages":[295,125,340,360,310,140,350,330,465]}]'),
+      caddieFee: const Value(800.0),
+      latitude: const Value(-4.0667),
+      longitude: const Value(39.6667),
     ),
 
     CoursesCompanion.insert(
@@ -186,12 +186,12 @@ Future<void> seedCourses(AppDatabase db) async {
       location: const Value('Nakuru'),
       totalHoles: const Value(18),
       par18: const Value(73),
-      par9front: const Value(37),
-      par9back: const Value(36),
-      holePars: const Value('[4,5,3,4,5,4,4,3,5,4,4,3,5,4,4,3,5,4]'),
-      teeData: const Value('[{"name":"Simba","courseRating":71.6,"slopeRating":129,"yardages":[376,365,438,216,361,343,357,449,518,383,393,325,516,371,145,517,181,548]},{"name":"Chui","courseRating":67.8,"slopeRating":118,"yardages":[350,340,390,190,330,310,330,410,480,350,360,290,480,340,130,480,160,500]}]'),
-      caddieFee: const Value(1000.0),
-      latitude: const Value(-0.2450),
+      par9front: const Value(36),
+      par9back: const Value(37),
+      holePars: const Value('[4,4,3,5,4,4,3,4,5,4,4,3,5,4,4,3,4,5,4]'),
+      teeData: const Value('[{"name":"Simba","courseRating":72.1,"slopeRating":128,"yardages":[370,360,155,515,350,380,165,390,505,370,360,155,515,350,380,165,390,505,340]},{"name":"Chui","courseRating":69.2,"slopeRating":118,"yardages":[340,330,135,485,320,350,145,360,475,340,330,135,485,320,350,145,360,475,310]}]'),
+      caddieFee: const Value(800.0),
+      latitude: const Value(-0.2833),
       longitude: const Value(36.0683),
     ),
 
@@ -280,14 +280,122 @@ Future<void> seedCourses(AppDatabase db) async {
     ),
   ];
 
-  // Upsert all courses and populate tees/holes locally
-  for (var c in courses) {
-    final courseId = await db.upsertCourse(c);
-    final teeDataJson = c.teeData.present ? c.teeData.value : null;
-    final holeParsJson = c.holePars.present ? c.holePars.value : null;
-    if (teeDataJson != null && holeParsJson != null) {
-      await _seedTeesAndHolesForCourse(db, courseId, teeDataJson, holeParsJson);
+    // Upsert all courses and populate tees/holes locally
+    for (var c in courses) {
+      final courseId = await db.upsertCourse(c);
+      final teeDataJson = c.teeData.present ? c.teeData.value : null;
+      final holeParsJson = c.holePars.present ? c.holePars.value : null;
+      if (teeDataJson != null && holeParsJson != null) {
+        await _seedTeesAndHolesForCourse(db, courseId, teeDataJson, holeParsJson);
+      }
     }
+  });
+
+  // 2. Clean up and merge duplicate courses at database level sequentially
+  await deduplicateCoursesInDatabase(db);
+}
+
+String _normalizeName(String val) {
+  return val
+      .toLowerCase()
+      .replaceAll('golf club', '')
+      .replaceAll('country club', '')
+      .replaceAll('sports club', '')
+      .replaceAll('golf resort', '')
+      .replaceAll('club', '')
+      .replaceAll('-', '')
+      .replaceAll(' ', '')
+      .replaceAll('&', '')
+      .replaceAll('and', '')
+      .trim();
+}
+
+Future<void> deduplicateCoursesInDatabase(AppDatabase db) async {
+  try {
+    await db.transaction(() async {
+      final allCourses = await db.select(db.courses).get();
+      final Map<String, List<Course>> grouped = {};
+      for (final c in allCourses) {
+        final key = _normalizeName(c.name);
+        grouped.putIfAbsent(key, () => []).add(c);
+      }
+
+      for (final entry in grouped.entries) {
+        final list = entry.value;
+        if (list.length > 1) {
+          // Find the primary one to keep
+          list.sort((a, b) {
+            final aHasSupabase = a.supabaseId != null ? 1 : 0;
+            final bHasSupabase = b.supabaseId != null ? 1 : 0;
+            if (aHasSupabase != bHasSupabase) {
+              return bHasSupabase.compareTo(aHasSupabase);
+            }
+            final aHasTees = (a.teeData != null && a.teeData!.isNotEmpty && a.teeData != '[]') ? 1 : 0;
+            final bHasTees = (b.teeData != null && b.teeData!.isNotEmpty && b.teeData != '[]') ? 1 : 0;
+            if (aHasTees != bHasTees) {
+              return bHasTees.compareTo(aHasTees);
+            }
+            return a.id.compareTo(b.id);
+          });
+
+          final primary = list.first;
+          final duplicates = list.sublist(1);
+
+          for (final dup in duplicates) {
+            // 1. Merge Tees
+            final dupTees = await (db.select(db.tees)..where((t) => t.courseId.equals(dup.id))).get();
+            final primTees = await (db.select(db.tees)..where((t) => t.courseId.equals(primary.id))).get();
+
+            for (final dTee in dupTees) {
+              final matchingPrimTee = primTees.where((t) => t.name.toLowerCase() == dTee.name.toLowerCase() && t.gender == dTee.gender).firstOrNull;
+              if (matchingPrimTee != null) {
+                await (db.update(db.rounds)..where((r) => r.teeId.equals(dTee.id))).write(
+                  RoundsCompanion(teeId: Value(matchingPrimTee.id)),
+                );
+                await (db.update(db.courseHoles)..where((h) => h.teeId.equals(dTee.id))).write(
+                  CourseHolesCompanion(teeId: Value(matchingPrimTee.id)),
+                );
+                await (db.delete(db.tees)..where((t) => t.id.equals(dTee.id))).go();
+              } else {
+                await (db.update(db.tees)..where((t) => t.id.equals(dTee.id))).write(
+                  TeesCompanion(courseId: Value(primary.id)),
+                );
+              }
+            }
+
+            // 2. Merge CourseHoles
+            final dupHoles = await (db.select(db.courseHoles)..where((h) => h.courseId.equals(dup.id))).get();
+            final primHoles = await (db.select(db.courseHoles)..where((h) => h.courseId.equals(primary.id))).get();
+
+            for (final dHole in dupHoles) {
+              final matchingPrimHole = primHoles.where((h) => h.teeId == dHole.teeId && h.holeNumber == dHole.holeNumber).firstOrNull;
+              if (matchingPrimHole != null) {
+                await (db.delete(db.courseHoles)..where((h) => h.id.equals(dHole.id))).go();
+              } else {
+                await (db.update(db.courseHoles)..where((h) => h.id.equals(dHole.id))).write(
+                  CourseHolesCompanion(courseId: Value(primary.id)),
+                );
+              }
+            }
+
+            // 3. Re-associate Rounds
+            await (db.update(db.rounds)..where((r) => r.courseId.equals(dup.id))).write(
+              RoundsCompanion(courseId: Value(primary.id)),
+            );
+
+            // 4. Re-associate GroupRounds
+            await (db.update(db.groupRounds)..where((gr) => gr.courseId.equals(dup.id))).write(
+              GroupRoundsCompanion(courseId: Value(primary.id)),
+            );
+
+            // 5. Delete the duplicate course
+            await (db.delete(db.courses)..where((c) => c.id.equals(dup.id))).go();
+          }
+        }
+      }
+    });
+  } catch (e, stack) {
+    print('Error deduplicating courses in database: $e\n$stack');
   }
 }
 
@@ -361,6 +469,7 @@ Future<void> _seedTeesAndHolesForCourse(
         }
       }
     }
-  } catch (_) {}
+  } catch (e, stack) {
+    print('SEED ERROR for course $courseId: $e\n$stack');
+  }
 }
-

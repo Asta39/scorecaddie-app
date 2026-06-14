@@ -23,6 +23,7 @@ import '../provider/coach_sessions_screen.dart';
 import '../provider/coach_students_screen.dart';
 import '../provider/coach_drills_screen.dart';
 import '../provider/coach_payment_management_screen.dart';
+import '../competitions/competitions_list_screen.dart';
 
 /// Main app shell with frosted glass bottom navigation bar and swipe navigation.
 class AppShell extends ConsumerStatefulWidget {
@@ -34,8 +35,8 @@ class AppShell extends ConsumerStatefulWidget {
     ('/', 'Home', LucideIcons.home),
     ('/practice', 'Practice', LucideIcons.target),
     ('/analytics', 'Stats', LucideIcons.barChart2),
+    ('/competitions', 'Compete', LucideIcons.trophy),
     ('/caddie', 'Caddie', LucideIcons.briefcase),
-    ('/leaderboard', 'Leaderboard', LucideIcons.trophy),
     ('/profile', 'Profile', LucideIcons.user),
   ];
 
@@ -64,8 +65,8 @@ class AppShell extends ConsumerStatefulWidget {
         DashboardScreen(),
         PracticeRangeScreen(),
         AnalyticsScreen(),
+        CompetitionsListScreen(),
         CaddieMarketplaceScreen(),
-        LeaderboardScreen(),
         ProfileScreen(),
       ];
     }

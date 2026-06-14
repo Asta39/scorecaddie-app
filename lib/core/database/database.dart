@@ -520,16 +520,30 @@ class AppDatabase extends _$AppDatabase {
     } else {
       return await into(courses).insert(course);
     }
-  }  Future<List<CourseHole>> getHolesForCourse(int courseId, {int? teeId}) async {
+  }  Future<List<CourseHole>> getHolesForCourse(int courseId, {int? teeId, bool deduplicate = true}) async {
+    if (!deduplicate) {
+      return await (select(courseHoles)..where((h) => h.courseId.equals(courseId))..orderBy([(h) => OrderingTerm.asc(h.holeNumber)])).get();
+    }
+
     // 1. Try specific tee holes first
     List<CourseHole> results = [];
     if (teeId != null) {
       results = await (select(courseHoles)..where((h) => h.courseId.equals(courseId) & h.teeId.equals(teeId))..orderBy([(h) => OrderingTerm.asc(h.holeNumber)])).get();
+      return results; // No deduplication needed for a specific tee
     }
     
     // 2. Fallback to general holes (where teeId is null) if no specific tee holes
     if (results.isEmpty) {
       results = await (select(courseHoles)..where((h) => h.courseId.equals(courseId) & h.teeId.isNull())..orderBy([(h) => OrderingTerm.asc(h.holeNumber)])).get();
+    }
+
+    // 2.5 Fallback to any holes for this course if still empty (e.g. locally seeded specific tees)
+    if (results.isEmpty) {
+      results = await (select(courseHoles)..where((h) => h.courseId.equals(courseId))..orderBy([(h) => OrderingTerm.asc(h.holeNumber)])).get();
+    }
+
+    if (!deduplicate) {
+      return results;
     }
 
     // 3. Robust Deduplication by holeNumber

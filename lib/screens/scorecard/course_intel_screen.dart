@@ -30,7 +30,7 @@ class CourseIntelScreen extends ConsumerWidget {
               final course = snapshot.data!;
 
               return FutureBuilder<List<db.CourseHole>>(
-                future: database.getHolesForCourse(courseId),
+                future: database.getHolesForCourse(courseId, deduplicate: false),
                 builder: (context, holeSnapshot) {
                   final holes = holeSnapshot.data ?? [];
                   return FutureBuilder<List<db.Tee>>(
@@ -152,7 +152,7 @@ class CourseIntelScreen extends ConsumerWidget {
           const SizedBox(height: 28),
           Row(
             children: [
-              _buildHeroStat('PAR', '${course.par18 ?? 72}'),
+              _buildHeroStat('PAR', '${course.par18 ?? course.par9front ?? 72}'),
               _buildHeroDivider(),
               _buildHeroStat('HOLES', '${course.totalHoles}'),
               _buildHeroDivider(),
@@ -348,27 +348,6 @@ class CourseIntelScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                // Show distances for each tee
-                ...holeVariants.map((v) {
-                  final tee = tees.where((t) => t.id == v.teeId).firstOrNull;
-                  if (tee == null) return const SizedBox();
-                  return Container(
-                    margin: const EdgeInsets.only(left: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getTeeColor(tee.name).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${v.distance}m',
-                      style: TextStyle(
-                        color: _getTeeColor(tee.name),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  );
-                }),
               ],
             ),
           );

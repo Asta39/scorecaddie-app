@@ -56,6 +56,10 @@ import '../../screens/provider/coach_students_screen.dart';
 import '../../screens/provider/coach_drills_screen.dart';
 import '../../screens/provider/coach_drill_builder_screen.dart';
 import '../../screens/marketplace/player_session_details_screen.dart';
+import '../../screens/competitions/competitions_list_screen.dart';
+import '../../screens/competitions/competition_detail_screen.dart';
+import '../../screens/competitions/competition_scan_submit_screen.dart';
+import '../../screens/competitions/admin/create_competition_screen.dart';
 
 import '../../core/models/coaching_model.dart';
 
@@ -240,6 +244,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: '/competitions',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: CompetitionsListScreen(),
+            ),
+          ),
+          GoRoute(
             path: '/profile',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: ProfileScreen(),
@@ -275,6 +285,28 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/achievements',
         builder: (context, state) => const AchievementsGalleryScreen(),
+      ),
+      GoRoute(
+        path: '/competitions/create',
+        builder: (context, state) => const CreateCompetitionScreen(),
+      ),
+      GoRoute(
+        path: '/competitions/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return CompetitionDetailScreen(competitionId: id);
+        },
+      ),
+      GoRoute(
+        path: '/competitions/:id/scan/:entryId',
+        builder: (context, state) {
+          final competitionId = state.pathParameters['id']!;
+          final entryId = state.pathParameters['entryId']!;
+          return CompetitionScanSubmitScreen(
+            competitionId: competitionId,
+            entryId: entryId,
+          );
+        },
       ),
       GoRoute(
         path: '/create-session',

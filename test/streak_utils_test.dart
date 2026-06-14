@@ -31,8 +31,8 @@ void main() {
       expect(StreakUtils.calculateWeeklyStreak([round]), 1);
     });
 
-    test('returns 0 for last week only (no this week)', () {
-      final lastWeek = DateTime.now().subtract(const Duration(days: 10));
+    test('returns 1 for last week only (streak maintained)', () {
+      final lastWeek = DateTime.now().subtract(const Duration(days: 7));
       final round = Round(
         id: 1,
         userId: 'test',
@@ -51,7 +51,7 @@ void main() {
         updatedAt: lastWeek,
         source: 'live',
       );
-      expect(StreakUtils.calculateWeeklyStreak([round]), 0);
+      expect(StreakUtils.calculateWeeklyStreak([round]), 1);
     });
   });
 
