@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../core/database/database.dart' as db;
 import '../core/services/supabase_auth_service.dart';
 import '../core/services/profile_service.dart';
@@ -22,6 +23,13 @@ final authStateProvider = StreamProvider<AuthUser?>((ref) {
   final authService = ref.watch(supabaseAuthServiceProvider);
   return authService.authStateChanges.map((state) {
     final user = state.session?.user;
+    
+    if (user != null) {
+      OneSignal.login(user.id);
+    } else {
+      OneSignal.logout();
+    }
+
     return user != null ? AuthUser.fromSupabase(user) : null;
   });
 });

@@ -23,6 +23,20 @@ BEGIN
     END LOOP; 
 END $$;
 -- Add bio and rating to User table if they don't exist
+CREATE TABLE IF NOT EXISTS public."User" (
+    "id" text PRIMARY KEY,
+    "firebaseUid" text UNIQUE,
+    "name" text,
+    "avatarUrl" text,
+    "handicapIndex" double precision DEFAULT 0.0,
+    "skillLevel" text DEFAULT 'Amateur',
+    "playStyle" text DEFAULT 'Mixed',
+    "isProvisional" boolean DEFAULT true,
+    "handicapOrigin" text DEFAULT 'Calculated',
+    "fcmToken" text,
+    "updatedAt" timestamp with time zone DEFAULT now()
+);
+
 ALTER TABLE public."User" ADD COLUMN IF NOT EXISTS bio text default '';
 ALTER TABLE public."User" ADD COLUMN IF NOT EXISTS rating numeric(3,2) default 5.0;
 
@@ -30,7 +44,7 @@ ALTER TABLE public."User" ADD COLUMN IF NOT EXISTS rating numeric(3,2) default 5
 -- â”€â”€â”€ coaching_sessions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 create table if not exists public.coaching_sessions (
   id uuid default uuid_generate_v4() primary key,
-  coach_id text not null references public."User"(firebaseUid),                  -- Firebase UID of the coach
+  coach_id text not null references public."User"("firebaseUid"),                  -- Firebase UID of the coach
   name text not null,
   description text default '',
   location text not null,
@@ -67,7 +81,7 @@ create table if not exists public.session_occurrences (
 create table if not exists public.session_enrollments (
   id uuid default uuid_generate_v4() primary key,
   session_id uuid not null references public.coaching_sessions(id) on delete cascade,
-  player_id text not null references public."User"(firebaseUid),                 -- Firebase UID of the player
+  player_id text not null references public."User"("firebaseUid"),                 -- Firebase UID of the player
   status text not null default 'active',   -- 'active' | 'completed' | 'dropped'
   payment_status text not null default 'unpaid', -- 'unpaid' | 'partial' | 'fully_paid'
   amount_paid numeric(10,2) not null default 0,
@@ -358,7 +372,8 @@ end;
 $$;
 
 -- Grant execute permission to anonymous/authenticated roles
-grant execute on function public.create_coaching_session to anon, authenticated;
+grant execute on function public.create_coaching_session(text, text, text, int, numeric, int, text, int[], text, int, date, text, text, text, text, text, text) to anon, authenticated;
+grant execute on function public.create_coaching_session(text, text, text, int, numeric, int, text, int[], text, int, date, text) to anon, authenticated;
 -- ============================================================
 -- Edit Coaching Sessions Schema Updates
 -- ============================================================
@@ -489,7 +504,7 @@ $$;
 create table if not exists public.session_attendance (
   id uuid default uuid_generate_v4() primary key,
   occurrence_id uuid not null references public.session_occurrences(id) on delete cascade,
-  player_id text not null references public."User"(firebaseUid),
+  player_id text not null references public."User"("firebaseUid"),
   is_present boolean not null default true,
   created_at timestamptz default now(),
   unique(occurrence_id, player_id)

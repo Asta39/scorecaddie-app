@@ -6,8 +6,8 @@
 CREATE TABLE IF NOT EXISTS public.drill_assignments (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
   drill_id uuid NOT NULL, -- References a drill template (we'll add coach_id to drills next)
-  coach_id text NOT NULL REFERENCES public."User"(firebaseUid),
-  player_id text NOT NULL REFERENCES public."User"(firebaseUid),
+  coach_id text NOT NULL REFERENCES public."User"("firebaseUid"),
+  player_id text NOT NULL REFERENCES public."User"("firebaseUid"),
   assigned_at timestamptz DEFAULT now(),
   notes text,
   status text DEFAULT 'active', -- 'active' | 'completed' | 'archived'
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.drill_assignments (
 -- Based on the Flutter code, let's ensure we have a drills table that supports templates.
 CREATE TABLE IF NOT EXISTS public.drills (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-  creator_id text REFERENCES public."User"(firebaseUid),
+  creator_id text REFERENCES public."User"("firebaseUid"),
   name text NOT NULL,
   description text,
   category text DEFAULT 'General',
@@ -37,8 +37,8 @@ DROP POLICY IF EXISTS "Coaches manage their sessions" ON public.coaching_session
 CREATE POLICY "Coaches manage their sessions"
   ON public.coaching_sessions FOR ALL
   TO authenticated
-  USING (coach_id = auth.uid()::text OR coach_id = (select firebaseUid from public."User" where id = auth.uid()))
-  WITH CHECK (coach_id = auth.uid()::text OR coach_id = (select firebaseUid from public."User" where id = auth.uid()));
+  USING (coach_id = auth.uid()::text OR coach_id = (select "firebaseUid" from public."User" where id = auth.uid()::text))
+  WITH CHECK (coach_id = auth.uid()::text OR coach_id = (select "firebaseUid" from public."User" where id = auth.uid()::text));
 
 DROP POLICY IF EXISTS "Anyone can read sessions" ON public.coaching_sessions;
 CREATE POLICY "Anyone can read sessions"
@@ -51,13 +51,13 @@ ALTER TABLE public.session_enrollments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all on session_enrollments" ON public.session_enrollments;
 CREATE POLICY "Players see own enrollments"
   ON public.session_enrollments FOR SELECT
-  USING (player_id = auth.uid()::text OR player_id = (select firebaseUid from public."User" where id = auth.uid()));
+  USING (player_id = auth.uid()::text OR player_id = (select "firebaseUid" from public."User" where id = auth.uid()::text));
 
 CREATE POLICY "Coaches see their session enrollments"
   ON public.session_enrollments FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM public.coaching_sessions 
-    WHERE id = session_id AND coach_id = (select firebaseUid from public."User" where id = auth.uid())
+    WHERE id = session_id AND coach_id = (select "firebaseUid" from public."User" where id = auth.uid()::text)
   ));
 
 -- 5. Atomic Enrollment RPC with Capacity Check
@@ -123,10 +123,10 @@ ALTER TABLE public.drill_assignments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Coaches manage assignments"
   ON public.drill_assignments FOR ALL
-  USING (coach_id = (select firebaseUid from public."User" where id = auth.uid()));
+  USING (coach_id = (select "firebaseUid" from public."User" where id = auth.uid()::text));
 
 CREATE POLICY "Players read assigned drills"
   ON public.drill_assignments FOR SELECT
-  USING (player_id = (select firebaseUid from public."User" where id = auth.uid()));
+  USING (player_id = (select "firebaseUid" from public."User" where id = auth.uid()::text));
 
 GRANT EXECUTE ON FUNCTION public.enroll_player_in_session TO authenticated;

@@ -20,21 +20,7 @@ class CompetitionDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _CompetitionDetailScreenState
-    extends ConsumerState<CompetitionDetailScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+    extends ConsumerState<CompetitionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
@@ -59,11 +45,13 @@ class _CompetitionDetailScreenState
             body: const Center(child: Text('Competition not found')),
           );
         }
-        return _CompetitionDetailBody(
-          competition: competition,
-          isAdmin: isAdmin,
-          profile: profile,
-          tabController: _tabController,
+        return DefaultTabController(
+          length: isAdmin ? 5 : 4,
+          child: _CompetitionDetailBody(
+            competition: competition,
+            isAdmin: isAdmin,
+            profile: profile,
+          ),
         );
       },
     );
@@ -74,13 +62,11 @@ class _CompetitionDetailBody extends ConsumerWidget {
   final Competition competition;
   final bool isAdmin;
   final dynamic profile;
-  final TabController tabController;
 
   const _CompetitionDetailBody({
     required this.competition,
     required this.isAdmin,
     required this.profile,
-    required this.tabController,
   });
 
 
@@ -154,17 +140,18 @@ class _CompetitionDetailBody extends ConsumerWidget {
                       bottom: BorderSide(color: AppColors.grey100)),
                 ),
                 child: TabBar(
-                  controller: tabController,
                   labelColor: AppColors.grey900,
                   unselectedLabelColor: AppColors.grey400,
                   indicatorColor: AppColors.emerald700,
+                  isScrollable: true,
                   labelStyle: const TextStyle(
                       fontWeight: FontWeight.w700, fontSize: 13),
-                  tabs: const [
-                    Tab(text: 'Overview'),
-                    Tab(text: 'Entries'),
-                    Tab(text: 'Sheet'),
-                    Tab(text: 'Results'),
+                  tabs: [
+                    const Tab(text: 'Overview'),
+                    const Tab(text: 'Entries'),
+                    if (isAdmin) const Tab(text: 'Payments'),
+                    const Tab(text: 'Sheet'),
+                    const Tab(text: 'Results'),
                   ],
                 ),
               ),
@@ -172,13 +159,13 @@ class _CompetitionDetailBody extends ConsumerWidget {
           ),
         ],
         body: TabBarView(
-          controller: tabController,
           children: [
             _OverviewTab(
                 competition: competition,
                 isAdmin: isAdmin,
                 profile: profile),
             _EntriesTab(competition: competition, isAdmin: isAdmin, profile: profile),
+            if (isAdmin) _PaymentsTab(competition: competition),
             _StartingSheetTab(
                 competition: competition, isAdmin: isAdmin),
             _LeaderboardTab(competition: competition),
@@ -1065,8 +1052,15 @@ class _CompetitionEntrySheetState
     extends ConsumerState<CompetitionEntrySheet> {
   String _selectedTee = 'white';
   bool _isSubmitting = false;
+  final TextEditingController _mpesaPhoneController = TextEditingController();
 
   final _teeOptions = ['white', 'yellow', 'blue', 'red'];
+
+  @override
+  void dispose() {
+    _mpesaPhoneController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1192,23 +1186,60 @@ class _CompetitionEntrySheetState
           if (widget.competition.entryFee > 0) ...[
             const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.amber.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(LucideIcons.banknote,
-                      size: 18, color: Colors.amber),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Entry fee of ${widget.competition.currency} ${widget.competition.entryFee.toStringAsFixed(0)} payable at the club.',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.grey700,
-                          fontWeight: FontWeight.w500),
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.banknote,
+                          size: 18, color: Colors.amber),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Entry fee: ${widget.competition.currency} ${widget.competition.entryFee.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.grey800,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Enter M-Pesa Phone Number for STK Push',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.grey600),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _mpesaPhoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      hintText: 'e.g. 0712345678',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.grey300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.grey300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.emerald500, width: 2),
+                      ),
                     ),
                   ),
                 ],
@@ -1228,9 +1259,9 @@ class _CompetitionEntrySheetState
               ),
               child: _isSubmitting
                   ? const LoadingSpinner(size: 24)
-                  : const Text(
-                      'Confirm Entry',
-                      style: TextStyle(
+                  : Text(
+                      widget.competition.entryFee > 0 ? 'Pay & Enter' : 'Confirm Entry',
+                      style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w800,
                           fontSize: 16),
@@ -1243,6 +1274,13 @@ class _CompetitionEntrySheetState
   }
 
   Future<void> _submit(BuildContext context) async {
+    if (widget.competition.entryFee > 0 && _mpesaPhoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your M-Pesa phone number.')),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
     final hc = widget.profile?.handicap ?? 0.0;
     final success = await ref
@@ -1250,6 +1288,8 @@ class _CompetitionEntrySheetState
         .enterCompetition(
           competitionId: widget.competition.id,
           playingHandicap: hc,
+          entryFee: widget.competition.entryFee,
+          mpesaPhone: _mpesaPhoneController.text.trim(),
           teeColor: _selectedTee,
         );
     if (context.mounted) {
@@ -1278,5 +1318,66 @@ class _CompetitionEntrySheetState
       default:
         return Colors.grey.shade400;
     }
+  }
+}
+
+// ─── Admin Payments Tab ───────────────────────────────────────────────────────
+class _PaymentsTab extends ConsumerWidget {
+  final Competition competition;
+
+  const _PaymentsTab({required this.competition});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entriesAsync = ref.watch(competitionEntriesProvider(competition.id));
+
+    return entriesAsync.when(
+      loading: () => const Center(child: LoadingSpinner(size: 40)),
+      error: (e, _) => Center(child: Text('Error: $e')),
+      data: (entries) {
+        final paymentEntries = entries.where((e) => e.paymentStatus != 'free').toList();
+        
+        if (paymentEntries.isEmpty) {
+          return const Center(
+            child: Text('No payments to track.', style: TextStyle(color: AppColors.grey500)),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: paymentEntries.length,
+          separatorBuilder: (_, __) => const Divider(color: AppColors.grey100),
+          itemBuilder: (context, index) {
+            final entry = paymentEntries[index];
+            final isPaid = entry.paymentStatus == 'paid';
+            final isFailed = entry.paymentStatus == 'stk_failed';
+            
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(entry.player.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(
+                'Phone: ${entry.mpesaPhoneNumber ?? "N/A"}\nRef: ${entry.paystackReference ?? "N/A"}',
+                style: const TextStyle(fontSize: 12),
+              ),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isPaid ? AppColors.emerald50 : (isFailed ? Colors.red.shade50 : Colors.amber.shade50),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  isPaid ? 'PAID' : (isFailed ? 'FAILED' : 'PENDING'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isPaid ? AppColors.emerald700 : (isFailed ? Colors.red.shade700 : Colors.amber.shade700),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }

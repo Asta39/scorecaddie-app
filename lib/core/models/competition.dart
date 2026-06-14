@@ -153,7 +153,9 @@ class CompetitionEntry {
   final String? flightName;
   final String? teeColor;
   final String entryStatus; // pending | confirmed | withdrawn | disqualified
-  final String paymentStatus; // unpaid | paid | waived | refunded
+  final String paymentStatus; // pending | unpaid | paid | waived | refunded | stk_failed
+  final String? paystackReference;
+  final String? mpesaPhoneNumber;
   final String? confirmedBy;
   final DateTime? confirmedAt;
   final DateTime createdAt;
@@ -172,6 +174,8 @@ class CompetitionEntry {
     this.teeColor,
     required this.entryStatus,
     required this.paymentStatus,
+    this.paystackReference,
+    this.mpesaPhoneNumber,
     this.confirmedBy,
     this.confirmedAt,
     required this.createdAt,
@@ -190,6 +194,8 @@ class CompetitionEntry {
       teeColor: json['tee_color'] as String?,
       entryStatus: json['entry_status'] as String? ?? 'pending',
       paymentStatus: json['payment_status'] as String? ?? 'unpaid',
+      paystackReference: json['paystack_reference'] as String?,
+      mpesaPhoneNumber: json['mpesa_phone_number'] as String?,
       confirmedBy: json['confirmed_by'] as String?,
       confirmedAt: json['confirmed_at'] != null
           ? DateTime.parse(json['confirmed_at'] as String)

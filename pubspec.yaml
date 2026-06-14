@@ -71,6 +71,7 @@ dependencies:
   flutter_dotenv: ^5.2.1
   firebase_core: ^4.9.0
   firebase_messaging: ^16.2.2
+  onesignal_flutter: ^5.6.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

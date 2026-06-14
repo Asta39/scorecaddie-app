@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'app.dart';
 import 'core/config/app_config.dart';
@@ -11,22 +10,18 @@ import 'core/database/database.dart';
 import 'core/database/seed_courses.dart';
 import 'providers/app_providers.dart';
 
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  debugPrint('FCM: Background message received: ${message.messageId}');
-}
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   tz.initializeTimeZones();
-  try {
-    await Firebase.initializeApp();
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  } catch (e) {
-    debugPrint('Firebase: Initialization failed. Check config files: $e');
-  }
   await dotenv.load(fileName: '.env');
+
+  if (dotenv.env['ONESIGNAL_APP_ID'] != null) {
+    OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+    OneSignal.initialize(dotenv.env['ONESIGNAL_APP_ID']!);
+    OneSignal.Notifications.requestPermission(true);
+  }
 
   // Initialize Supabase with deep link auth callback support
   await Supabase.initialize(

@@ -171,6 +171,8 @@ class CompetitionActionsNotifier
   Future<bool> enterCompetition({
     required String competitionId,
     required double playingHandicap,
+    required num entryFee,
+    String? mpesaPhone,
     String? teeColor,
     String? flightName,
   }) async {
@@ -179,18 +181,48 @@ class CompetitionActionsNotifier
 
     state = state.copyWith(isLoading: true);
     try {
-      await _supabase.from('competition_entries').insert({
-        'competition_id': competitionId,
-        'player_id': user.id,
-        'playing_handicap': playingHandicap,
-        'tee_color': teeColor,
-        'flight_name': flightName,
-        'entry_status': 'pending',
-        'payment_status': 'unpaid',
-      });
-      state = state.copyWith(
-          isLoading: false, successMessage: 'Entry submitted successfully!');
-      return true;
+      if (entryFee > 0) {
+        if (mpesaPhone == null || mpesaPhone.isEmpty) {
+          state = state.copyWith(isLoading: false, errorMessage: 'M-Pesa phone number is required.');
+          return false;
+        }
+
+        final response = await _supabase.functions.invoke(
+          'initiate-competition-payment',
+          body: {
+            'competition_id': competitionId,
+            'player_id': user.id,
+            'membership_id': 'default', // Fallback for now
+            'playing_handicap': playingHandicap,
+            'mpesa_phone': mpesaPhone,
+            'email': user.email ?? 'player@example.com',
+          },
+        );
+
+        if (response.status == 200) {
+          state = state.copyWith(
+              isLoading: false, successMessage: 'Check your phone for the M-Pesa PIN prompt!');
+          return true;
+        } else {
+          final errorMsg = response.data['error'] ?? 'Payment initiation failed';
+          state = state.copyWith(isLoading: false, errorMessage: errorMsg);
+          return false;
+        }
+      } else {
+        // Free entry
+        await _supabase.from('competition_entries').insert({
+          'competition_id': competitionId,
+          'player_id': user.id,
+          'playing_handicap': playingHandicap,
+          'tee_color': teeColor,
+          'flight_name': flightName,
+          'entry_status': 'pending',
+          'payment_status': 'free',
+        });
+        state = state.copyWith(
+            isLoading: false, successMessage: 'Entry submitted successfully!');
+        return true;
+      }
     } catch (e) {
       debugPrint('CompetitionActions: enterCompetition error: $e');
       state = state.copyWith(
