@@ -1354,7 +1354,7 @@ class _PaymentsTab extends ConsumerWidget {
             
             return ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text(entry.player.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+              title: Text(entry.playerName ?? 'Unknown Player', style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text(
                 'Phone: ${entry.mpesaPhoneNumber ?? "N/A"}\nRef: ${entry.paystackReference ?? "N/A"}',
                 style: const TextStyle(fontSize: 12),

@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart' as db;
 import '../../widgets/top_notification.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PlayerOnboardingScreen extends ConsumerStatefulWidget {
   const PlayerOnboardingScreen({super.key});
@@ -29,11 +30,35 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
   bool _isValidating = false;
   String? _lastCheckedName;
   Timer? _debounce;
+  
+  List<Map<String, dynamic>> _clubs = [];
+  String? _selectedClubId;
+  bool _isLoadingClubs = true;
 
   @override
   void initState() {
     super.initState();
     _nameController.addListener(_onNameChanged);
+    _fetchClubs();
+  }
+  
+  Future<void> _fetchClubs() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('Course')
+          .select('id, name')
+          .order('name');
+      if (mounted) {
+        setState(() {
+          _clubs = List<Map<String, dynamic>>.from(res);
+          _isLoadingClubs = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingClubs = false);
+      }
+    }
   }
 
   @override
@@ -83,6 +108,11 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
       return;
     }
     
+    if (_selectedClubId == null) {
+      TopNotification.showError(context, 'Please select your home club.');
+      return;
+    }
+    
     setState(() => _isSaving = true);
     
     try {
@@ -102,6 +132,13 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
           updatedAt: drift.Value(DateTime.now()),
         ),
       );
+      
+      // Also save club membership
+      await Supabase.instance.client.from('player_club_memberships').insert({
+        'player_id': user.id,
+        'club_id': _selectedClubId,
+        'status': 'active'
+      });
 
       if (mounted) {
         Future.delayed(const Duration(milliseconds: 100), () {
@@ -183,6 +220,53 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
                     child: Text(
                       'If you don\'t have an official index, we\'ll calculate one automatically as you log your rounds.',
                       style: TextStyle(color: AppColors.grey400, fontSize: 13, height: 1.4, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+                  
+                  // Club Selection
+                  const Text(
+                    'SELECT YOUR HOME CLUB',
+                    style: TextStyle(
+                      color: AppColors.grey400,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.grey50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.grey100),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: _selectedClubId,
+                        hint: Text(
+                          _isLoadingClubs ? 'Loading clubs...' : 'Choose your club',
+                          style: const TextStyle(color: AppColors.grey300, fontWeight: FontWeight.w500, fontSize: 16),
+                        ),
+                        icon: const Icon(LucideIcons.chevronDown, color: AppColors.grey400),
+                        items: _clubs.map((club) {
+                          return DropdownMenuItem<String>(
+                            value: club['id'],
+                            child: Text(
+                              club['name'],
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.grey900),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            _selectedClubId = val;
+                          });
+                        },
+                      ),
                     ),
                   ),
 
