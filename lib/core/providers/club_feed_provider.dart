@@ -96,7 +96,7 @@ final clubMembersProvider = FutureProvider.autoDispose.family<List<ClubMember>, 
   
   final response = await supabase
       .from('player_club_memberships')
-      .select('id, player_id, status, user_profiles:User(name, handicap:handicapIndex, avatar_url:avatarUrl)')
+      .select('id, player_id, status, user_profiles:User!player_club_memberships_player_id_fkey(name, handicap:handicapIndex, avatar_url:avatarUrl)')
       .eq('club_id', clubId);
 
   return (response as List).map((m) => ClubMember.fromJson(m)).toList();
@@ -111,7 +111,7 @@ final aggregatedClubMembersProvider = FutureProvider.autoDispose<List<ClubMember
   
   final response = await supabase
       .from('player_club_memberships')
-      .select('id, player_id, status, user_profiles:User(name, handicap:handicapIndex, avatar_url:avatarUrl)')
+      .select('id, player_id, status, user_profiles:User!player_club_memberships_player_id_fkey(name, handicap:handicapIndex, avatar_url:avatarUrl)')
       .filter('club_id', 'in', clubIds);
 
   return (response as List).map((m) => ClubMember.fromJson(m)).toList();

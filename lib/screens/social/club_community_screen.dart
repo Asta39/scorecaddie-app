@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/app_theme.dart';
-import '../../providers/auth_providers.dart';
 import '../../core/providers/club_feed_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../widgets/top_notification.dart';
 
 class ClubCommunityScreen extends ConsumerStatefulWidget {
   const ClubCommunityScreen({super.key});
@@ -323,15 +323,17 @@ class _OverviewTab extends ConsumerWidget {
                                       
                                       if (context.mounted) {
                                         Navigator.pop(context);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Membership request sent!')),
+                                        TopNotification.showSuccess(
+                                          context,
+                                          "We've sent your request to join ${club['name'] ?? 'the club'}! The admin will verify it shortly.",
                                         );
                                         ref.invalidate(userClubMembershipsProvider);
                                       }
                                     } catch (e) {
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text('Error: $e')),
+                                        TopNotification.showError(
+                                          context,
+                                          "Couldn't send request: $e",
                                         );
                                       }
                                     }
