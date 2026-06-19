@@ -29,7 +29,10 @@ final competitionsForClubProvider =
       .stream(primaryKey: ['id'])
       .eq('club_id', clubId)
       .order('start_date', ascending: false)
-      .map((rows) => rows.map(Competition.fromJson).toList());
+      .map((rows) => rows
+          .map(Competition.fromJson)
+          .where((c) => !c.isTemplate)
+          .toList());
 });
 
 // ─── All competitions for the current user's home club ────────────────────────
@@ -48,7 +51,10 @@ final myClubCompetitionsProvider =
           .stream(primaryKey: ['id'])
           .eq('club_id', clubId)
           .order('start_date', ascending: false)
-          .map((rows) => rows.map(Competition.fromJson).toList());
+          .map((rows) => rows
+              .map(Competition.fromJson)
+              .where((c) => !c.isTemplate)
+              .toList());
     },
   );
 });
@@ -343,6 +349,8 @@ class CompetitionActionsNotifier
     double entryFee = 0,
     Map<String, dynamic>? rulesConfig,
     required String createdBy,
+    bool isTemplate = false,
+    String? posterUrl,
   }) async {
     state = state.copyWith(isLoading: true);
     try {
@@ -352,9 +360,9 @@ class CompetitionActionsNotifier
         'description': description,
         'competition_type': competitionType,
         'status': 'upcoming',
-        'start_date': startDate.toIso8601String().substring(0, 10),
-        'end_date': endDate?.toIso8601String().substring(0, 10),
-        'entry_deadline': entryDeadline?.toIso8601String(),
+        'start_date': isTemplate ? '1970-01-01' : startDate.toIso8601String().substring(0, 10),
+        'end_date': isTemplate ? null : endDate?.toIso8601String().substring(0, 10),
+        'entry_deadline': isTemplate ? null : entryDeadline?.toIso8601String(),
         'entry_fee': entryFee,
         'rules_config': rulesConfig ?? {
           'handicap_allowance_pct': 100,
@@ -363,6 +371,8 @@ class CompetitionActionsNotifier
           'tiebreaker': 'countback',
         },
         'created_by': createdBy,
+        'is_template': isTemplate,
+        'poster_url': posterUrl,
       }).select('id').single();
 
       state = state.copyWith(

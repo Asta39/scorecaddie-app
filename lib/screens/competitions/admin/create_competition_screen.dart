@@ -23,6 +23,7 @@ class _CreateCompetitionScreenState
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _feeController = TextEditingController(text: '0');
+  final _posterController = TextEditingController();
 
   String _selectedType = 'stableford';
   DateTime _startDate = DateTime.now().add(const Duration(days: 7));
@@ -30,6 +31,7 @@ class _CreateCompetitionScreenState
   int _handicapAllowance = 100;
   int _maxHandicap = 36;
   String _tiebreaker = 'countback';
+  bool _isTemplate = false;
 
   static const _formats = [
     ('stableford', 'Stableford'),
@@ -45,6 +47,7 @@ class _CreateCompetitionScreenState
     _nameController.dispose();
     _descController.dispose();
     _feeController.dispose();
+    _posterController.dispose();
     super.dispose();
   }
 
@@ -101,6 +104,34 @@ class _CreateCompetitionScreenState
                           'Rules, notes, sponsor info...'),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  _Field(
+                    label: 'Poster Image URL (optional)',
+                    child: TextFormField(
+                      controller: _posterController,
+                      decoration: _inputDecoration(
+                          'e.g. https://images.unsplash.com/...'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile.adaptive(
+                    title: const Text(
+                      'Save as Recurring Template',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.grey700,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Allows you to easily publish this competition again',
+                      style: TextStyle(fontSize: 12, color: AppColors.grey500),
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                    value: _isTemplate,
+                    activeColor: AppColors.emerald700,
+                    onChanged: (v) => setState(() => _isTemplate = v),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -155,24 +186,26 @@ class _CreateCompetitionScreenState
               ),
               const SizedBox(height: 20),
 
-              _Section(
-                title: 'Schedule',
-                children: [
-                  _DatePickerRow(
-                    label: 'Competition Date *',
-                    date: _startDate,
-                    onPick: () => _pickDate(context, isDeadline: false),
-                  ),
-                  const SizedBox(height: 12),
-                  _DatePickerRow(
-                    label: 'Entry Deadline',
-                    date: _entryDeadline,
-                    onPick: () => _pickDate(context, isDeadline: true),
-                    optional: true,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+              if (!_isTemplate) ...[
+                _Section(
+                  title: 'Schedule',
+                  children: [
+                    _DatePickerRow(
+                      label: 'Competition Date *',
+                      date: _startDate,
+                      onPick: () => _pickDate(context, isDeadline: false),
+                    ),
+                    const SizedBox(height: 12),
+                    _DatePickerRow(
+                      label: 'Entry Deadline',
+                      date: _entryDeadline,
+                      onPick: () => _pickDate(context, isDeadline: true),
+                      optional: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
 
               _Section(
                 title: 'Entry Fee',
@@ -350,6 +383,10 @@ class _CreateCompetitionScreenState
             'tiebreaker': _tiebreaker,
           },
           createdBy: profile.uid ?? '',
+          isTemplate: _isTemplate,
+          posterUrl: _posterController.text.trim().isEmpty
+              ? null
+              : _posterController.text.trim(),
         );
 
     if (id != null && context.mounted) {

@@ -201,6 +201,136 @@ class _CompetitionCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final myEntryAsync = ref.watch(myEntryProvider(competition.id));
     final hasEntry = myEntryAsync.valueOrNull != null;
+    final hasPoster = competition.posterUrl != null && competition.posterUrl!.isNotEmpty;
+
+    if (hasPoster) {
+      return GestureDetector(
+        onTap: () => context.push('/competitions/${competition.id}'),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Stack(
+                  children: [
+                    Image.network(
+                      competition.posterUrl!,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        height: 140,
+                        color: AppColors.grey100,
+                        child: const Center(
+                          child: Icon(LucideIcons.image, color: AppColors.grey300, size: 36),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: _Chip(
+                        label: competition.statusLabel,
+                        color: _statusColor(competition.status).withValues(alpha: 0.9),
+                        textColor: Colors.white,
+                      ),
+                    ),
+                    if (hasEntry)
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.emerald700,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Entered',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          _Chip(
+                            label: competition.formatLabel,
+                            color: AppColors.grey100,
+                            textColor: AppColors.grey600,
+                          ),
+                          const Spacer(),
+                          const Icon(LucideIcons.calendar, size: 13, color: AppColors.grey400),
+                          const SizedBox(width: 4),
+                          Text(
+                            DateFormat('d MMM y').format(competition.startDate),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.grey500,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        competition.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          color: AppColors.grey900,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      if (competition.entryFee > 0) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(LucideIcons.banknote, size: 13, color: AppColors.grey400),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${competition.currency} ${competition.entryFee.toStringAsFixed(0)} entry fee',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.grey600,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return GestureDetector(
       onTap: () => context.push('/competitions/${competition.id}'),
@@ -267,7 +397,7 @@ class _CompetitionCard extends ConsumerWidget {
                   textColor: _statusColor(competition.status),
                 ),
                 const Spacer(),
-                Icon(LucideIcons.calendar,
+                const Icon(LucideIcons.calendar,
                     size: 13, color: AppColors.grey400),
                 const SizedBox(width: 4),
                 Text(
@@ -284,7 +414,7 @@ class _CompetitionCard extends ConsumerWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(LucideIcons.banknote,
+                  const Icon(LucideIcons.banknote,
                       size: 13, color: AppColors.grey400),
                   const SizedBox(width: 4),
                   Text(

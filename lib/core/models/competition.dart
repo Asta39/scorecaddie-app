@@ -17,6 +17,8 @@ class Competition {
   final String? createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isTemplate;
+  final String? posterUrl;
 
   // Aggregated fields (from joins)
   final int? entryCount;
@@ -40,6 +42,8 @@ class Competition {
     required this.updatedAt,
     this.entryCount,
     this.clubName,
+    this.isTemplate = false,
+    this.posterUrl,
   });
 
   factory Competition.fromJson(Map<String, dynamic> json) {
@@ -63,6 +67,8 @@ class Competition {
       updatedAt: DateTime.parse(json['updated_at'] as String),
       entryCount: json['entry_count'] as int?,
       clubName: json['club_name'] as String?,
+      isTemplate: json['is_template'] as bool? ?? false,
+      posterUrl: json['poster_url'] as String?,
     );
   }
 
@@ -122,6 +128,8 @@ class Competition {
     DateTime? updatedAt,
     int? entryCount,
     String? clubName,
+    bool? isTemplate,
+    String? posterUrl,
   }) {
     return Competition(
       id: id ?? this.id,
@@ -141,6 +149,8 @@ class Competition {
       updatedAt: updatedAt ?? this.updatedAt,
       entryCount: entryCount ?? this.entryCount,
       clubName: clubName ?? this.clubName,
+      isTemplate: isTemplate ?? this.isTemplate,
+      posterUrl: posterUrl ?? this.posterUrl,
     );
   }
 }

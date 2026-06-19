@@ -83,13 +83,23 @@ class _CompetitionDetailBody extends ConsumerWidget {
             pinned: true,
             expandedHeight: 160,
             leading: IconButton(
-              icon: const Icon(LucideIcons.arrowLeft),
+              icon: Icon(
+                LucideIcons.arrowLeft,
+                color: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
+                    ? Colors.white
+                    : AppColors.grey900,
+              ),
               onPressed: () => context.pop(),
             ),
             actions: [
               if (isAdmin)
                 PopupMenuButton<String>(
-                  icon: const Icon(LucideIcons.moreVertical),
+                  icon: Icon(
+                    LucideIcons.moreVertical,
+                    color: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
+                        ? Colors.white
+                        : AppColors.grey900,
+                  ),
                   onSelected: (value) =>
                       _handleAdminAction(context, ref, value),
                   itemBuilder: (_) => [
@@ -120,16 +130,50 @@ class _CompetitionDetailBody extends ConsumerWidget {
               titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 60),
               title: Text(
                 competition.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
-                  color: AppColors.grey900,
+                  color: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
+                      ? Colors.white
+                      : AppColors.grey900,
+                  shadows: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
+                      ? [
+                          const Shadow(
+                            color: Colors.black54,
+                            offset: Offset(0, 1),
+                            blurRadius: 4,
+                          )
+                        ]
+                      : null,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
               collapseMode: CollapseMode.pin,
-              background: Container(color: Colors.white),
+              background: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          competition.posterUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(color: Colors.white),
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.35),
+                                Colors.black.withValues(alpha: 0.75),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Container(color: Colors.white),
             ),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(48),
