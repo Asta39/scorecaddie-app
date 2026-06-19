@@ -178,6 +178,6 @@ final userClubMembershipsProvider = FutureProvider.autoDispose<List<UserClubMemb
 
 final availableClubsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final supabase = Supabase.instance.client;
-  final response = await supabase.from('Course').select('id, name, location').order('name');
+  final response = await supabase.from('clubs').select('id, name, location').eq('status', 'active').order('name');
   return List<Map<String, dynamic>>.from(response);
 });
