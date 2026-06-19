@@ -165,13 +165,13 @@ class _OverviewTab extends ConsumerWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           gradient: LinearGradient(
-            colors: [AppColors.emerald800, AppColors.emerald600],
+            colors: [AppColors.golfLime, AppColors.golfLime.withOpacity(0.85)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.emerald700.withOpacity(0.3),
+              color: AppColors.golfLime.withOpacity(0.3),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -187,36 +187,36 @@ class _OverviewTab extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: AppColors.grey900.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     children: [
-                      Icon(isActive ? LucideIcons.checkCircle2 : LucideIcons.clock, color: Colors.white, size: 14),
+                      Icon(isActive ? LucideIcons.checkCircle2 : LucideIcons.clock, color: AppColors.grey900, size: 14),
                       const SizedBox(width: 6),
-                      Text(isActive ? 'Primary' : 'Pending', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text(isActive ? 'Primary' : 'Pending', style: const TextStyle(color: AppColors.grey900, fontSize: 12, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
-                const Icon(LucideIcons.moreHorizontal, color: Colors.white),
+                const Icon(LucideIcons.moreHorizontal, color: AppColors.grey900),
               ],
             ),
             const Spacer(),
             const Text(
               'Your Home Club',
-              style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600),
+              style: TextStyle(color: AppColors.grey700, fontSize: 14, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 4),
             Text(
               clubName,
-              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -1),
+              style: const TextStyle(color: AppColors.grey900, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -1),
             ),
             const SizedBox(height: 8),
             Row(
               children: const [
-                Icon(LucideIcons.mapPin, color: Colors.white70, size: 14),
+                Icon(LucideIcons.mapPin, color: AppColors.grey700, size: 14),
                 SizedBox(width: 4),
-                Text('Location', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                Text('Location', style: TextStyle(color: AppColors.grey700, fontSize: 13)),
               ],
             ),
           ],
