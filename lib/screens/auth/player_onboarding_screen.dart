@@ -45,8 +45,8 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
   Future<void> _fetchClubs() async {
     try {
       final res = await Supabase.instance.client
-          .from('Course')
-          .select('id, name')
+          .from('clubs')
+          .select('id, name, location')
           .order('name');
       if (mounted) {
         setState(() {
@@ -133,11 +133,11 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
         ),
       );
       
-      // Also save club membership
+      // Also save club membership as pending
       await Supabase.instance.client.from('player_club_memberships').insert({
         'player_id': user.id,
         'club_id': _selectedClubId,
-        'status': 'active'
+        'status': 'pending'
       });
 
       if (mounted) {
@@ -219,7 +219,7 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
                     padding: EdgeInsets.symmetric(horizontal: 4),
                     child: Text(
                       'If you don\'t have an official index, we\'ll calculate one automatically as you log your rounds.',
-                      style: TextStyle(color: AppColors.grey400, fontSize: 13, height: 1.4, fontWeight: FontWeight.w500),
+                      style: TextStyle(color: AppColors.grey600, fontSize: 13, height: 1.4, fontWeight: FontWeight.w500),
                     ),
                   ),
 
@@ -229,43 +229,56 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
                   const Text(
                     'SELECT YOUR HOME CLUB',
                     style: TextStyle(
-                      color: AppColors.grey400,
+                      color: AppColors.grey600,
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.2,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.grey50,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.grey100),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: _selectedClubId,
-                        hint: Text(
-                          _isLoadingClubs ? 'Loading clubs...' : 'Choose your club',
-                          style: const TextStyle(color: AppColors.grey300, fontWeight: FontWeight.w500, fontSize: 16),
+                  GestureDetector(
+                    onTap: _isLoadingClubs ? null : () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: AppColors.white,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                         ),
-                        icon: const Icon(LucideIcons.chevronDown, color: AppColors.grey400),
-                        items: _clubs.map((club) {
-                          return DropdownMenuItem<String>(
-                            value: club['id'],
-                            child: Text(
-                              club['name'],
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.grey900),
-                            ),
+                        builder: (context) {
+                          return _ClubPickerSheet(
+                            clubs: _clubs,
+                            selectedClubId: _selectedClubId,
+                            onSelected: (id) {
+                              setState(() => _selectedClubId = id);
+                              Navigator.pop(context);
+                            },
                           );
-                        }).toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            _selectedClubId = val;
-                          });
                         },
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.grey50,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.grey100),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _selectedClubId != null 
+                                ? _clubs.firstWhere((c) => c['id'] == _selectedClubId, orElse: () => {'name': 'Unknown Club'})['name'] 
+                                : (_isLoadingClubs ? 'Loading clubs...' : 'Choose your club'),
+                            style: TextStyle(
+                              color: _selectedClubId != null ? AppColors.grey900 : AppColors.grey500, 
+                              fontWeight: _selectedClubId != null ? FontWeight.w700 : FontWeight.w500, 
+                              fontSize: 16
+                            ),
+                          ),
+                          const Icon(LucideIcons.chevronDown, color: AppColors.grey400),
+                        ],
                       ),
                     ),
                   ),
@@ -319,7 +332,7 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
             Text(
               label,
               style: const TextStyle(
-                color: AppColors.grey400,
+                color: AppColors.grey600,
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.2,
@@ -343,10 +356,10 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
             controller: controller,
             validator: validator,
             keyboardType: keyboardType,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w700, fontSize: 16),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: const TextStyle(color: AppColors.grey300, fontWeight: FontWeight.w500),
+              hintStyle: const TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w500),
               prefixIcon: Icon(icon, color: AppColors.grey400, size: 20),
               suffixIcon: isNameField && _isValidating 
                   ? const Padding(padding: EdgeInsets.all(12), child: CupertinoActivityIndicator(radius: 8))
@@ -385,5 +398,93 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
       );
     }
     return const SizedBox();
+  }
+}
+
+class _ClubPickerSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> clubs;
+  final String? selectedClubId;
+  final ValueChanged<String> onSelected;
+
+  const _ClubPickerSheet({
+    required this.clubs,
+    required this.selectedClubId,
+    required this.onSelected,
+  });
+
+  @override
+  State<_ClubPickerSheet> createState() => _ClubPickerSheetState();
+}
+
+class _ClubPickerSheetState extends State<_ClubPickerSheet> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredClubs = widget.clubs.where((c) {
+      final name = c['name']?.toString().toLowerCase() ?? '';
+      final loc = c['location']?.toString().toLowerCase() ?? '';
+      final q = _searchQuery.toLowerCase();
+      return name.contains(q) || loc.contains(q);
+    }).toList();
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.grey200,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Select Your Club',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.grey900),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Search clubs...',
+                prefixIcon: const Icon(LucideIcons.search, color: AppColors.grey400),
+                filled: true,
+                fillColor: AppColors.grey50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (val) => setState(() => _searchQuery = val),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.separated(
+                itemCount: filteredClubs.length,
+                separatorBuilder: (context, index) => const Divider(color: AppColors.grey100, height: 1),
+                itemBuilder: (context, index) {
+                  final club = filteredClubs[index];
+                  final isSelected = club['id'] == widget.selectedClubId;
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(club['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                    subtitle: club['location'] != null ? Text(club['location'], style: const TextStyle(color: AppColors.grey400, fontSize: 13)) : null,
+                    trailing: isSelected ? const Icon(LucideIcons.checkCircle2, color: AppColors.emerald500) : null,
+                    onTap: () => widget.onSelected(club['id']),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

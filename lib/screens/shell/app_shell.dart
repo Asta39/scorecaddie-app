@@ -23,7 +23,7 @@ import '../provider/coach_sessions_screen.dart';
 import '../provider/coach_students_screen.dart';
 import '../provider/coach_drills_screen.dart';
 import '../provider/coach_payment_management_screen.dart';
-import '../competitions/competitions_list_screen.dart';
+import '../social/club_community_screen.dart';
 
 /// Main app shell with frosted glass bottom navigation bar and swipe navigation.
 class AppShell extends ConsumerStatefulWidget {
@@ -35,7 +35,7 @@ class AppShell extends ConsumerStatefulWidget {
     ('/', 'Home', LucideIcons.home),
     ('/practice', 'Practice', LucideIcons.target),
     ('/analytics', 'Stats', LucideIcons.barChart2),
-    ('/competitions', 'Compete', LucideIcons.trophy),
+    ('/competitions', 'Club', LucideIcons.users),
     ('/caddie', 'Caddie', LucideIcons.briefcase),
     ('/profile', 'Profile', LucideIcons.user),
   ];
@@ -65,7 +65,7 @@ class AppShell extends ConsumerStatefulWidget {
         DashboardScreen(),
         PracticeRangeScreen(),
         AnalyticsScreen(),
-        CompetitionsListScreen(),
+        ClubCommunityScreen(),
         CaddieMarketplaceScreen(),
         ProfileScreen(),
       ];
@@ -93,7 +93,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
     // Initialize Supabase Realtime
     ref.read(supabaseServiceProvider).init();
 
-    // Initialize FCM
+    // Initialize Push Notifications
     ref.read(notificationServiceProvider).init();
     
     // Trigger "Instant Sync" catch-up on app start

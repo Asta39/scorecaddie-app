@@ -112,13 +112,14 @@ class ProfileService {
           .from('User')
           .select('id')
           .ilike('name', name)
-          .not('id', 'eq', user?.uid ?? '')
+          .neq('id', user?.uid ?? '')
+          .limit(1)
           .maybeSingle();
 
       return response == null;
     } catch (e) {
       debugPrint('PROFILE_SERVICE: Error checking username availability: $e');
-      return true; // Fallback to available if check fails
+      return false; // Fallback to unavailable if check fails
     }
   }
 

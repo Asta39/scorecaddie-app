@@ -965,13 +965,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             subtitle: isProvider ? 'Friends' : 'Connect with others', 
             onTap: () => context.push('/profile/friends'),
           ),
-          _divider(),
-          _ActionTile(
-            icon: LucideIcons.mapPin, 
-            label: 'Home Course', 
-            subtitle: profile?.homeCourseName ?? 'None set', 
-            onTap: () => _showCoursePicker(),
-          ),
+
           if (!isProvider) ...[
             _divider(),
             _ActionTile(

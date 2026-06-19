@@ -16,6 +16,10 @@ class ScorecardScannerState {
   final bool isLoading;
   final String? errorMessage;
   final ScannedRoundResult? scanResult;
+  /// When true the AI-scan pipeline originated from a competition entry scan.
+  /// The [ScannerProcessingScreen] checks this to pop back to the competition
+  /// screen instead of navigating to the personal-round review screen.
+  final bool isCompetitionMode;
 
   const ScorecardScannerState({
     this.course,
@@ -27,6 +31,7 @@ class ScorecardScannerState {
     this.isLoading = false,
     this.errorMessage,
     this.scanResult,
+    this.isCompetitionMode = false,
   });
 
   ScorecardScannerState copyWith({
@@ -39,6 +44,7 @@ class ScorecardScannerState {
     bool? isLoading,
     String? errorMessage,
     ScannedRoundResult? scanResult,
+    bool? isCompetitionMode,
   }) {
     return ScorecardScannerState(
       course: course ?? this.course,
@@ -50,6 +56,7 @@ class ScorecardScannerState {
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage ?? this.errorMessage,
       scanResult: scanResult ?? this.scanResult,
+      isCompetitionMode: isCompetitionMode ?? this.isCompetitionMode,
     );
   }
 }
@@ -66,6 +73,14 @@ class ScorecardScannerNotifier extends StateNotifier<ScorecardScannerState> {
 
   void reset() {
     state = ScorecardScannerState(date: DateTime.now());
+  }
+
+  /// Marks the current scan as being for a competition entry.
+  /// Call this immediately after [reset] when initiating a competition scan
+  /// so that [ScannerProcessingScreen] pops back to the competition screen
+  /// instead of pushing the personal-round review.
+  void setCompetitionMode(bool value) {
+    state = state.copyWith(isCompetitionMode: value);
   }
 
   void setCourse(db.Course course) {

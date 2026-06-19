@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:drift/drift.dart' as drift;
 
+import '../../core/database/database.dart' as db;
 import '../../core/models/scanned_round_result.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/competition_providers.dart';
+import '../../providers/database_providers.dart';
 import '../../providers/scorecard_scanner_provider.dart';
 import '../../widgets/loading_spinner.dart';
 
@@ -32,12 +36,92 @@ class _CompetitionScanSubmitScreenState
     extends ConsumerState<CompetitionScanSubmitScreen> {
   bool _isSubmitting = false;
   bool _certifyNow = true;
+  bool _isLoadingEntry = true;
+  String _playerName = '';
+  double _playingHandicap = 0;
+  String? _playerId;
 
   @override
   void initState() {
     super.initState();
-    // Reset scanner state when entering this screen
-    Future.microtask(() => ref.read(scorecardScannerProvider.notifier).reset());
+    Future.microtask(() {
+      final scanner = ref.read(scorecardScannerProvider.notifier);
+      scanner.reset();
+      scanner.setCompetitionMode(true);
+      _fetchEntryDetails();
+    });
+  }
+
+  Future<void> _fetchEntryDetails() async {
+    try {
+      final entryRow = await Supabase.instance.client
+          .from('competition_entries')
+          .select()
+          .eq('id', widget.entryId)
+          .maybeSingle();
+
+      if (entryRow != null && mounted) {
+        final playerId = entryRow['player_id'] as String;
+        final userRow = await Supabase.instance.client
+            .from('User')
+            .select()
+            .eq('id', playerId)
+            .maybeSingle();
+
+        // Also fetch the competition to get the club_id (course ID)
+        final compRow = await Supabase.instance.client
+            .from('competitions')
+            .select()
+            .eq('id', widget.competitionId)
+            .maybeSingle();
+
+        if (compRow != null) {
+          final clubId = compRow['club_id'] as String?;
+          if (clubId != null) {
+            final dbInstance = ref.read(databaseProvider);
+            db.Course? course = await dbInstance.getCourseBySupabaseId(clubId);
+            
+            if (course == null) {
+              // Try fetching from Supabase Course table and inserting locally
+              final courseRow = await Supabase.instance.client
+                  .from('Course')
+                  .select()
+                  .eq('id', clubId)
+                  .maybeSingle();
+              if (courseRow != null) {
+                await dbInstance.upsertCourse(db.CoursesCompanion.insert(
+                  supabaseId: drift.Value(clubId),
+                  name: courseRow['name'] as String,
+                  location: drift.Value(courseRow['location'] as String? ?? ''),
+                  city: drift.Value(courseRow['city'] as String?),
+                  region: drift.Value(courseRow['region'] as String?),
+                  totalHoles: drift.Value(courseRow['holesCount'] as int? ?? 18),
+                  par18: drift.Value(courseRow['par18'] as int?),
+                ));
+                course = await dbInstance.getCourseBySupabaseId(clubId);
+              }
+            }
+
+            if (course != null) {
+              ref.read(scorecardScannerProvider.notifier).setCourse(course);
+            }
+          }
+        }
+
+        setState(() {
+          _playerId = playerId;
+          _playingHandicap =
+              (entryRow['playing_handicap'] as num?)?.toDouble() ?? 0;
+          _playerName =
+              userRow?['name'] ?? userRow?['email'] ?? 'Unknown Player';
+          _isLoadingEntry = false;
+        });
+      } else {
+        if (mounted) setState(() => _isLoadingEntry = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingEntry = false);
+    }
   }
 
   @override
@@ -62,42 +146,64 @@ class _CompetitionScanSubmitScreenState
           ),
         ),
       ),
-      body: scanState.scanResult == null
-          ? _ScanStep(
-              entryId: widget.entryId,
-              isLoading: scanState.isLoading,
-              errorMessage: scanState.errorMessage,
-            )
-          : _ReviewStep(
-              scanResult: scanState.scanResult!,
-              entryId: widget.entryId,
-              competitionId: widget.competitionId,
-              certifyNow: _certifyNow,
-              isSubmitting: _isSubmitting,
-              onCertifyToggle: (val) => setState(() => _certifyNow = val),
-              onSubmit: () => _submit(context, scanState.scanResult!),
-              onRescan: () =>
-                  ref.read(scorecardScannerProvider.notifier).reset(),
-            ),
+      body: _isLoadingEntry
+          ? const Center(child: LoadingSpinner())
+          : scanState.scanResult == null
+              ? _ScanStep(
+                  entryId: widget.entryId,
+                  playerName: _playerName,
+                  playingHandicap: _playingHandicap,
+                  isLoading: scanState.isLoading,
+                  errorMessage: scanState.errorMessage,
+                )
+              : _ReviewStep(
+                  scanResult: scanState.scanResult!,
+                  entryId: widget.entryId,
+                  competitionId: widget.competitionId,
+                  playerName: _playerName,
+                  playingHandicap: _playingHandicap,
+                  certifyNow: _certifyNow,
+                  isSubmitting: _isSubmitting,
+                  onCertifyToggle: (val) => setState(() => _certifyNow = val),
+                  onSubmit: () => _submit(context, scanState.scanResult!),
+                  onRescan: () =>
+                      ref.read(scorecardScannerProvider.notifier).reset(),
+                ),
     );
   }
 
   Future<void> _submit(BuildContext context, ScannedRoundResult result) async {
-    final entryRow = await Supabase.instance.client
-        .from('competition_entries')
-        .select()
-        .eq('id', widget.entryId)
-        .maybeSingle();
+    final grossScore = result.grossTotal ?? 0;
 
-    if (entryRow == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not find entry. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    // Validation
+    final unreadable = result.holes.where((h) => h.score == null).length;
+    if (unreadable > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$unreadable hole(s) are missing scores. Please edit them before submitting.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (grossScore <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gross score must be greater than 0.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_playerId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Player not found. Cannot submit.'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -112,16 +218,14 @@ class _CompetitionScanSubmitScreenState
             })
         .toList();
 
-    final grossScore = result.grossTotal ?? 0;
-    final playingHc = (entryRow['playing_handicap'] as num?)?.toDouble() ?? 0;
-    final netScore = grossScore - playingHc;
+    final netScore = grossScore - _playingHandicap;
 
     // Stableford points calculation
     int? stablefordPoints;
     final competition = await ref
         .read(competitionDetailProvider(widget.competitionId).future);
     if (competition?.competitionType == 'stableford') {
-      stablefordPoints = _calculateStableford(result);
+      stablefordPoints = _calculateStableford(result, _playingHandicap);
     }
 
     final profile = ref.read(userProfileProvider).valueOrNull;
@@ -130,7 +234,7 @@ class _CompetitionScanSubmitScreenState
         await ref.read(competitionActionsProvider.notifier).submitResult(
               competitionId: widget.competitionId,
               entryId: widget.entryId,
-              playerId: entryRow['player_id'] as String,
+              playerId: _playerId!,
               grossScore: grossScore,
               netScore: netScore,
               stablefordPoints: stablefordPoints,
@@ -139,7 +243,7 @@ class _CompetitionScanSubmitScreenState
               certifiedBy: _certifyNow ? profile?.uid : null,
             );
 
-    setState(() => _isSubmitting = false);
+    if (mounted) setState(() => _isSubmitting = false);
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -156,21 +260,25 @@ class _CompetitionScanSubmitScreenState
     }
   }
 
-  int _calculateStableford(ScannedRoundResult result) {
+  int _calculateStableford(ScannedRoundResult result, double handicap) {
+    int hc = handicap.round();
+    int strokesPerHole = hc ~/ 18;
+    int extraStrokesCount = hc % 18;
+
     int total = 0;
     for (final hole in result.holes) {
       if (hole.score == null) continue;
-      final diff = hole.par - hole.score!;
-      // Standard Stableford: Eagle=4, Birdie=3, Par=2, Bogey=1, Double+=0
-      if (diff >= 2) {
-        total += 4;
-      } else if (diff == 1) {
-        total += 3;
-      } else if (diff == 0) {
-        total += 2;
-      } else if (diff == -1) {
-        total += 1;
-      }
+
+      int strokesReceived = strokesPerHole;
+      if (hole.hole <= extraStrokesCount) strokesReceived++;
+
+      int netScore = hole.score! - strokesReceived;
+      int diff = hole.par - netScore;
+
+      // Stableford points: 2 points for net par, +1 for each stroke under par
+      int points = 2 + diff;
+      if (points < 0) points = 0;
+      total += points;
     }
     return total;
   }
@@ -179,11 +287,15 @@ class _CompetitionScanSubmitScreenState
 // ─── Step 1: Scan ─────────────────────────────────────────────────────────────
 class _ScanStep extends ConsumerWidget {
   final String entryId;
+  final String playerName;
+  final double playingHandicap;
   final bool isLoading;
   final String? errorMessage;
 
   const _ScanStep({
     required this.entryId,
+    required this.playerName,
+    required this.playingHandicap,
     required this.isLoading,
     required this.errorMessage,
   });
@@ -219,16 +331,26 @@ class _ScanStep extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Scan Player\'s Scorecard',
-                  style: TextStyle(
-                    fontSize: 20,
+                Text(
+                  playerName,
+                  style: const TextStyle(
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
                     color: AppColors.grey900,
                     letterSpacing: -0.5,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                Text(
+                  'Playing Handicap: ${playingHandicap.toStringAsFixed(1)}',
+                  style: const TextStyle(
+                    color: AppColors.emerald700,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 20),
                 const Text(
                   'Take a clear photo of the completed paper scorecard. The AI will extract all hole scores automatically.',
                   textAlign: TextAlign.center,
@@ -272,8 +394,7 @@ class _ScanStep extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         errorMessage!,
-                        style: const TextStyle(
-                            color: Colors.red, fontSize: 13),
+                        style: const TextStyle(color: Colors.red, fontSize: 13),
                       ),
                     ),
                   ],
@@ -322,10 +443,12 @@ class _ScanStep extends ConsumerWidget {
 }
 
 // ─── Step 2: Review scanned scores & submit ────────────────────────────────
-class _ReviewStep extends StatelessWidget {
+class _ReviewStep extends ConsumerWidget {
   final ScannedRoundResult scanResult;
   final String entryId;
   final String competitionId;
+  final String playerName;
+  final double playingHandicap;
   final bool certifyNow;
   final bool isSubmitting;
   final ValueChanged<bool> onCertifyToggle;
@@ -336,6 +459,8 @@ class _ReviewStep extends StatelessWidget {
     required this.scanResult,
     required this.entryId,
     required this.competitionId,
+    required this.playerName,
+    required this.playingHandicap,
     required this.certifyNow,
     required this.isSubmitting,
     required this.onCertifyToggle,
@@ -344,17 +469,50 @@ class _ReviewStep extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final gross = scanResult.grossTotal ?? 0;
     final front9 = scanResult.front9Total ?? 0;
     final back9 = scanResult.back9Total ?? 0;
     final warnings = scanResult.warnings;
+    final unreadableCount = scanResult.holes.where((h) => h.score == null).length;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Player Info Header
+          Row(
+            children: [
+              const Icon(LucideIcons.user, color: AppColors.emerald700),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  playerName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: AppColors.grey900),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.emerald700.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'HC: ${playingHandicap.toStringAsFixed(1)}',
+                  style: const TextStyle(
+                      color: AppColors.emerald700,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
           // Score summary
           Container(
             padding: const EdgeInsets.all(16),
@@ -378,6 +536,34 @@ class _ReviewStep extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Unreadable Error
+          if (unreadableCount > 0) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(LucideIcons.alertCircle,
+                      size: 16, color: Colors.red),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '$unreadableCount hole(s) missing scores. Tap to edit.',
+                      style: const TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // Warnings
           if (warnings.isNotEmpty) ...[
@@ -420,15 +606,30 @@ class _ReviewStep extends StatelessWidget {
           ],
 
           // Hole-by-hole grid
-          const Text(
-            'Hole Scores',
-            style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-                color: AppColors.grey900),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Hole Scores',
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: AppColors.grey900),
+              ),
+              Text(
+                'Tap any score to edit',
+                style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                    color: AppColors.grey400),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
-          ...scanResult.holes.map((h) => _HoleRow(hole: h)),
+          ...scanResult.holes.map((h) => _HoleRow(
+                hole: h,
+                onTap: () => _showEditDialog(context, ref, h),
+              )),
 
           const SizedBox(height: 20),
 
@@ -522,11 +723,52 @@ class _ReviewStep extends StatelessWidget {
       ),
     );
   }
+
+  void _showEditDialog(BuildContext context, WidgetRef ref, ScannedHole hole) {
+    final controller = TextEditingController(text: hole.score?.toString() ?? '');
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Edit Hole ${hole.hole}'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: 'Score (Par ${hole.par})',
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final newScore = int.tryParse(controller.text);
+                if (newScore != null && newScore > 0) {
+                  ref
+                      .read(scorecardScannerProvider.notifier)
+                      .updateHoleScore(hole.hole, newScore);
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _HoleRow extends StatelessWidget {
   final ScannedHole hole;
-  const _HoleRow({required this.hole});
+  final VoidCallback onTap;
+
+  const _HoleRow({required this.hole, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -540,57 +782,66 @@ class _HoleRow extends StatelessWidget {
       if (diff >= 2) scoreColor = Colors.red;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: hole.isFlagged
-            ? Colors.amber.withValues(alpha: 0.06)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: hole.isFlagged
-            ? Border.all(color: Colors.amber.withValues(alpha: 0.4))
-            : null,
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 32,
-            child: Text(
-              'H${hole.hole}',
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.grey500,
-                  fontSize: 13),
-            ),
-          ),
-          Text('Par ${hole.par}',
-              style: const TextStyle(
-                  color: AppColors.grey400, fontSize: 12)),
-          const Spacer(),
-          if (hole.isFlagged)
-            const Icon(LucideIcons.alertTriangle,
-                size: 14, color: Colors.amber),
-          const SizedBox(width: 8),
-          Text(
-            score?.toString() ?? '-',
-            style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 18,
-                color: scoreColor),
-          ),
-          if (diff != null) ...[
-            const SizedBox(width: 6),
-            Text(
-              diff > 0 ? '+$diff' : '$diff',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: scoreColor.withValues(alpha: 0.7),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: hole.score == null
+              ? Colors.red.withValues(alpha: 0.08)
+              : hole.isFlagged
+                  ? Colors.amber.withValues(alpha: 0.06)
+                  : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: hole.score == null
+              ? Border.all(color: Colors.red.withValues(alpha: 0.4))
+              : hole.isFlagged
+                  ? Border.all(color: Colors.amber.withValues(alpha: 0.4))
+                  : null,
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 32,
+              child: Text(
+                'H${hole.hole}',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.grey500,
+                    fontSize: 13),
               ),
             ),
+            Text('Par ${hole.par}',
+                style: const TextStyle(color: AppColors.grey400, fontSize: 12)),
+            const Spacer(),
+            if (hole.score == null)
+              const Icon(LucideIcons.edit3, size: 14, color: Colors.red)
+            else if (hole.isFlagged)
+              const Icon(LucideIcons.alertTriangle,
+                  size: 14, color: Colors.amber),
+            const SizedBox(width: 8),
+            Text(
+              score?.toString() ?? 'Edit',
+              style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: score == null ? 14 : 18,
+                  color: score == null ? Colors.red : scoreColor),
+            ),
+            if (diff != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                diff > 0 ? '+$diff' : '$diff',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: scoreColor.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -624,9 +875,12 @@ class _ScoreStat extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-              fontSize: 12, color: AppColors.grey400, fontWeight: FontWeight.w500),
+              fontSize: 12,
+              color: AppColors.grey400,
+              fontWeight: FontWeight.w500),
         ),
       ],
     );
   }
 }
+

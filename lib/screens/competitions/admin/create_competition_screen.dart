@@ -229,7 +229,7 @@ class _CreateCompetitionScreenState
                   _Field(
                     label: 'Tiebreaker',
                     child: DropdownButtonFormField<String>(
-                      value: _tiebreaker,
+                      initialValue: _tiebreaker,
                       decoration: _inputDecoration(''),
                       items: const [
                         DropdownMenuItem(
@@ -514,19 +514,22 @@ class _SliderRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.grey600)),
-            Text(format,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.grey900)),
-          ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.grey600)),
+              Text(format,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.grey900)),
+            ],
+          ),
         ),
         Slider(
           value: value,

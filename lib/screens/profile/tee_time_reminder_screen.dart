@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:drift/drift.dart' show Value, OrderingTerm;
 import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
@@ -424,11 +423,6 @@ class _CreateReminderSheetState extends ConsumerState<_CreateReminderSheet> {
     // Sync to Supabase for cross-device access and push notifications
     try {
       final supabase = Supabase.instance.client;
-      String? fcmToken;
-      try {
-        fcmToken = await FirebaseMessaging.instance.getToken();
-      } catch (_) {}
-
       await supabase.from('tee_time_reminder').upsert({
         'local_id': id,
         'user_id': user.uid,
@@ -436,7 +430,6 @@ class _CreateReminderSheetState extends ConsumerState<_CreateReminderSheet> {
         'notify_before_minutes': _notifyMinutes,
         'notes': _notesController.text.isEmpty ? null : _notesController.text,
         'is_active': true,
-        'fcm_token': fcmToken,
       }, onConflict: 'user_id,local_id');
     } catch (e) {
       debugPrint('TEE_REMINDER: Supabase sync failed: $e');

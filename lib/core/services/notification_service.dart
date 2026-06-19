@@ -1,4 +1,4 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +7,6 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../models/notification_model.dart';
 import '../../providers/app_providers.dart';
-import 'fcm_token_service.dart';
 
 class NotificationService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -22,7 +21,6 @@ class NotificationService {
   Future<void> init() async {
     await _initTimezone();
     await _initLocalNotifications();
-    await _initFCM();
   }
 
   static Future<void> _initTimezone() async {
@@ -46,31 +44,7 @@ class NotificationService {
     );
   }
 
-  Future<void> _initFCM() async {
-    await FCMTokenService.initialize();
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-  }
 
-  void _handleForegroundMessage(RemoteMessage message) {
-    final notification = message.notification;
-    if (notification == null) return;
-
-    _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'tee_time_reminders',
-          'Tee Time Reminders',
-          channelDescription: 'Notifications for upcoming tee times',
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
-        iOS: DarwinNotificationDetails(),
-      ),
-    );
-  }
 
   /// Schedule a local notification for a tee time reminder.
   /// [reminderId] is used as the notification ID (for cancellation).

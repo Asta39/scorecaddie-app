@@ -31,10 +31,17 @@ class _ScannerProcessingScreenState extends ConsumerState<ScannerProcessingScree
   Widget build(BuildContext context) {
     final state = ref.watch(scorecardScannerProvider);
 
-    // Listen for scan success/failure to navigate
+    // Listen for scan success/failure to navigate.
+    // In competition mode the scan was launched from CompetitionScanSubmitScreen;
+    // pop back to it so it can show its own review step.
+    // In personal mode push the standard review screen.
     ref.listen(scorecardScannerProvider, (previous, next) {
       if (next.scanResult != null && !next.isLoading) {
-        context.pushReplacement('/scanner/review');
+        if (next.isCompetitionMode) {
+          context.pop();
+        } else {
+          context.pushReplacement('/scanner/review');
+        }
       }
     });
 
