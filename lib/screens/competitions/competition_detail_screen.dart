@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -46,7 +47,7 @@ class _CompetitionDetailScreenState
           );
         }
         return DefaultTabController(
-          length: isAdmin ? 5 : 4,
+          length: 3,
           child: _CompetitionDetailBody(
             competition: competition,
             isAdmin: isAdmin,
@@ -69,8 +70,6 @@ class _CompetitionDetailBody extends ConsumerWidget {
     required this.profile,
   });
 
-
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
@@ -81,24 +80,28 @@ class _CompetitionDetailBody extends ConsumerWidget {
             backgroundColor: Colors.white,
             elevation: 0,
             pinned: true,
-            expandedHeight: 160,
+            centerTitle: true,
             leading: IconButton(
-              icon: Icon(
+              icon: const Icon(
                 LucideIcons.arrowLeft,
-                color: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
-                    ? Colors.white
-                    : AppColors.grey900,
+                color: AppColors.grey900,
               ),
               onPressed: () => context.pop(),
+            ),
+            title: Text(
+              competition.name,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: AppColors.grey900,
+              ),
             ),
             actions: [
               if (isAdmin)
                 PopupMenuButton<String>(
-                  icon: Icon(
+                  icon: const Icon(
                     LucideIcons.moreVertical,
-                    color: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
-                        ? Colors.white
-                        : AppColors.grey900,
+                    color: AppColors.grey900,
                   ),
                   onSelected: (value) =>
                       _handleAdminAction(context, ref, value),
@@ -126,77 +129,48 @@ class _CompetitionDetailBody extends ConsumerWidget {
                   ],
                 ),
             ],
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 60),
-              title: Text(
-                competition.name,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
-                      ? Colors.white
-                      : AppColors.grey900,
-                  shadows: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
-                      ? [
-                          const Shadow(
-                            color: Colors.black54,
-                            offset: Offset(0, 1),
-                            blurRadius: 4,
-                          )
-                        ]
-                      : null,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              collapseMode: CollapseMode.pin,
-              background: (competition.posterUrl != null && competition.posterUrl!.isNotEmpty)
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.network(
-                          competition.posterUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(color: Colors.white),
-                        ),
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: 0.35),
-                                Colors.black.withValues(alpha: 0.75),
-                              ],
-                            ),
-                          ),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(56),
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.grey50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.all(3),
+                  child: TabBar(
+                    labelColor: AppColors.grey900,
+                    unselectedLabelColor: AppColors.grey500,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    indicator: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
                         ),
                       ],
-                    )
-                  : Container(color: Colors.white),
-            ),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                      bottom: BorderSide(color: AppColors.grey100)),
-                ),
-                child: TabBar(
-                  labelColor: AppColors.grey900,
-                  unselectedLabelColor: AppColors.grey400,
-                  indicatorColor: AppColors.emerald700,
-                  isScrollable: true,
-                  labelStyle: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13),
-                  tabs: [
-                    const Tab(text: 'Overview'),
-                    const Tab(text: 'Entries'),
-                    if (isAdmin) const Tab(text: 'Payments'),
-                    const Tab(text: 'Sheet'),
-                    const Tab(text: 'Results'),
-                  ],
+                    ),
+                    dividerColor: Colors.transparent,
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                    tabs: const [
+                      Tab(text: 'Overview'),
+                      Tab(text: 'Start Sheet'),
+                      Tab(text: 'Results'),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -208,8 +182,6 @@ class _CompetitionDetailBody extends ConsumerWidget {
                 competition: competition,
                 isAdmin: isAdmin,
                 profile: profile),
-            _EntriesTab(competition: competition, isAdmin: isAdmin, profile: profile),
-            if (isAdmin) _PaymentsTab(competition: competition),
             _StartingSheetTab(
                 competition: competition, isAdmin: isAdmin),
             _LeaderboardTab(competition: competition),
@@ -251,36 +223,94 @@ class _OverviewTab extends ConsumerWidget {
     required this.profile,
   });
 
+  Widget _buildPosterCard() {
+    if (competition.posterUrl == null || competition.posterUrl!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      height: 240,
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Blurred background image
+            Image.network(
+              competition.posterUrl!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (context, error, stackTrace) => Container(color: Colors.white),
+            ),
+            // Blur filter
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              child: Container(
+                color: Colors.black.withOpacity(0.25),
+              ),
+            ),
+            // Foreground image (showing whole image)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Image.network(
+                  competition.posterUrl!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => Container(color: Colors.transparent),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final myEntryAsync =
         ref.watch(myEntryProvider(competition.id));
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Hero image card
+          _buildPosterCard(),
+
           // Status banner
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: _statusBgColor(competition.status),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Text(
               competition.statusLabel.toUpperCase(),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w900,
                 fontSize: 13,
                 color: _statusTextColor(competition.status),
-                letterSpacing: 1,
+                letterSpacing: 1.2,
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           // Key details
           _DetailCard(children: [
@@ -307,26 +337,31 @@ class _OverviewTab extends ConsumerWidget {
                       '${competition.currency} ${competition.entryFee.toStringAsFixed(0)}'),
           ]),
 
-          if (competition.description != null) ...[
-            const SizedBox(height: 16),
+          if (competition.description != null && competition.description!.isNotEmpty) ...[
+            const SizedBox(height: 28),
             const Text('About',
                 style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: AppColors.grey900)),
-            const SizedBox(height: 8),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                    color: AppColors.grey900,
+                    letterSpacing: -0.2)),
+            const SizedBox(height: 10),
             Text(competition.description!,
                 style: const TextStyle(
-                    color: AppColors.grey600, height: 1.6)),
+                    fontSize: 15,
+                    color: AppColors.grey600,
+                    height: 1.6,
+                    fontWeight: FontWeight.w500)),
           ],
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 28),
           const Text('Rules',
               style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  color: AppColors.grey900)),
-          const SizedBox(height: 8),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 17,
+                  color: AppColors.grey900,
+                  letterSpacing: -0.2)),
+          const SizedBox(height: 10),
           _DetailCard(children: [
             _DetailRow(
                 icon: LucideIcons.percent,
@@ -338,6 +373,12 @@ class _OverviewTab extends ConsumerWidget {
                 label: 'Max Handicap',
                 value:
                     '${competition.rulesConfig['max_handicap'] ?? 36}'),
+            if (competition.rulesConfig['min_handicap'] != null)
+              _DetailRow(
+                  icon: LucideIcons.gauge,
+                  label: 'Min Handicap',
+                  value:
+                      '${competition.rulesConfig['min_handicap']}'),
             _DetailRow(
                 icon: LucideIcons.arrowDownUp,
                 label: 'Tiebreaker',
@@ -345,44 +386,43 @@ class _OverviewTab extends ConsumerWidget {
                     '${competition.rulesConfig['tiebreaker'] ?? 'Countback'}'),
           ]),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
 
           // Player entry action
-          if (!isAdmin)
-            myEntryAsync.when(
-              loading: () => const Center(child: LoadingSpinner(size: 40)),
-              error: (e, _) => const SizedBox.shrink(),
-              data: (entry) {
-                if (entry != null) {
-                  return _EntryStatusBanner(entry: entry);
-                }
-                if (competition.isOpenForEntry) {
-                  return SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: FilledButton.icon(
-                      icon: const Icon(LucideIcons.clipboardList,
-                          color: Colors.white),
-                      label: const Text(
-                        'Enter Competition',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.emerald700,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: () => _showEntrySheet(context, ref),
+          myEntryAsync.when(
+            loading: () => const Center(child: LoadingSpinner(size: 40)),
+            error: (e, _) => const SizedBox.shrink(),
+            data: (entry) {
+              if (entry != null) {
+                return _EntryStatusBanner(entry: entry);
+              }
+              if (competition.isOpenForEntry) {
+                return SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: FilledButton.icon(
+                    icon: const Icon(LucideIcons.clipboardList,
+                        color: Colors.white, size: 20),
+                    label: const Text(
+                      'Enter Competition',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16),
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          const SizedBox(height: 40),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.emerald700,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: () => _showEntrySheet(context, ref),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -1036,10 +1076,17 @@ class _DetailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(children: children),
     );
@@ -1057,21 +1104,21 @@ class _DetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: AppColors.grey400),
-          const SizedBox(width: 10),
+          Icon(icon, size: 18, color: AppColors.grey400),
+          const SizedBox(width: 12),
           Text(label,
               style: const TextStyle(
                   color: AppColors.grey500,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500)),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600)),
           const Spacer(),
           Text(value,
               style: const TextStyle(
                   fontWeight: FontWeight.w700,
-                  fontSize: 13,
+                  fontSize: 14,
                   color: AppColors.grey900)),
         ],
       ),

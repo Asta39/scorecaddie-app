@@ -185,15 +185,28 @@ class _CompetitionCard extends ConsumerWidget {
   Color _statusColor(String status) {
     switch (status) {
       case 'open_for_entry':
-        return Colors.blue;
       case 'in_progress':
-        return AppColors.emerald700;
+        return AppColors.golfLime;
       case 'completed':
         return AppColors.grey400;
       case 'cancelled':
         return Colors.red;
       default:
         return AppColors.grey300;
+    }
+  }
+
+  Color _statusTextColor(String status, {required bool isSolidBg}) {
+    switch (status) {
+      case 'open_for_entry':
+      case 'in_progress':
+        return AppColors.grey900;
+      case 'completed':
+        return isSolidBg ? Colors.white : AppColors.grey600;
+      case 'cancelled':
+        return isSolidBg ? Colors.white : Colors.red;
+      default:
+        return isSolidBg ? Colors.white : AppColors.grey500;
     }
   }
 
@@ -244,8 +257,10 @@ class _CompetitionCard extends ConsumerWidget {
                       left: 12,
                       child: _Chip(
                         label: competition.statusLabel,
-                        color: _statusColor(competition.status).withValues(alpha: 0.9),
-                        textColor: Colors.white,
+                        color: _statusColor(competition.status) == AppColors.golfLime
+                            ? AppColors.golfLime
+                            : _statusColor(competition.status).withValues(alpha: 0.9),
+                        textColor: _statusTextColor(competition.status, isSolidBg: true),
                       ),
                     ),
                     if (hasEntry)
@@ -271,7 +286,7 @@ class _CompetitionCard extends ConsumerWidget {
                   ],
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -295,14 +310,14 @@ class _CompetitionCard extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       Text(
                         competition.name,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
                           color: AppColors.grey900,
-                          letterSpacing: -0.2,
+                          letterSpacing: -0.4,
                         ),
                       ),
                       if (competition.entryFee > 0) ...[
@@ -358,8 +373,9 @@ class _CompetitionCard extends ConsumerWidget {
                     competition.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.w800,
-                      fontSize: 15,
+                      fontSize: 16,
                       color: AppColors.grey900,
+                      letterSpacing: -0.3,
                     ),
                   ),
                 ),
@@ -382,7 +398,7 @@ class _CompetitionCard extends ConsumerWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               children: [
                 _Chip(
@@ -393,8 +409,10 @@ class _CompetitionCard extends ConsumerWidget {
                 const SizedBox(width: 6),
                 _Chip(
                   label: competition.statusLabel,
-                  color: _statusColor(competition.status).withValues(alpha: 0.12),
-                  textColor: _statusColor(competition.status),
+                  color: _statusColor(competition.status) == AppColors.golfLime
+                      ? AppColors.golfLime
+                      : _statusColor(competition.status).withValues(alpha: 0.12),
+                  textColor: _statusTextColor(competition.status, isSolidBg: _statusColor(competition.status) == AppColors.golfLime),
                 ),
                 const Spacer(),
                 const Icon(LucideIcons.calendar,

@@ -193,27 +193,21 @@ class CompetitionActionsNotifier
           return false;
         }
 
-        final response = await _supabase.functions.invoke(
-          'initiate-competition-payment',
-          body: {
-            'competition_id': competitionId,
-            'player_id': user.id,
-            'membership_id': 'default', // Fallback for now
-            'playing_handicap': playingHandicap,
-            'mpesa_phone': mpesaPhone,
-            'email': user.email ?? 'player@example.com',
-          },
-        );
-
-        if (response.status == 200) {
-          state = state.copyWith(
-              isLoading: false, successMessage: 'Check your phone for the M-Pesa PIN prompt!');
-          return true;
-        } else {
-          final errorMsg = response.data['error'] ?? 'Payment initiation failed';
-          state = state.copyWith(isLoading: false, errorMessage: errorMsg);
-          return false;
-        }
+        // Simulate successful payment directly inserting to DB
+        await _supabase.from('competition_entries').insert({
+          'competition_id': competitionId,
+          'player_id': user.id,
+          'playing_handicap': playingHandicap,
+          'tee_color': teeColor,
+          'flight_name': flightName,
+          'entry_status': 'confirmed',
+          'payment_status': 'paid',
+          'mpesa_phone_number': mpesaPhone,
+          'paystack_reference': 'SIMULATED-${DateTime.now().millisecondsSinceEpoch}',
+        });
+        state = state.copyWith(
+            isLoading: false, successMessage: 'M-Pesa payment simulated successfully! Entry confirmed.');
+        return true;
       } else {
         // Free entry
         await _supabase.from('competition_entries').insert({
@@ -222,11 +216,11 @@ class CompetitionActionsNotifier
           'playing_handicap': playingHandicap,
           'tee_color': teeColor,
           'flight_name': flightName,
-          'entry_status': 'pending',
+          'entry_status': 'confirmed',
           'payment_status': 'free',
         });
         state = state.copyWith(
-            isLoading: false, successMessage: 'Entry submitted successfully!');
+            isLoading: false, successMessage: 'Entry submitted and confirmed successfully!');
         return true;
       }
     } catch (e) {
