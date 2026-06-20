@@ -40,6 +40,7 @@ class _CompetitionScanSubmitScreenState
   String _playerName = '';
   double _playingHandicap = 0;
   String? _playerId;
+  List<Map<String, dynamic>> _courseHoles = [];
 
   @override
   void initState() {
@@ -75,9 +76,20 @@ class _CompetitionScanSubmitScreenState
             .eq('id', widget.competitionId)
             .maybeSingle();
 
+        List<Map<String, dynamic>> holesList = [];
         if (compRow != null) {
           final clubId = compRow['club_id'] as String?;
           if (clubId != null) {
+            // Fetch CourseHole details for this course
+            final holesData = await Supabase.instance.client
+                .from('CourseHole')
+                .select()
+                .eq('courseId', clubId)
+                .order('holeNumber');
+            if (holesData != null) {
+              holesList = List<Map<String, dynamic>>.from(holesData);
+            }
+
             final dbInstance = ref.read(databaseProvider);
             db.Course? course = await dbInstance.getCourseBySupabaseId(clubId);
             
@@ -114,6 +126,7 @@ class _CompetitionScanSubmitScreenState
               (entryRow['playing_handicap'] as num?)?.toDouble() ?? 0;
           _playerName =
               userRow?['name'] ?? userRow?['email'] ?? 'Unknown Player';
+          _courseHoles = holesList;
           _isLoadingEntry = false;
         });
       } else {
@@ -220,12 +233,14 @@ class _CompetitionScanSubmitScreenState
 
     final netScore = grossScore - _playingHandicap;
 
-    // Stableford points calculation
+    // Stableford or Bogey points calculation
     int? stablefordPoints;
     final competition = await ref
         .read(competitionDetailProvider(widget.competitionId).future);
-    if (competition?.competitionType == 'stableford') {
+    if (competition?.competitionType == 'stableford' || competition?.competitionType == 'betterball') {
       stablefordPoints = _calculateStableford(result, _playingHandicap);
+    } else if (competition?.competitionType == 'bogey') {
+      stablefordPoints = _calculateBogey(result, _playingHandicap);
     }
 
     final profile = ref.read(userProfileProvider).valueOrNull;
@@ -262,15 +277,32 @@ class _CompetitionScanSubmitScreenState
 
   int _calculateStableford(ScannedRoundResult result, double handicap) {
     int hc = handicap.round();
-    int strokesPerHole = hc ~/ 18;
-    int extraStrokesCount = hc % 18;
-
     int total = 0;
+
+    final bool isPlusHandicap = hc < 0;
+    final int absHc = hc.abs();
+    final int baseStrokes = absHc ~/ 18;
+    final int extraStrokes = absHc % 18;
+
     for (final hole in result.holes) {
       if (hole.score == null) continue;
 
-      int strokesReceived = strokesPerHole;
-      if (hole.hole <= extraStrokesCount) strokesReceived++;
+      // Find handicapIndex for this hole
+      final holeInfo = _courseHoles.firstWhere(
+        (ch) => ch['holeNumber'] == hole.hole,
+        orElse: () => {'handicapIndex': hole.hole, 'par': hole.par},
+      );
+      final int handicapIndex = holeInfo['handicapIndex'] as int? ?? hole.hole;
+
+      int strokesReceived = 0;
+      if (!isPlusHandicap) {
+        strokesReceived = baseStrokes;
+        if (handicapIndex <= extraStrokes) strokesReceived++;
+      } else {
+        int strokesSubtracted = baseStrokes;
+        if ((19 - handicapIndex) <= extraStrokes) strokesSubtracted++;
+        strokesReceived = -strokesSubtracted;
+      }
 
       int netScore = hole.score! - strokesReceived;
       int diff = hole.par - netScore;
@@ -279,6 +311,47 @@ class _CompetitionScanSubmitScreenState
       int points = 2 + diff;
       if (points < 0) points = 0;
       total += points;
+    }
+    return total;
+  }
+
+  int _calculateBogey(ScannedRoundResult result, double handicap) {
+    int hc = handicap.round();
+    int total = 0;
+
+    final bool isPlusHandicap = hc < 0;
+    final int absHc = hc.abs();
+    final int baseStrokes = absHc ~/ 18;
+    final int extraStrokes = absHc % 18;
+
+    for (final hole in result.holes) {
+      if (hole.score == null) continue;
+
+      // Find handicapIndex for this hole
+      final holeInfo = _courseHoles.firstWhere(
+        (ch) => ch['holeNumber'] == hole.hole,
+        orElse: () => {'handicapIndex': hole.hole, 'par': hole.par},
+      );
+      final int handicapIndex = holeInfo['handicapIndex'] as int? ?? hole.hole;
+
+      int strokesReceived = 0;
+      if (!isPlusHandicap) {
+        strokesReceived = baseStrokes;
+        if (handicapIndex <= extraStrokes) strokesReceived++;
+      } else {
+        int strokesSubtracted = baseStrokes;
+        if ((19 - handicapIndex) <= extraStrokes) strokesSubtracted++;
+        strokesReceived = -strokesSubtracted;
+      }
+
+      int netScore = hole.score! - strokesReceived;
+
+      // Bogey/Par points: Net Birdie or better (+1), Net Par (0), Net Bogey or worse (-1)
+      if (netScore < hole.par) {
+        total += 1;
+      } else if (netScore > hole.par) {
+        total -= 1;
+      }
     }
     return total;
   }

@@ -465,6 +465,7 @@ class _FeedTab extends ConsumerWidget {
               content: post.content,
               timeAgo: _formatDate(post.createdAt),
               author: post.authorName,
+              imageUrl: post.imageUrl,
             );
           },
         );
@@ -494,7 +495,11 @@ class _EventsTab extends ConsumerWidget {
               content: post.content,
               timeAgo: _formatDate(post.createdAt),
               author: post.authorName,
+              imageUrl: post.imageUrl,
               actionText: post.postType == 'fixture' || post.postType == 'competition' ? 'Register Now' : null,
+              onAction: post.postType == 'fixture' || post.postType == 'competition' 
+                ? () => context.push('/competitions/${post.id}')
+                : null,
             );
           },
         );
@@ -553,6 +558,8 @@ Widget _buildPostCard({
   required String timeAgo,
   required String author,
   String? actionText,
+  String? imageUrl,
+  VoidCallback? onAction,
 }) {
   IconData icon;
   Color iconColor;
@@ -584,7 +591,6 @@ Widget _buildPostCard({
 
   return Container(
     margin: const EdgeInsets.only(bottom: 16),
-    padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
       color: AppColors.white,
       borderRadius: BorderRadius.circular(24),
@@ -600,47 +606,65 @@ Widget _buildPostCard({
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon, color: iconColor, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.grey900)),
-                  Text('$author • $timeAgo', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.grey400)),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text(content, style: const TextStyle(fontSize: 14, color: AppColors.grey600, height: 1.5, fontWeight: FontWeight.w500)),
-        if (actionText != null) ...[
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.emerald50,
-                foregroundColor: AppColors.emerald700,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              child: Text(actionText, style: const TextStyle(fontWeight: FontWeight.w800)),
+        if (imageUrl != null && imageUrl.isNotEmpty)
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: Image.network(
+              imageUrl,
+              width: double.infinity,
+              height: 180,
+              fit: BoxFit.cover,
             ),
           ),
-        ],
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.grey900)),
+                        Text('$author • $timeAgo', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.grey400)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(content, style: const TextStyle(fontSize: 14, color: AppColors.grey600, height: 1.5, fontWeight: FontWeight.w500)),
+              if (actionText != null && onAction != null) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: onAction,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.emerald50,
+                      foregroundColor: AppColors.emerald700,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text(actionText, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ],
     ),
   );

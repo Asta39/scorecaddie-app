@@ -53,13 +53,38 @@ final aggregatedClubPostsProvider = FutureProvider.autoDispose<List<ClubPost>>((
   final clubIds = memberships.map((m) => m.clubId).toList();
   final supabase = Supabase.instance.client;
   
-  final response = await supabase
+  final postsResponse = await supabase
       .from('club_posts')
       .select('id, title, content, post_type, image_url, created_at, profiles:User(name)')
       .filter('club_id', 'in', clubIds)
       .order('created_at', ascending: false);
 
-  return (response as List).map((post) => ClubPost.fromJson(post)).toList();
+  final compsResponse = await supabase
+      .from('competitions')
+      .select('id, name, description, created_at, poster_url, club_id, Course:club_id(name)')
+      .filter('club_id', 'in', clubIds)
+      .eq('is_template', false)
+      .order('created_at', ascending: false);
+
+  final posts = (postsResponse as List).map((post) => ClubPost.fromJson(post)).toList();
+
+  final comps = (compsResponse as List).map((comp) {
+    final clubName = comp['Course'] != null ? comp['Course']['name'] : 'Club Admin';
+    return ClubPost(
+      id: comp['id'],
+      title: comp['name'] ?? 'Competition',
+      content: comp['description'] ?? 'Join the upcoming competition!',
+      postType: 'competition',
+      imageUrl: comp['poster_url'],
+      createdAt: DateTime.parse(comp['created_at']),
+      authorName: clubName,
+    );
+  }).toList();
+
+  final allPosts = [...posts, ...comps];
+  allPosts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+  return allPosts;
 });
 
 class ClubMember {

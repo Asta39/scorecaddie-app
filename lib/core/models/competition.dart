@@ -338,8 +338,15 @@ class LeaderboardRow {
     if (resultStatus == 'dsq') return 'DQ';
     if (resultStatus == 'dnf') return 'DNF';
     if (resultStatus == 'wdr') return 'WDR';
-    if (competitionType == 'stableford') {
+    if (competitionType == 'stableford' || competitionType == 'betterball') {
       return stablefordPoints != null ? '$stablefordPoints pts' : '-';
+    }
+    if (competitionType == 'bogey') {
+      final points = stablefordPoints;
+      if (points == null) return '-';
+      if (points > 0) return '+$points';
+      if (points == 0) return 'AS';
+      return '$points';
     }
     return netScore != null ? netScore!.toStringAsFixed(0) : '-';
   }
