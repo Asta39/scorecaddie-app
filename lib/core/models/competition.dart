@@ -224,7 +224,7 @@ class CompetitionEntry {
 class StartingSheetRow {
   final String id;
   final String competitionId;
-  final String entryId;
+  final String? entryId;
   final DateTime teeTime;
   final int teeNumber;
   final int groupNumber;
@@ -242,7 +242,7 @@ class StartingSheetRow {
   const StartingSheetRow({
     required this.id,
     required this.competitionId,
-    required this.entryId,
+    this.entryId,
     required this.teeTime,
     required this.teeNumber,
     required this.groupNumber,
@@ -258,9 +258,9 @@ class StartingSheetRow {
 
   factory StartingSheetRow.fromJson(Map<String, dynamic> json) {
     return StartingSheetRow(
-      id: json['id'] as String,
+      id: json['id'] as String? ?? '${json['competition_id']}_${json['player_id']}',
       competitionId: json['competition_id'] as String,
-      entryId: json['entry_id'] as String,
+      entryId: json['entry_id'] as String?,
       teeTime: DateTime.parse(json['tee_time'] as String).toLocal(),
       teeNumber: json['tee_number'] as int? ?? 1,
       groupNumber: json['group_number'] as int? ?? 1,
