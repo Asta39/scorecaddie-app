@@ -16,7 +16,6 @@ class CompetitionsListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(userProfileProvider).valueOrNull;
-    final isAdmin = profile?.role == 'club_admin' || profile?.role == 'super_admin';
     final clubIdAsync = ref.watch(playerHomeClubIdProvider);
 
     return Scaffold(
@@ -31,35 +30,21 @@ class CompetitionsListScreen extends ConsumerWidget {
             }
             return _CompetitionsBody(
               clubId: clubId,
-              isAdmin: isAdmin,
               profile: profile,
             );
           },
         ),
       ),
-      floatingActionButton: clubIdAsync.valueOrNull != null && isAdmin
-          ? FloatingActionButton.extended(
-              onPressed: () => context.push('/competitions/create'),
-              backgroundColor: AppColors.emerald700,
-              icon: const Icon(LucideIcons.plus, color: Colors.white),
-              label: const Text(
-                'Create',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-              ),
-            )
-          : null,
     );
   }
 }
 
 class _CompetitionsBody extends ConsumerWidget {
   final String clubId;
-  final bool isAdmin;
   final dynamic profile;
 
   const _CompetitionsBody({
     required this.clubId,
-    required this.isAdmin,
     required this.profile,
   });
 

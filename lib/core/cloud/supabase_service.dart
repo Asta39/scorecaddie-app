@@ -37,7 +37,8 @@ class SupabaseService {
       if (dbProfile == null) {
         // Create new minimal profile ONLY if it doesn't exist
         final localProfile = await _db.getProfile(user.id);
-        final currentRole = (localProfile?.role ?? 'PLAYER').toUpperCase();
+        final cleanRole = (localProfile?.role ?? 'PLAYER').trim().toLowerCase();
+        final currentRole = (cleanRole == 'club_admin' || cleanRole == 'super_admin') ? cleanRole : cleanRole.toUpperCase();
         
         await _client.from('User').insert({
           'id': user.id,

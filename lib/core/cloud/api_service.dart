@@ -40,11 +40,13 @@ class ApiService {
     double? anchorIndex,
   }) async {
     try {
+      final cleanRole = role.trim().toLowerCase();
+      final dbRole = (cleanRole == 'club_admin' || cleanRole == 'super_admin') ? cleanRole : cleanRole.toUpperCase();
       await _client.from('User').upsert({
         'id': id,
         'email': email,
         'name': name,
-        'role': role.toUpperCase(),
+        'role': dbRole,
         'avatarUrl': avatarUrl,
         'pfpType': pfpType,
         'pfpVerified': pfpVerified,

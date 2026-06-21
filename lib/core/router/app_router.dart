@@ -59,7 +59,6 @@ import '../../screens/marketplace/player_session_details_screen.dart';
 import '../../screens/competitions/competitions_list_screen.dart';
 import '../../screens/competitions/competition_detail_screen.dart';
 import '../../screens/competitions/competition_scan_submit_screen.dart';
-import '../../screens/competitions/admin/create_competition_screen.dart';
 
 import '../../core/models/coaching_model.dart';
 
@@ -285,10 +284,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/achievements',
         builder: (context, state) => const AchievementsGalleryScreen(),
-      ),
-      GoRoute(
-        path: '/competitions/create',
-        builder: (context, state) => const CreateCompetitionScreen(),
       ),
       GoRoute(
         path: '/competitions/:id',

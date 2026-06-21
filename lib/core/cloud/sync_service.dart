@@ -841,9 +841,34 @@ class SyncService {
 
         // Resolve courseId: find local course by supabase courseId
         final String supabaseCourseId = r['courseId'] as String;
-        final localCourse = await _database.getCourseBySupabaseId(supabaseCourseId);
+        db.Course? localCourse = await _database.getCourseBySupabaseId(supabaseCourseId);
         if (localCourse == null) {
-          debugPrint('SYNC: Skipping round $supabaseRoundId — course not found locally');
+          // Try to fetch the course from Supabase and insert it locally.
+          // This handles competition rounds at clubs the player hasn't visited.
+          try {
+            final courseRow = await supabase
+                .from('Course')
+                .select()
+                .eq('id', supabaseCourseId)
+                .maybeSingle();
+            if (courseRow != null) {
+              await _database.upsertCourse(db.CoursesCompanion.insert(
+                supabaseId: drift.Value(supabaseCourseId),
+                name: courseRow['name'] as String? ?? 'Golf Course',
+                location: drift.Value(courseRow['location'] as String? ?? ''),
+                city: drift.Value(courseRow['city'] as String?),
+                region: drift.Value(courseRow['region'] as String?),
+                totalHoles: drift.Value(courseRow['holesCount'] as int? ?? 18),
+                par18: drift.Value(courseRow['par18'] as int?),
+              ));
+              localCourse = await _database.getCourseBySupabaseId(supabaseCourseId);
+            }
+          } catch (e) {
+            debugPrint('SYNC: Could not fetch course $supabaseCourseId from Supabase: $e');
+          }
+        }
+        if (localCourse == null) {
+          debugPrint('SYNC: Skipping round $supabaseRoundId — course not found locally or remotely');
           continue;
         }
 

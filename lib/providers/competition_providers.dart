@@ -217,7 +217,7 @@ class CompetitionActionsNotifier
           'tee_color': teeColor,
           'flight_name': flightName,
           'entry_status': 'confirmed',
-          'payment_status': 'free',
+          'payment_status': 'paid',
         });
         state = state.copyWith(
             isLoading: false, successMessage: 'Entry submitted and confirmed successfully!');
@@ -297,6 +297,73 @@ class CompetitionActionsNotifier
         'certified_by': certifiedBy,
         'certified_at': certified ? DateTime.now().toIso8601String() : null,
       }, onConflict: 'competition_id,player_id');
+
+      if (certified) {
+        try {
+          // Fetch competition details to map courseId and courseName
+          final compRow = await _supabase
+              .from('competitions')
+              .select()
+              .eq('id', competitionId)
+              .maybeSingle();
+
+          final courseId = compRow?['club_id'] as String? ?? competitionId;
+          final compName = compRow?['name'] as String? ?? 'Competition Round';
+
+          // Look up the golf course name from the Course table
+          final courseRow = await _supabase
+              .from('Course')
+              .select('name')
+              .eq('id', courseId)
+              .maybeSingle();
+          final courseName = courseRow?['name'] as String? ?? compName;
+
+          // Calculate total course par from scorecard
+          final coursePar = scorecard.fold<int>(
+              0, (sum, item) => sum + ((item['par'] ?? item['strokes'] ?? 4) as num).toInt());
+
+          final playedAt = compRow?['start_date'] != null
+              ? '${compRow?['start_date']}T12:00:00Z'
+              : DateTime.now().toIso8601String();
+
+          final roundId = 'comp_${competitionId}_$playerId';
+
+          // 1. Save to the main Round table in Supabase
+          await _supabase.from('Round').upsert({
+            'id': roundId,
+            'userId': playerId,
+            'courseId': courseId,
+            'courseName': courseName,
+            'coursePar': coursePar,
+            'playedAt': playedAt,
+            'totalScore': grossScore,
+            'totalNet': netScore.round(),
+            'scoreVsPar': grossScore - coursePar,
+            'holesPlayed': scorecard.length,
+            'source': 'COMPETITION_SCANNED',
+            'createdAt': DateTime.now().toIso8601String(),
+            'updatedAt': DateTime.now().toIso8601String(),
+          }, onConflict: 'id');
+
+          // 2. Save individual hole scores to the HoleScore table
+          final List<Map<String, dynamic>> holeScoreInserts = scorecard.map((s) {
+            final hNum = (s['hole'] as num).toInt();
+            return {
+              'id': 'hs_${roundId}_$hNum',
+              'roundId': roundId,
+              'holeNumber': hNum,
+              'par': (s['par'] ?? 4) as int,
+              'score': (s['strokes'] ?? 4) as int,
+              'putts': 0,
+            };
+          }).toList();
+
+          await _supabase.from('HoleScore').upsert(holeScoreInserts, onConflict: 'id');
+        } catch (e) {
+          debugPrint('submitResult: Failed to save personal Round/HoleScore: $e');
+        }
+      }
+
       state = state.copyWith(
           isLoading: false,
           successMessage: certified ? 'Result certified!' : 'Draft saved.');

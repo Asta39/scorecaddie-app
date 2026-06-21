@@ -37,6 +37,7 @@ class _CompetitionScanSubmitScreenState
   bool _isSubmitting = false;
   bool _certifyNow = true;
   bool _isLoadingEntry = true;
+  bool _hasAutoLaunchedCamera = false;
   String _playerName = '';
   double _playingHandicap = 0;
   String? _playerId;
@@ -86,7 +87,7 @@ class _CompetitionScanSubmitScreenState
                 .select()
                 .eq('courseId', clubId)
                 .order('holeNumber');
-            if (holesData != null) {
+            if (holesData.isNotEmpty) {
               holesList = List<Map<String, dynamic>>.from(holesData);
             }
 
@@ -129,6 +130,34 @@ class _CompetitionScanSubmitScreenState
           _courseHoles = holesList;
           _isLoadingEntry = false;
         });
+
+        // Pass course holes and player name to the scanner provider so it can
+        // override AI-returned par values with authoritative DB values after scan.
+        if (mounted) {
+          final scanner = ref.read(scorecardScannerProvider.notifier);
+          if (holesList.isNotEmpty) {
+            scanner.setCourseHoles(holesList);
+          }
+          scanner.setPlayerName(
+            userRow?['name'] ?? userRow?['email'] ?? 'Unknown Player',
+          );
+
+          // Auto-launch camera immediately so the admin doesn't have to
+          // tap an extra button — mirrors the player app's scan flow.
+          if (!_hasAutoLaunchedCamera) {
+            _hasAutoLaunchedCamera = true;
+            // Use addPostFrameCallback to ensure the widget is fully built
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted &&
+                  ref.read(scorecardScannerProvider).scanResult == null) {
+                context.push(
+                  '/scanner/camera',
+                  extra: {'competitionEntryId': widget.entryId},
+                );
+              }
+            });
+          }
+        }
       } else {
         if (mounted) setState(() => _isLoadingEntry = false);
       }
@@ -180,7 +209,7 @@ class _CompetitionScanSubmitScreenState
                   onCertifyToggle: (val) => setState(() => _certifyNow = val),
                   onSubmit: () => _submit(context, scanState.scanResult!),
                   onRescan: () =>
-                      ref.read(scorecardScannerProvider.notifier).reset(),
+                      ref.read(scorecardScannerProvider.notifier).resetForRescan(),
                 ),
     );
   }

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -96,39 +95,7 @@ class _CompetitionDetailBody extends ConsumerWidget {
                 color: AppColors.grey900,
               ),
             ),
-            actions: [
-              if (isAdmin)
-                PopupMenuButton<String>(
-                  icon: const Icon(
-                    LucideIcons.moreVertical,
-                    color: AppColors.grey900,
-                  ),
-                  onSelected: (value) =>
-                      _handleAdminAction(context, ref, value),
-                  itemBuilder: (_) => [
-                    if (competition.status == 'upcoming')
-                      const PopupMenuItem(
-                        value: 'open_for_entry',
-                        child: Text('Open for Entry'),
-                      ),
-                    if (competition.status == 'open_for_entry')
-                      const PopupMenuItem(
-                        value: 'in_progress',
-                        child: Text('Start Competition'),
-                      ),
-                    if (competition.status == 'in_progress')
-                      const PopupMenuItem(
-                        value: 'closed',
-                        child: Text('Close & Tally Results'),
-                      ),
-                    if (competition.status == 'closed')
-                      const PopupMenuItem(
-                        value: 'completed',
-                        child: Text('Publish Final Results'),
-                      ),
-                  ],
-                ),
-            ],
+            actions: const [],
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(56),
               child: Container(
@@ -191,24 +158,7 @@ class _CompetitionDetailBody extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleAdminAction(
-      BuildContext context, WidgetRef ref, String value) async {
-    final actions = ref.read(competitionActionsProvider.notifier);
-    await actions.updateCompetitionStatus(
-      competitionId: competition.id,
-      newStatus: value,
-    );
-    final state = ref.read(competitionActionsProvider);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(state.successMessage ?? state.errorMessage ?? ''),
-          backgroundColor:
-              state.errorMessage != null ? Colors.red : AppColors.emerald700,
-        ),
-      );
-    }
-  }
+
 }
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
@@ -228,7 +178,6 @@ class _OverviewTab extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     return Container(
-      height: 240,
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
@@ -243,36 +192,10 @@ class _OverviewTab extends ConsumerWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Blurred background image
-            Image.network(
-              competition.posterUrl!,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              errorBuilder: (context, error, stackTrace) => Container(color: Colors.white),
-            ),
-            // Blur filter
-            BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-              child: Container(
-                color: Colors.black.withOpacity(0.25),
-              ),
-            ),
-            // Foreground image (showing whole image)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Image.network(
-                  competition.posterUrl!,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Container(color: Colors.transparent),
-                ),
-              ),
-            ),
-          ],
+        child: Image.network(
+          competition.posterUrl!,
+          fit: BoxFit.fitWidth,
+          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
         ),
       ),
     );
@@ -526,238 +449,7 @@ class _EntryStatusBanner extends StatelessWidget {
   }
 }
 
-// ─── Entries Tab ──────────────────────────────────────────────────────────────
-class _EntriesTab extends ConsumerWidget {
-  final Competition competition;
-  final bool isAdmin;
-  final dynamic profile;
 
-  const _EntriesTab({
-    required this.competition,
-    required this.isAdmin,
-    required this.profile,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final entriesAsync = ref.watch(competitionEntriesProvider(competition.id));
-
-    return entriesAsync.when(
-      loading: () => const Center(child: LoadingSpinner(size: 60)),
-      error: (e, _) => Center(child: Text('Error: $e')),
-      data: (entries) {
-        if (entries.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(LucideIcons.users, size: 48, color: AppColors.grey200),
-                SizedBox(height: 12),
-                Text('No entries yet',
-                    style: TextStyle(color: AppColors.grey400)),
-              ],
-            ),
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: entries.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (_, i) => _EntryTile(
-            entry: entries[i],
-            isAdmin: isAdmin,
-            currentUserId: profile?.uid,
-            competitionId: competition.id,
-            competitionStatus: competition.status,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _EntryTile extends ConsumerWidget {
-  final CompetitionEntry entry;
-  final bool isAdmin;
-  final String? currentUserId;
-  final String? competitionId;
-  final String? competitionStatus;
-
-  const _EntryTile({
-    required this.entry,
-    required this.isAdmin,
-    required this.currentUserId,
-    this.competitionId,
-    this.competitionStatus,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isMe = entry.playerId == currentUserId;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isMe ? AppColors.emerald700.withValues(alpha: 0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: isMe
-            ? Border.all(color: AppColors.emerald700.withValues(alpha: 0.3))
-            : null,
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: AppColors.grey100,
-            backgroundImage: entry.playerAvatarUrl != null
-                ? NetworkImage(entry.playerAvatarUrl!)
-                : null,
-            child: entry.playerAvatarUrl == null
-                ? Text(
-                    (entry.playerName ?? 'G').substring(0, 1).toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      entry.playerName ?? 'Unknown',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.grey900),
-                    ),
-                    if (isMe) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.emerald700,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'You',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                Text(
-                  'HC: ${entry.playingHandicap?.toStringAsFixed(1) ?? "-"}  •  ${entry.teeColor ?? "TBC"}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.grey500),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _StatusBadge(status: entry.entryStatus),
-              if (isAdmin && entry.isPending)
-                TextButton(
-                  onPressed: () => _confirmEntry(context, ref),
-                  child: const Text('Confirm',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.emerald700,
-                          fontWeight: FontWeight.w700)),
-                ),
-              if (isAdmin &&
-                  entry.isConfirmed &&
-                  competitionStatus == 'in_progress' &&
-                  competitionId != null)
-                TextButton.icon(
-                  onPressed: () => context.push(
-                    '/competitions/$competitionId/scan/${entry.id}',
-                  ),
-                  icon: const Icon(LucideIcons.scanLine,
-                      size: 14, color: AppColors.grey700),
-                  label: const Text('Scan',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.grey700,
-                          fontWeight: FontWeight.w700)),
-                  style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 0)),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _confirmEntry(BuildContext context, WidgetRef ref) async {
-    final profile = ref.read(userProfileProvider).valueOrNull;
-    if (profile == null) return;
-    await ref.read(competitionActionsProvider.notifier).confirmEntry(
-          entryId: entry.id,
-          confirmedBy: profile.uid ?? '',
-        );
-    if (context.mounted) {
-      final state = ref.read(competitionActionsProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(state.successMessage ?? state.errorMessage ?? ''),
-          backgroundColor:
-              state.errorMessage != null ? Colors.red : AppColors.emerald700,
-        ),
-      );
-    }
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String status;
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    Color bg;
-    Color fg;
-    String label;
-    switch (status) {
-      case 'confirmed':
-        bg = AppColors.emerald700.withValues(alpha: 0.1);
-        fg = AppColors.emerald700;
-        label = 'Confirmed';
-        break;
-      case 'withdrawn':
-        bg = Colors.red.withValues(alpha: 0.1);
-        fg = Colors.red;
-        label = 'Withdrawn';
-        break;
-      case 'disqualified':
-        bg = Colors.red.withValues(alpha: 0.1);
-        fg = Colors.red;
-        label = 'DQ';
-        break;
-      default:
-        bg = Colors.amber.withValues(alpha: 0.1);
-        fg = Colors.amber.shade700;
-        label = 'Pending';
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-          color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700, color: fg)),
-    );
-  }
-}
 
 // ─── Starting Sheet Tab ───────────────────────────────────────────────────────
 class _StartingSheetTab extends ConsumerWidget {
@@ -803,7 +495,7 @@ class _StartingSheetTab extends ConsumerWidget {
           children: grouped.entries.map((e) {
             final teeTime = e.key;
             final group = e.value;
-            return _TeeTimeGroup(teeTime: teeTime, players: group);
+            return _TeeTimeGroup(teeTime: teeTime, players: group, isAdmin: isAdmin);
           }).toList(),
         );
       },
@@ -814,8 +506,9 @@ class _StartingSheetTab extends ConsumerWidget {
 class _TeeTimeGroup extends StatelessWidget {
   final DateTime teeTime;
   final List<StartingSheetRow> players;
+  final bool isAdmin;
 
-  const _TeeTimeGroup({required this.teeTime, required this.players});
+  const _TeeTimeGroup({required this.teeTime, required this.players, required this.isAdmin});
 
   @override
   Widget build(BuildContext context) {
@@ -850,7 +543,7 @@ class _TeeTimeGroup extends StatelessWidget {
             ],
           ),
         ),
-        ...players.map((p) => _SheetPlayerTile(row: p)),
+        ...players.map((p) => _SheetPlayerTile(row: p, isAdmin: isAdmin)),
         const SizedBox(height: 4),
       ],
     );
@@ -859,7 +552,8 @@ class _TeeTimeGroup extends StatelessWidget {
 
 class _SheetPlayerTile extends StatelessWidget {
   final StartingSheetRow row;
-  const _SheetPlayerTile({required this.row});
+  final bool isAdmin;
+  const _SheetPlayerTile({required this.row, required this.isAdmin});
 
   @override
   Widget build(BuildContext context) {
@@ -892,6 +586,21 @@ class _SheetPlayerTile extends StatelessWidget {
                 color: _teeColor(row.teeColor!),
                 shape: BoxShape.circle,
               ),
+            ),
+          ],
+          if (isAdmin) ...[
+            const SizedBox(width: 12),
+            IconButton(
+              constraints: const BoxConstraints(),
+              padding: EdgeInsets.zero,
+              icon: const Icon(
+                LucideIcons.camera,
+                color: AppColors.emerald700,
+                size: 20,
+              ),
+              onPressed: () {
+                context.push('/competitions/${row.competitionId}/scan/${row.entryId}');
+              },
             ),
           ],
         ],
@@ -1144,19 +853,26 @@ class _CompetitionEntrySheetState
   String _selectedTee = 'white';
   bool _isSubmitting = false;
   final TextEditingController _mpesaPhoneController = TextEditingController();
+  late TextEditingController _handicapController;
 
   final _teeOptions = ['white', 'yellow', 'blue', 'red'];
 
   @override
+  void initState() {
+    super.initState();
+    final initialHc = widget.profile?.handicap ?? 0.0;
+    _handicapController = TextEditingController(text: initialHc.toStringAsFixed(1));
+  }
+
+  @override
   void dispose() {
     _mpesaPhoneController.dispose();
+    _handicapController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final hc = widget.profile?.handicap;
-
     return Container(
       padding: EdgeInsets.fromLTRB(
           24, 16, 24, MediaQuery.of(context).viewInsets.bottom + 24),
@@ -1193,7 +909,7 @@ class _CompetitionEntrySheetState
                 const TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 24),
-          // Handicap display
+          // Handicap input
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -1210,12 +926,22 @@ class _CompetitionEntrySheetState
                         color: AppColors.grey600,
                         fontWeight: FontWeight.w600)),
                 const Spacer(),
-                Text(
-                  hc != null ? hc.toStringAsFixed(1) : '-',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      color: AppColors.grey900),
+                SizedBox(
+                  width: 80,
+                  height: 36,
+                  child: TextField(
+                    controller: _handicapController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                        color: AppColors.grey900),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1373,7 +1099,7 @@ class _CompetitionEntrySheetState
     }
 
     setState(() => _isSubmitting = true);
-    final hc = widget.profile?.handicap ?? 0.0;
+    final hc = double.tryParse(_handicapController.text) ?? widget.profile?.handicap ?? 0.0;
     final success = await ref
         .read(competitionActionsProvider.notifier)
         .enterCompetition(
@@ -1412,63 +1138,4 @@ class _CompetitionEntrySheetState
   }
 }
 
-// ─── Admin Payments Tab ───────────────────────────────────────────────────────
-class _PaymentsTab extends ConsumerWidget {
-  final Competition competition;
 
-  const _PaymentsTab({required this.competition});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final entriesAsync = ref.watch(competitionEntriesProvider(competition.id));
-
-    return entriesAsync.when(
-      loading: () => const Center(child: LoadingSpinner(size: 40)),
-      error: (e, _) => Center(child: Text('Error: $e')),
-      data: (entries) {
-        final paymentEntries = entries.where((e) => e.paymentStatus != 'free').toList();
-        
-        if (paymentEntries.isEmpty) {
-          return const Center(
-            child: Text('No payments to track.', style: TextStyle(color: AppColors.grey500)),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: paymentEntries.length,
-          separatorBuilder: (_, __) => const Divider(color: AppColors.grey100),
-          itemBuilder: (context, index) {
-            final entry = paymentEntries[index];
-            final isPaid = entry.paymentStatus == 'paid';
-            final isFailed = entry.paymentStatus == 'stk_failed';
-            
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(entry.playerName ?? 'Unknown Player', style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(
-                'Phone: ${entry.mpesaPhoneNumber ?? "N/A"}\nRef: ${entry.paystackReference ?? "N/A"}',
-                style: const TextStyle(fontSize: 12),
-              ),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isPaid ? AppColors.emerald50 : (isFailed ? Colors.red.shade50 : Colors.amber.shade50),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  isPaid ? 'PAID' : (isFailed ? 'FAILED' : 'PENDING'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isPaid ? AppColors.emerald700 : (isFailed ? Colors.red.shade700 : Colors.amber.shade700),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
