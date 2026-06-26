@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:score_caddie/core/theme/app_theme.dart';
 import 'package:score_caddie/core/providers/club_feed_provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ClubDashboardScreen extends ConsumerStatefulWidget {
   final String clubId;
@@ -160,7 +159,8 @@ class _ClubDashboardScreenState extends ConsumerState<ClubDashboardScreen> with 
     return ref.watch(clubMembersProvider(clubId)).when(
       data: (members) {
         final activeMembers = members.where((m) => m.status == 'active').toList();
-        final pendingMembers = members.where((m) => m.status == 'pending').toList();
+        // ignore: unused_local_variable — pending count reserved for future badge UI
+        final _ = members.where((m) => m.status == 'pending').toList();
         
         if (members.isEmpty) return const Center(child: Text('No members yet.'));
         
@@ -215,7 +215,7 @@ class _ClubDashboardScreenState extends ConsumerState<ClubDashboardScreen> with 
       case 'announcement':
         icon = LucideIcons.megaphone;
         iconColor = Colors.orange;
-        bgColor = Colors.orange.withOpacity(0.1);
+        bgColor = Colors.orange.withValues(alpha: 0.1);
         break;
       case 'competition':
         icon = LucideIcons.trophy;
@@ -225,12 +225,12 @@ class _ClubDashboardScreenState extends ConsumerState<ClubDashboardScreen> with 
       case 'result':
         icon = LucideIcons.award;
         iconColor = Colors.purple;
-        bgColor = Colors.purple.withOpacity(0.1);
+        bgColor = Colors.purple.withValues(alpha: 0.1);
         break;
       default:
         icon = LucideIcons.bell;
         iconColor = Colors.blue;
-        bgColor = Colors.blue.withOpacity(0.1);
+        bgColor = Colors.blue.withValues(alpha: 0.1);
     }
 
     return Container(
@@ -242,7 +242,7 @@ class _ClubDashboardScreenState extends ConsumerState<ClubDashboardScreen> with 
         border: Border.all(color: AppColors.grey100),
         boxShadow: [
           BoxShadow(
-            color: AppColors.grey200.withOpacity(0.2),
+            color: AppColors.grey200.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

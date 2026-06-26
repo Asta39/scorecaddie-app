@@ -330,8 +330,8 @@ Future<void> deduplicateCoursesInDatabase(AppDatabase db) async {
             if (aHasSupabase != bHasSupabase) {
               return bHasSupabase.compareTo(aHasSupabase);
             }
-            final aHasTees = (a.teeData != null && a.teeData!.isNotEmpty && a.teeData != '[]') ? 1 : 0;
-            final bHasTees = (b.teeData != null && b.teeData!.isNotEmpty && b.teeData != '[]') ? 1 : 0;
+            final aHasTees = (a.teeData.isNotEmpty && a.teeData != '[]') ? 1 : 0;
+            final bHasTees = (b.teeData.isNotEmpty && b.teeData != '[]') ? 1 : 0;
             if (aHasTees != bHasTees) {
               return bHasTees.compareTo(aHasTees);
             }

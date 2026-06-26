@@ -17,7 +17,6 @@ import '../dashboard/dashboard_screen.dart';
 import '../practice/practice_range_screen.dart';
 import '../analytics/analytics_screen.dart';
 import '../marketplace/caddie_marketplace_screen.dart';
-import '../social/leaderboard_screen.dart';
 import '../profile/profile_screen.dart';
 import '../provider/coach_sessions_screen.dart';
 import '../provider/coach_students_screen.dart';

@@ -145,7 +145,7 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
             }
 
             final filtered = providers.where((p) {
-              final matchesRole = _selectedRole == 'all' || p.role?.toLowerCase() == _selectedRole.toLowerCase();
+              final matchesRole = _selectedRole == 'all' || p.role.toLowerCase() == _selectedRole.toLowerCase();
               
               final nameMatch = p.name.toLowerCase().contains(_searchController.text.toLowerCase());
               final courseMatch = p.coursesJson.toLowerCase().contains(_searchController.text.toLowerCase());

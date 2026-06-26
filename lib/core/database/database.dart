@@ -390,7 +390,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 54;
+  int get schemaVersion => 55;
 
   @override
   MigrationStrategy get migration {
@@ -448,48 +448,11 @@ class AppDatabase extends _$AppDatabase {
           try { await m.addColumn(userProfiles, userProfiles.friendCode); } catch (_) {}
         }
 
-        if (from < 54) {
-          try { await m.addColumn(rounds, rounds.source); } catch (_) {}
-          try { await m.addColumn(rounds, rounds.scorecardImageUrl); } catch (_) {}
-          try { await m.addColumn(rounds, rounds.scannerConfidence); } catch (_) {}
-          try { await m.addColumn(rounds, rounds.scannerPlayerSlot); } catch (_) {}
+        if (from < 55) {
+          // v55: Cleanup marker — removes the beforeOpen band-aid.
+          // All columns from v53/v54 are already present on devices via
+          // the onUpgrade guards above. No schema changes needed.
         }
-      },
-      // Safety net: if the v52→v53→v54 migration was silently swallowed (try/catch
-      // ate the error but version was already stamped), run the ALTER TABLE
-      // unconditionally on every open. SQLite ignores "duplicate column" errors.
-      beforeOpen: (details) async {
-        try {
-          // SQLite does NOT allow UNIQUE in ADD COLUMN — just add the column.
-          // Uniqueness is enforced by Drift's schema on fresh installs.
-          await customStatement(
-            'ALTER TABLE user_profiles ADD COLUMN friend_code TEXT;',
-          );
-        } catch (_) {}
-        
-        try {
-          await customStatement(
-            'ALTER TABLE rounds ADD COLUMN source TEXT DEFAULT \'live\';',
-          );
-        } catch (_) {}
-
-        try {
-          await customStatement(
-            'ALTER TABLE rounds ADD COLUMN scorecard_image_url TEXT;',
-          );
-        } catch (_) {}
-
-        try {
-          await customStatement(
-            'ALTER TABLE rounds ADD COLUMN scanner_confidence REAL;',
-          );
-        } catch (_) {}
-
-        try {
-          await customStatement(
-            'ALTER TABLE rounds ADD COLUMN scanner_player_slot TEXT;',
-          );
-        } catch (_) {}
       },
     );
   }

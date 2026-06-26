@@ -165,13 +165,13 @@ class _OverviewTab extends ConsumerWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           gradient: LinearGradient(
-            colors: [AppColors.golfLime, AppColors.golfLime.withOpacity(0.85)],
+            colors: [AppColors.golfLime, AppColors.golfLime.withValues(alpha: 0.85)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.golfLime.withOpacity(0.3),
+              color: AppColors.golfLime.withValues(alpha: 0.3),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -187,7 +187,7 @@ class _OverviewTab extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.grey900.withOpacity(0.1),
+                    color: AppColors.grey900.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -375,7 +375,7 @@ class _OverviewTab extends ConsumerWidget {
           border: Border.all(color: AppColors.grey100),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -426,7 +426,7 @@ class _OverviewTab extends ConsumerWidget {
   Widget _buildAddClubCard(BuildContext context, WidgetRef ref, Set<String> existingClubIds) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.emerald50.withOpacity(0.5),
+        color: AppColors.emerald50.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.emerald200, style: BorderStyle.solid),
       ),
@@ -570,7 +570,7 @@ Widget _buildPostCard({
     case 'notice':
       icon = LucideIcons.megaphone;
       iconColor = Colors.orange;
-      bgColor = Colors.orange.withOpacity(0.1);
+      bgColor = Colors.orange.withValues(alpha: 0.1);
       break;
     case 'competition':
     case 'fixture':
@@ -581,12 +581,12 @@ Widget _buildPostCard({
     case 'result':
       icon = LucideIcons.award;
       iconColor = Colors.purple;
-      bgColor = Colors.purple.withOpacity(0.1);
+      bgColor = Colors.purple.withValues(alpha: 0.1);
       break;
     default:
       icon = LucideIcons.bell;
       iconColor = Colors.blue;
-      bgColor = Colors.blue.withOpacity(0.1);
+      bgColor = Colors.blue.withValues(alpha: 0.1);
   }
 
   return Container(
@@ -597,7 +597,7 @@ Widget _buildPostCard({
       border: Border.all(color: AppColors.grey100),
       boxShadow: [
         BoxShadow(
-          color: AppColors.grey200.withOpacity(0.2),
+          color: AppColors.grey200.withValues(alpha: 0.2),
           blurRadius: 10,
           offset: const Offset(0, 4),
         ),

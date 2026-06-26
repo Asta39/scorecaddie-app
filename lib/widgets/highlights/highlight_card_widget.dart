@@ -294,6 +294,7 @@ class HighlightCardWidget extends StatelessWidget {
             ),
           ),
           ...values.asMap().entries.map((e) {
+            // ignore: unused_local_variable — reserved for per-hole coloring logic
             final int holeIdx = e.key;
             final String val = e.value;
             

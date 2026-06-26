@@ -17,7 +17,6 @@ import '../../core/database/database.dart';
 import '../../core/database/database.dart' as db;
 import '../../core/models/achievement_model.dart';
 import 'dart:convert';
-import 'package:lottie/lottie.dart';
 import '../../widgets/profile_image.dart';
 import '../../widgets/top_notification.dart';
 import '../../widgets/coaching_panel.dart';

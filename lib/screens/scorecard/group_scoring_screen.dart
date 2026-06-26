@@ -29,6 +29,7 @@ class _GroupScoringScreenState extends ConsumerState<GroupScoringScreen> {
   int _currentHoleIndex = 0;
   String? _expandedParticipantId;
 
+  // ignore: unused_field — stored for future course-header display in scorecard
   Course? _course;
   List<int> _holePars = [];
   bool _isLoading = true;

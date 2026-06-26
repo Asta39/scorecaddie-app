@@ -43,7 +43,7 @@ final myClubCompetitionsProvider =
   final clubIdAsync = ref.watch(playerHomeClubIdProvider);
   return clubIdAsync.when(
     loading: () => const Stream.empty(),
-    error: (_, __) => const Stream.empty(),
+    error: (_, _) => const Stream.empty(),
     data: (clubId) {
       if (clubId == null) return Stream.value([]);
       return _supabase

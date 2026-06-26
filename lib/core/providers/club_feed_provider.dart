@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:score_caddie/providers/app_providers.dart';
 
 class ClubPost {
   final String id;

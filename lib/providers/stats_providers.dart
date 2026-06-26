@@ -54,13 +54,13 @@ final coursesProvider = StreamProvider<List<db.Course>>((ref) {
   return database.watchAllCourses(user?.id).map((courses) {
     final Map<String, db.Course> uniqueCourses = {};
     for (final c in courses) {
-      final key = _normalizeCourseName(c.name) + '_' + _normalizeCourseName(c.location ?? '');
+      final key = '${_normalizeCourseName(c.name)}_${_normalizeCourseName(c.location ?? '')}';
       if (!uniqueCourses.containsKey(key)) {
         uniqueCourses[key] = c;
       } else {
         final existing = uniqueCourses[key]!;
-        final existingHasTees = existing.teeData != null && existing.teeData!.isNotEmpty && existing.teeData != '[]';
-        final newHasTees = c.teeData != null && c.teeData!.isNotEmpty && c.teeData != '[]';
+        final existingHasTees = existing.teeData.isNotEmpty && existing.teeData != '[]';
+        final newHasTees = c.teeData.isNotEmpty && c.teeData != '[]';
         
         if (newHasTees && !existingHasTees) {
           uniqueCourses[key] = c;
