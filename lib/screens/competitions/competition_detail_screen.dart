@@ -464,6 +464,10 @@ class _StartingSheetTab extends ConsumerWidget {
     final sheetAsync = ref.watch(startingSheetProvider(competition.id));
     final user = ref.watch(authStateProvider).valueOrNull;
     final entryAsync = ref.watch(myEntryProvider(competition.id));
+    
+    final lockHours = (competition.rulesConfig['tee_time_lock_hours'] as int?) ?? 24;
+    final lockTimestamp = competition.startDate.subtract(Duration(hours: lockHours));
+    final isLocked = DateTime.now().isAfter(lockTimestamp);
 
     return sheetAsync.when(
       loading: () => const Center(child: LoadingSpinner(size: 60)),
@@ -514,9 +518,11 @@ class _StartingSheetTab extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        myRow != null
-                            ? 'You are scheduled at ${DateFormat('HH:mm').format(myRow.teeTime)} (Hole ${myRow.teeNumber}). Tap "Swap" or "Claim" to adjust.'
-                            : 'You are registered! Select a vacant slot below to claim your tee time.',
+                        isLocked
+                            ? 'Tee time modifications are closed.'
+                            : (myRow != null
+                                ? 'You are scheduled at ${DateFormat('HH:mm').format(myRow.teeTime)} (Hole ${myRow.teeNumber}). Tap "Swap" or "Claim" to adjust.'
+                                : 'You are registered! Select a vacant slot below to claim your tee time.'),
                         style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -628,6 +634,10 @@ class _SheetPlayerTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isVacant = row.playerId == null;
     final isMe = row.playerId != null && row.playerId == myRow?.playerId;
+    
+    final lockHours = (competition.rulesConfig['tee_time_lock_hours'] as int?) ?? 24;
+    final lockTimestamp = competition.startDate.subtract(Duration(hours: lockHours));
+    final isLocked = DateTime.now().isAfter(lockTimestamp);
 
     if (isVacant) {
       return Container(
@@ -651,7 +661,7 @@ class _SheetPlayerTile extends ConsumerWidget {
               ),
             ),
             const Spacer(),
-            if (isRegistered && myRow?.id != row.id)
+            if (isRegistered && myRow?.id != row.id && !isLocked)
               GestureDetector(
                 onTap: () => _claimSlot(context, ref),
                 child: Container(
@@ -708,7 +718,7 @@ class _SheetPlayerTile extends ConsumerWidget {
               ),
             ),
           ],
-          if (isRegistered && myRow != null && !isMe) ...[
+          if (isRegistered && myRow != null && !isMe && !isLocked) ...[
             const SizedBox(width: 12),
             GestureDetector(
               onTap: () => _requestSwap(context, ref),
