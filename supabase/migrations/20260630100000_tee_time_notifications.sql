@@ -24,6 +24,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Replace get_due_reminders() to work with the new casual bookings
+DROP FUNCTION IF EXISTS public.get_due_reminders();
 CREATE OR REPLACE FUNCTION public.get_due_reminders()
 RETURNS TABLE (
   id           uuid,
