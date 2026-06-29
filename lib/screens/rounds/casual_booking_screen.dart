@@ -42,7 +42,13 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
       final response = await supabase.from('Course').select('id, name, location').order('name');
       if (mounted) {
         setState(() {
-          _courses = List<Map<String, dynamic>>.from(response);
+          final coursesList = List<Map<String, dynamic>>.from(response);
+          final Map<String, Map<String, dynamic>> uniqueCourses = {};
+          for (var course in coursesList) {
+            uniqueCourses[course['name']] = course;
+          }
+          _courses = uniqueCourses.values.toList();
+          _courses.sort((a, b) => a['name'].toString().compareTo(b['name'].toString()));
           _isLoadingCourses = false;
         });
       }

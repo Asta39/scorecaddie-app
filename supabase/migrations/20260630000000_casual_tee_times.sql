@@ -6,22 +6,22 @@ ADD COLUMN IF NOT EXISTS latitude NUMERIC,
 ADD COLUMN IF NOT EXISTS longitude NUMERIC;
 
 -- Insert the Kenyan courses into "Course" if they don't exist
-INSERT INTO public."Course" (id, name, location, "holesCount", "par18", caddie_fee, latitude, longitude)
+INSERT INTO public."Course" (id, name, location, "holesCount", "par18", caddie_fee, latitude, longitude, "createdAt", "updatedAt")
 VALUES
-  ('royal-nairobi', 'Royal Nairobi Golf Club', 'Nairobi', 18, 72, 1000, -1.2989, 36.7914),
-  ('karen-cc', 'Karen Country Club', 'Nairobi', 18, 72, 1200, -1.3533, 36.7117),
-  ('muthaiga-gc', 'Muthaiga Golf Club', 'Nairobi', 18, 71, 1200, -1.2483, 36.8333),
-  ('windsor-gc', 'Windsor Golf Hotel & Country Club', 'Nairobi', 18, 72, 1500, -1.2104, 36.8770),
-  ('sigona-gc', 'Sigona Golf Club', 'Kikuyu', 18, 72, 1000, -1.2333, 36.6500),
-  ('vet-lab', 'Vet Lab Sports Club', 'Kabete', 18, 72, 1000, -1.2667, 36.7333),
-  ('thika-greens', 'Thika Greens Golf Resort', 'Thika', 18, 72, 1200, -1.0167, 37.0833),
-  ('limuru-cc', 'Limuru Country Club', 'Limuru', 18, 72, 1000, -1.1167, 36.6333),
-  ('nyeri-gc', 'Nyeri Golf Club', 'Nyeri', 18, 72, 1000, -0.4245, 36.9423),
-  ('nyali-gc', 'Nyali Golf & Country Club', 'Mombasa', 18, 71, 1000, -4.0333, 39.7167),
-  ('mombasa-gc', 'Mombasa Golf Club', 'Mombasa', 9, 71, 800, -4.0667, 39.6667),
-  ('vipingo-ridge', 'Vipingo Ridge', 'Kilifi', 18, 72, 1500, -3.8242, 39.7997),
-  ('nakuru-gc', 'Nakuru Golf Club', 'Nakuru', 18, 73, 800, -0.2833, 36.0683),
-  ('eldoret-gc', 'Eldoret Golf Club', 'Eldoret', 18, 71, 1000, 0.5143, 35.2697)
+  ('royal-nairobi', 'Royal Nairobi Golf Club', 'Nairobi', 18, 72, 1000, -1.2989, 36.7914, now(), now()),
+  ('karen-cc', 'Karen Country Club', 'Nairobi', 18, 72, 1200, -1.3533, 36.7117, now(), now()),
+  ('muthaiga-gc', 'Muthaiga Golf Club', 'Nairobi', 18, 71, 1200, -1.2483, 36.8333, now(), now()),
+  ('windsor-gc', 'Windsor Golf Hotel & Country Club', 'Nairobi', 18, 72, 1500, -1.2104, 36.8770, now(), now()),
+  ('sigona-gc', 'Sigona Golf Club', 'Kikuyu', 18, 72, 1000, -1.2333, 36.6500, now(), now()),
+  ('vet-lab', 'Vet Lab Sports Club', 'Kabete', 18, 72, 1000, -1.2667, 36.7333, now(), now()),
+  ('thika-greens', 'Thika Greens Golf Resort', 'Thika', 18, 72, 1200, -1.0167, 37.0833, now(), now()),
+  ('limuru-cc', 'Limuru Country Club', 'Limuru', 18, 72, 1000, -1.1167, 36.6333, now(), now()),
+  ('nyeri-gc', 'Nyeri Golf Club', 'Nyeri', 18, 72, 1000, -0.4245, 36.9423, now(), now()),
+  ('nyali-gc', 'Nyali Golf & Country Club', 'Mombasa', 18, 71, 1000, -4.0333, 39.7167, now(), now()),
+  ('mombasa-gc', 'Mombasa Golf Club', 'Mombasa', 9, 71, 800, -4.0667, 39.6667, now(), now()),
+  ('vipingo-ridge', 'Vipingo Ridge', 'Kilifi', 18, 72, 1500, -3.8242, 39.7997, now(), now()),
+  ('nakuru-gc', 'Nakuru Golf Club', 'Nakuru', 18, 73, 800, -0.2833, 36.0683, now(), now()),
+  ('eldoret-gc', 'Eldoret Golf Club', 'Eldoret', 18, 71, 1000, 0.5143, 35.2697, now(), now())
 ON CONFLICT (id) DO NOTHING;
 
 -- Drop the old "courses" table (ensure no foreign keys depend on it first)

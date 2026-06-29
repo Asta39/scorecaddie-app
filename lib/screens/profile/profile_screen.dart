@@ -667,9 +667,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: 40),
           
           _buildAchievementsSection(profile),
-          const SizedBox(height: 24),
-          
-          _buildTeeTimeReminderCard(context),
           const SizedBox(height: 40),
           
           Align(
@@ -1062,50 +1059,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildTeeTimeReminderCard(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push('/profile/tee-time-reminders'),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.golfLime, Color(0xFFB8E986)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(color: AppColors.golfLime.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6)),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(LucideIcons.bell, color: AppColors.grey900, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Tee Time Reminders', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.grey900, letterSpacing: -0.3)),
-                  const SizedBox(height: 4),
-                  Text('Never miss a round', style: TextStyle(fontSize: 13, color: AppColors.grey900.withValues(alpha: 0.7), fontWeight: FontWeight.w500)),
-                ],
-              ),
-            ),
-            const Icon(LucideIcons.chevronRight, color: AppColors.grey900, size: 24),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildRecentReviewsList(String? providerId) {
     if (providerId == null) return const SizedBox.shrink();

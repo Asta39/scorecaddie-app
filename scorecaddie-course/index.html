@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScoreCaddie: How the Code Works</title>
+
+  <!-- Google Fonts: Bricolage Grotesque · DM Sans · JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400;1,9..40,500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- ScoreCaddie emerald green accent palette -->
+  <style>
+    :root {
+      --color-accent:       #1B7A4E;
+      --color-accent-hover: #064E3B;
+      --color-accent-light: #ECFDF5;
+      --color-accent-muted: #10B981;
+      /* Actor colors from the app's palette */
+      --color-actor-1: #1B7A4E;
+      --color-actor-2: #A3E635;
+      --color-actor-3: #F59E0B;
+      --color-actor-4: #0EA5E9;
+      --color-actor-5: #8B5E3C;
+    }
+  </style>
+
+  <script src="main.js" defer></script>
+</head>
+<body>
+
+  <nav class="nav" id="nav">
+    <div class="progress-bar" id="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+    <div class="nav-inner">
+      <span class="nav-title">ScoreCaddie: How the Code Works</span>
+      <div class="nav-dots" id="nav-dots" role="tablist">
+        <button class="nav-dot" data-target="module-1" data-tooltip="What ScoreCaddie Does" role="tab" aria-label="Module 1: What ScoreCaddie Does"></button>
+        <button class="nav-dot" data-target="module-2" data-tooltip="Meet the Cast" role="tab" aria-label="Module 2: Meet the Cast"></button>
+        <button class="nav-dot" data-target="module-3" data-tooltip="How Data Moves" role="tab" aria-label="Module 3: How Data Moves"></button>
+        <button class="nav-dot" data-target="module-4" data-tooltip="The Offline-First Engine" role="tab" aria-label="Module 4: The Offline-First Engine"></button>
+        <button class="nav-dot" data-target="module-5" data-tooltip="Daniel — The AI Caddie" role="tab" aria-label="Module 5: Daniel — The AI Caddie"></button>
+        <button class="nav-dot" data-target="module-6" data-tooltip="The Handicap Engine" role="tab" aria-label="Module 6: The Handicap Engine"></button>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main">
+    <!-- modules/*.html content is assembled here by build.sh -->
+<section class="module" id="module-1" style="background: var(--color-bg)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">01</span>
+      <h1 class="module-title">What ScoreCaddie Does</h1>
+      <p class="module-subtitle">A digital caddie for Kenyan golf — and what happens when you play a round</p>
+    </header>
+
+    <div class="module-body">
+      <!-- Screen 1: The App Concept -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">A Caddie in Your Pocket</h2>
+        <p>Imagine you're standing on the first tee at <span class="term" data-definition="A golf course in Kenya where you might play your weekly round. ScoreCaddie targets Kenyan courses with local data.">Karen Country Club</span>. You pull out your phone, open ScoreCaddie, and within seconds you have a live scorecard, real-time leaderboard, and an AI coach named Daniel who watches your practice swings and tells you exactly what to fix.</p>
+        <p>That's ScoreCaddie. It's not just a score tracker — it's a <span class="term" data-definition="A complete system that helps golfers track scores, manage clubs, book coaches, and compete in tournaments.">golf club management platform</span> built with Flutter, powered by Supabase, and designed for Kenyan golf courses.</p>
+
+        <div class="pattern-cards stagger-children">
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+            <div class="pattern-icon" style="background: var(--color-actor-1)">⛳</div>
+            <h4 class="pattern-title">Score Tracking</h4>
+            <p class="pattern-desc">Enter scores hole-by-hole with putts, fairways, GIR, and penalties</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+            <div class="pattern-icon" style="background: var(--color-actor-2)">🏆</div>
+            <h4 class="pattern-title">Live Leaderboards</h4>
+            <p class="pattern-desc">Real-time competition scores that update as players finish each hole</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+            <div class="pattern-icon" style="background: var(--color-actor-3)">📊</div>
+            <h4 class="pattern-title">Handicap Engine</h4>
+            <p class="pattern-desc">Official 2024 World Handicap System calculations</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-4)">
+            <div class="pattern-icon" style="background: var(--color-actor-4)">🎙️</div>
+            <h4 class="pattern-title">AI Voice Caddie</h4>
+            <p class="pattern-desc">Daniel gives coaching feedback via Groq LLM + ElevenLabs voice</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: Trace a Round -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">You Tap "Start Round." Now What?</h2>
+        <p>Let's trace what happens under the hood when you play a round. This is the best way to understand an app — follow one concrete action from start to finish.</p>
+
+        <div class="step-cards">
+          <div class="step-card">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>You tap "Start Round"</strong>
+              <p>The <span class="term" data-definition="The main navigation shell of the app — the bottom bar with tabs like Home, Practice, Stats, Club, Caddie, Profile.">AppShell</span> routes you to the Course Select screen</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>You pick a course and tee box</strong>
+              <p>The app pulls course data from the local <span class="term" data-definition="SQLite database stored on your phone. All your data lives here first, even when you're offline.">Drift database</span></p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>You enter scores hole-by-hole</strong>
+              <p>Each score is saved instantly to Drift — no internet needed</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>You finish the round</strong>
+              <p>The <span class="term" data-definition="A system that calculates your golf handicap using official WHS 2024 formulas.">Handicap Engine</span> recalculates your index</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">5</div>
+            <div class="step-body">
+              <strong>Your score syncs to the cloud</strong>
+              <p>If you have signal, <span class="term" data-definition="A backend service that stores your data in the cloud and enables real-time features like leaderboards and chat.">Supabase</span> pushes it to the live leaderboard</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Score Badge System -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Score Badge System</h2>
+        <p>ScoreCaddie uses the same color language golfers already know. Each score gets a badge that tells you at a glance how you did:</p>
+
+        <div class="badge-list">
+          <div class="badge-item">
+            <code class="badge-code" style="background: #F59E0B; color: #111827">Eagle</code>
+            <span class="badge-desc">2 under par — like hitting a home run in golf</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code" style="background: #3B82F6">Birdie</code>
+            <span class="badge-desc">1 under par — the sweet spot every golfer chases</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code" style="background: #10B981">Par</code>
+            <span class="badge-desc">On target — the expected score for a skilled player</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code" style="background: #F97316">Bogey</code>
+            <span class="badge-desc">1 over par — still perfectly respectable</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code" style="background: #EF4444">Double Bogey</code>
+            <span class="badge-desc">2 over par — the app caps scores here to keep handicaps fair</span>
+          </div>
+        </div>
+
+        <div class="callout callout-accent">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <strong class="callout-title">Key Insight</strong>
+            <p>That "Double Bogey" cap isn't a bug — it's the <span class="term" data-definition="Equitable Stroke Control. The maximum score you can record for handicap purposes, preventing one bad hole from ruining your handicap.">ESC cap</span>, a rule from the official World Handicap System. The app enforces it automatically so your handicap stays fair.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Quick Check</h2>
+        <div class="quiz-container" id="quiz-module1">
+          <div class="quiz-question-block"
+               data-correct="option-c"
+               data-explanation-right="Exactly! The app saves scores to your phone's local Drift database immediately. You don't need internet to play a full round."
+               data-explanation-wrong="Not quite. The app is designed to work offline — it doesn't wait for the internet to save your scores.">
+            <h3 class="quiz-question">You enter a score on hole 3. You have no mobile signal. What happens?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The app shows an error and refuses to save</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The score is lost until you get signal back</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The score is saved to your phone and will sync later</span>
+              </button>
+              <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The app crashes because it needs the internet</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module1')">Check Answer</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module1')">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+<section class="module" id="module-2" style="background: var(--color-bg-warm)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">02</span>
+      <h1 class="module-title">Meet the Cast</h1>
+      <p class="module-subtitle">The six characters that make ScoreCaddie work</p>
+    </header>
+
+    <div class="module-body">
+      <!-- Screen 1: The Main Characters -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Every App Has a Cast of Characters</h2>
+        <p>Think of an app like a theater production. Each component has a role, a personality, and lines it speaks to other components. If you want to tell an AI coding tool "put this in the right place," you first need to know who the actors are.</p>
+
+        <div class="icon-rows stagger-children">
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-1)">🧭</div>
+            <div>
+              <strong>AppShell</strong>
+              <p>The stage manager — the bottom navigation bar, tab switching, and the glass container that holds every screen</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-2)">🗺️</div>
+            <div>
+              <strong>GoRouter</strong>
+              <p>The traffic cop — decides which screen you see when you tap a button or follow a deep link</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-3)">📻</div>
+            <div>
+              <strong>Riverpod</strong>
+              <p>The radio station — broadcasts state changes so every screen knows what's happening right now</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-4)">💾</div>
+            <div>
+              <strong>Drift (SQLite)</strong>
+              <p>The filing cabinet — stores every round, score, and profile on your phone, even offline</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-5)">☁️</div>
+            <div>
+              <strong>Supabase</strong>
+              <p>The cloud HQ — the backend that enables real-time leaderboards, chat, and cloud sync</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: Visual File Tree -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Where Everything Lives</h2>
+        <p>ScoreCaddie's code is organized in a <span class="term" data-definition="A way of organizing code into folders and files so each piece has a clear home. Good architecture makes it easy to find what you need.">clean architecture</span> pattern. Here's the map:</p>
+
+        <div class="file-tree">
+          <div class="ft-folder open">
+            <span class="ft-name">lib/</span>
+            <span class="ft-desc">All the Dart code lives here</span>
+            <div class="ft-children">
+              <div class="ft-file">
+                <span class="ft-name">main.dart</span>
+                <span class="ft-desc">The front door — initializes everything</span>
+              </div>
+              <div class="ft-file">
+                <span class="ft-name">app.dart</span>
+                <span class="ft-desc">The stage — sets up theme, router, and screen scaling</span>
+              </div>
+              <div class="ft-folder open">
+                <span class="ft-name">core/</span>
+                <span class="ft-desc">The engine room — services, database, theme, utils</span>
+                <div class="ft-children">
+                  <div class="ft-folder">
+                    <span class="ft-name">database/</span>
+                    <span class="ft-desc">Drift SQLite tables and queries</span>
+                  </div>
+                  <div class="ft-folder">
+                    <span class="ft-name">services/</span>
+                    <span class="ft-desc">Business logic — AI caddie, handicap, sync</span>
+                  </div>
+                  <div class="ft-folder">
+                    <span class="ft-name">cloud/</span>
+                    <span class="ft-desc">Supabase integration and sync engine</span>
+                  </div>
+                  <div class="ft-folder">
+                    <span class="ft-name">theme/</span>
+                    <span class="ft-desc">Colors, fonts, and the emerald green design system</span>
+                  </div>
+                </div>
+              </div>
+              <div class="ft-folder open">
+                <span class="ft-name">screens/</span>
+                <span class="ft-desc">The UI — one folder per feature</span>
+                <div class="ft-children">
+                  <div class="ft-folder"><span class="ft-name">auth/</span><span class="ft-desc">Login, onboarding, role selection</span></div>
+                  <div class="ft-folder"><span class="ft-name">scorecard/</span><span class="ft-desc">Course selection and scoring</span></div>
+                  <div class="ft-folder"><span class="ft-name">practice/</span><span class="ft-desc">Range, voice logging, AI feedback</span></div>
+                  <div class="ft-folder"><span class="ft-name">analytics/</span><span class="ft-desc">Stats, charts, and trends</span></div>
+                  <div class="ft-folder"><span class="ft-name">marketplace/</span><span class="ft-desc">Caddie/coach booking</span></div>
+                </div>
+              </div>
+              <div class="ft-folder">
+                <span class="ft-name">providers/</span>
+                <span class="ft-desc">Riverpod state management definitions</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Group Chat Animation -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Components Introduce Themselves</h2>
+        <p>Here's how the "cast" talks when the app starts up:</p>
+
+        <div class="chat-window" id="chat-module2">
+          <div class="chat-messages">
+            <div class="chat-message" data-msg="0" data-sender="main" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-1)">M</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-1)">main.dart</span>
+                <p>Good morning, everyone! I'm the front door. I make sure Supabase, OneSignal, and the database are all awake before the user sees anything.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="1" data-sender="router" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-2)">R</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-2)">GoRouter</span>
+                <p>I'm ready. I've got 40+ routes mapped out. If the user isn't logged in, they go to Auth. If they're logged in but haven't picked a role, they go to Role Selection.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="2" data-sender="shell" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-3)">S</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-3)">AppShell</span>
+                <p>I'm here with my frosted glass nav bar. I show 6 tabs for players, 6 different tabs for coaches. PageView handles the swipe between them.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="3" data-sender="riverpod" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-4)">RV</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-4)">Riverpod</span>
+                <p>I'm listening to everything. When a score changes, I tell every screen that cares. When the user logs in, I trigger the sync engine. I'm the radio station.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="4" data-sender="drift" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-5)">D</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-5)">Drift</span>
+                <p>I've got 18 tables ready. Courses, rounds, scores, practice shots, friends, messages — all stored locally. Even if the internet dies, I'm still here.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-typing" id="chat-typing" style="display:none">
+            <div class="chat-avatar" id="typing-avatar">?</div>
+            <div class="chat-typing-dots">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
+          </div>
+
+          <div class="chat-controls">
+            <button class="btn chat-next-btn">Next Message</button>
+            <button class="btn chat-all-btn">Play All</button>
+            <button class="btn chat-reset-btn">Replay</button>
+            <span class="chat-progress"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Who Does What?</h2>
+        <div class="quiz-container" id="quiz-module2">
+          <div class="quiz-question-block"
+               data-correct="option-b"
+               data-explanation-right="Correct! GoRouter is the traffic cop. It decides which screen to show based on the URL, auth state, and profile completeness."
+               data-explanation-wrong="Not quite. Think about which component handles navigation logic and redirects between screens.">
+            <h3 class="quiz-question">A user opens the app but isn't logged in. Which component redirects them to the login screen?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>AppShell</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>GoRouter</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Riverpod</span>
+              </button>
+              <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Drift</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module2')">Check Answer</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module2')">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+<section class="module" id="module-3" style="background: var(--color-bg)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">03</span>
+      <h1 class="module-title">How Data Moves</h1>
+      <p class="module-subtitle">From your finger tap to the cloud and back</p>
+    </header>
+
+    <div class="module-body">
+      <!-- Screen 1: The Tap Journey -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">You Tap a Button. What Happens?</h2>
+        <p>Every tap starts a journey. In ScoreCaddie, that journey follows a predictable pipeline: <strong>Screen → Provider → Service → Database → Sync → Cloud</strong>. Understanding this pipeline is the key to debugging "why didn't my score save?"</p>
+
+        <div class="flow-animation" data-steps='[
+          {"highlight":"flow-actor-1","label":"User taps 'Save Score' on the ScoringScreen"},
+          {"highlight":"flow-actor-2","label":"Riverpod provider receives the update and rebuilds listeners"},
+          {"highlight":"flow-actor-3","label":"Service layer validates and formats the score data"},
+          {"highlight":"flow-actor-4","label":"Drift SQLite saves the score locally (instant, no internet needed)"},
+          {"highlight":"flow-actor-5","label":"SyncService detects new data and queues it for upload"},
+          {"highlight":"flow-actor-6","label":"Supabase receives the score and broadcasts it to the live leaderboard"}
+        ]'>
+          <div class="flow-actors">
+            <div class="flow-actor" id="flow-actor-1">
+              <div class="flow-actor-icon">👆</div>
+              <span>Screen</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-2">
+              <div class="flow-actor-icon">📻</div>
+              <span>Riverpod</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-3">
+              <div class="flow-actor-icon">⚙️</div>
+              <span>Service</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-4">
+              <div class="flow-actor-icon">💾</div>
+              <span>Drift</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-5">
+              <div class="flow-actor-icon">🔄</div>
+              <span>Sync</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-6">
+              <div class="flow-actor-icon">☁️</div>
+              <span>Supabase</span>
+            </div>
+          </div>
+          <div class="flow-packet" id="flow-packet"></div>
+          <div class="flow-step-label" id="flow-label">Click "Next Step" to trace the journey</div>
+          <div class="flow-controls">
+            <button class="btn flow-next-btn">Next Step</button>
+            <button class="btn flow-reset-btn">Restart</button>
+            <span class="flow-progress"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: Code Translation - main.dart -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The App's Front Door</h2>
+        <p>Every Flutter app starts with a <code class="badge-code">main.dart</code> file. It's the front door — the first thing that runs when you open the app. Here's how ScoreCaddie sets up the stage:</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-line"><span class="code-keyword">void</span> <span class="code-function">main</span>() <span class="code-keyword">async</span> {</span>
+<span class="code-line">  <span class="code-function">WidgetsFlutterBinding</span>.<span class="code-function">ensureInitialized</span>();</span>
+<span class="code-line">  <span class="code-keyword">await</span> dotenv.<span class="code-function">load</span>(fileName: <span class="code-string">'.env'</span>);</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">if</span> (dotenv.env[<span class="code-string">'ONESIGNAL_APP_ID'</span>] != <span class="code-keyword">null</span>) {</span>
+<span class="code-line">    OneSignal.<span class="code-function">initialize</span>(dotenv.env[<span class="code-string">'ONESIGNAL_APP_ID'</span>]!);</span>
+<span class="code-line">  }</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">await</span> Supabase.<span class="code-function">initialize</span>(</span>
+<span class="code-line">    url: AppConfig.supabaseUrl,</span>
+<span class="code-line">    anonKey: AppConfig.supabaseAnonKey,</span>
+<span class="code-line">    authOptions: <span class="code-keyword">const</span> <span class="code-function">FlutterAuthClientOptions</span>(</span>
+<span class="code-line">      authFlowType: AuthFlowType.pkce,</span>
+<span class="code-line">    ),</span>
+<span class="code-line">  );</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">final</span> db = <span class="code-function">AppDatabase</span>();</span>
+<span class="code-line">  <span class="code-keyword">await</span> <span class="code-function">seedCourses</span>(db);</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-function">runApp</span>(</span>
+<span class="code-line">    <span class="code-function">ProviderScope</span>(</span>
+<span class="code-line">      overrides: [databaseProvider.<span class="code-function">overrideWithValue</span>(db)],</span>
+<span class="code-line">      child: <span class="code-keyword">const</span> <span class="code-function">ScoreCaddieApp</span>(),</span>
+<span class="code-line">    ),</span>
+<span class="code-line">  );</span>
+<span class="code-line">}</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p class="tl">This is the main function — the first thing that runs when the app opens.</p>
+              <p class="tl">Make sure Flutter is ready before doing anything else.</p>
+              <p class="tl">Load the secret keys from the .env file (API keys, etc.).</p>
+              <p class="tl">If there's a OneSignal ID, set up push notifications.</p>
+              <p class="tl">Connect to the OneSignal service with that ID.</p>
+              <p class="tl">End of the push notification setup.</p>
+              <p class="tl">Connect to Supabase (the cloud backend) using the URL and key from the config.</p>
+              <p class="tl">Use PKCE for secure authentication — a fancy way of saying "make login secure."</p>
+              <p class="tl">Create the local SQLite database (Drift).</p>
+              <p class="tl">Fill the database with the list of Kenyan golf courses.</p>
+              <p class="tl">Start the app, wrapping it in a ProviderScope so Riverpod can manage state.</p>
+              <p class="tl">Pass the database into the provider system so every screen can access it.</p>
+              <p class="tl">Launch the actual app widget — the ScoreCaddieApp.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Code Translation - app.dart scaling -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Screen Scaling Trick</h2>
+        <p>Here's a clever pattern in <code class="badge-code">app.dart</code> most developers miss. The app uses a <span class="term" data-definition="A fixed reference point (like 390 pixels wide) that the UI is designed for. On smaller screens, the whole UI scales down proportionally instead of rearranging.">design baseline</span> to scale the entire UI on smaller phones:</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-line"><span class="code-keyword">const</span> <span class="code-keyword">double</span> baselineWidth = <span class="code-number">390.0</span>;</span>
+<span class="code-line"></span>
+<span class="code-line"><span class="code-keyword">if</span> (width < baselineWidth && width > <span class="code-number">0</span>) {</span>
+<span class="code-line">  <span class="code-keyword">final</span> <span class="code-keyword">double</span> scale = width / baselineWidth;</span>
+<span class="code-line">  <span class="code-keyword">return</span> <span class="code-function">FittedBox</span>(</span>
+<span class="code-line">    fit: BoxFit.fitWidth,</span>
+<span class="code-line">    alignment: Alignment.topCenter,</span>
+<span class="code-line">    child: <span class="code-function">SizedBox</span>(</span>
+<span class="code-line">      width: baselineWidth,</span>
+<span class="code-line">      height: height / scale,</span>
+<span class="code-line">      child: child,</span>
+<span class="code-line">    ),</span>
+<span class="code-line">  );</span>
+<span class="code-line">}</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p class="tl">The UI was designed for a 390-pixel-wide screen (iPhone 14 size).</p>
+              <p class="tl">If the phone is narrower than that...</p>
+              <p class="tl">Calculate how much smaller the screen is (e.g., 0.85 for an older iPhone).</p>
+              <p class="tl">Wrap the entire app in a FittedBox — like putting the UI in a shrinkable bag.</p>
+              <p class="tl">Shrink the bag to fit the screen width.</p>
+              <p class="tl">Keep the bag anchored at the top so nothing gets cut off.</p>
+              <p class="tl">Inside the bag, the UI still thinks it's 390px wide.</p>
+              <p class="tl">But the height gets adjusted so nothing gets squished.</p>
+              <p class="tl">Put the actual app content inside this scaled container.</p>
+              <p class="tl">If the screen is 390px or wider, just show the app normally.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout callout-accent">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <strong class="callout-title">Key Insight</strong>
+            <p>This is a <span class="term" data-definition="A design approach where the entire interface is scaled proportionally instead of using responsive breakpoints. Faster to build, but less flexible on very different screen sizes.">fixed-baseline scaling</span> approach. Instead of rewriting layouts for every screen size, the app assumes one size and scales down. It's faster to build but less flexible than true responsive design. If you asked an AI to "make this responsive," it might replace this with a more flexible system.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Trace the Data</h2>
+        <div class="quiz-container" id="quiz-module3">
+          <div class="quiz-question-block"
+               data-correct="option-b"
+               data-explanation-right="Exactly! Drift is the first stop. The score is saved to your phone's SQLite database immediately. Only later does the SyncService try to push it to Supabase."
+               data-explanation-wrong="Not quite. Remember: the app is offline-first. The cloud is the last stop, not the first.">
+            <h3 class="quiz-question">You enter a score. In what order does the data travel?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Screen → Supabase → Drift → Riverpod</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Screen → Riverpod → Service → Drift → Sync → Supabase</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Screen → Drift → Riverpod → Supabase → Service</span>
+              </button>
+              <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Screen → Service → Supabase → Drift → Riverpod</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module3')">Check Answer</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module3')">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+<section class="module" id="module-4" style="background: var(--color-bg-warm)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">04</span>
+      <h1 class="module-title">The Offline-First Engine</h1>
+      <p class="module-subtitle">How the app works when the internet doesn't</p>
+    </header>
+
+    <div class="module-body">
+      <!-- Screen 1: Why Offline-First -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Golf Courses Have Terrible Signal</h2>
+        <p>You're on the 14th hole at Muthaiga Golf Club. The trees are thick, the clubhouse is far, and your phone shows one bar of 3G. You just birdied the hole and want to record your score. If the app needed the internet to save, you'd be stuck.</p>
+        <p>ScoreCaddie solves this with an <span class="term" data-definition="An architecture where the app works completely on your device first, then syncs to the cloud when possible. The cloud is a backup, not a requirement.">offline-first design</span>. Every score, every round, every practice session is saved to your phone's <span class="term" data-definition="SQLite database — a lightweight file-based database that lives on your phone. No server needed. It's like a filing cabinet that fits in your pocket.">SQLite database</span> instantly. The cloud is just a backup that catches up when it can.</p>
+
+        <div class="pattern-cards stagger-children">
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+            <div class="pattern-icon" style="background: var(--color-actor-1)">💾</div>
+            <h4 class="pattern-title">Local First</h4>
+            <p class="pattern-desc">All data saved to Drift SQLite on your phone before anything else</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+            <div class="pattern-icon" style="background: var(--color-actor-2)">🔄</div>
+            <h4 class="pattern-title">Background Sync</h4>
+            <p class="pattern-desc">When signal returns, queued changes sync automatically</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+            <div class="pattern-icon" style="background: var(--color-actor-3)">🛡️</div>
+            <h4 class="pattern-title">Conflict-Free</h4>
+            <p class="pattern-desc">Stable UUIDs prevent duplicate records during sync</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: Stable UUID Sync -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Stable UUID Trick</h2>
+        <p>Here's a problem: you save a round on your phone, then later the app tries to sync it to the cloud. But what if the round already exists in the cloud from another device? You'd get duplicates. The solution is <span class="term" data-definition="A way of generating IDs that always produces the same output for the same input. Like a recipe: same ingredients always make the same dish.">deterministic UUIDs</span>:</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-line"><span class="code-comment">// Stable namespace for deterministic UUIDs</span></span>
+<span class="code-line"><span class="code-keyword">static const</span> _namespace = <span class="code-string">'6ba7b810-9dad-11d1-80b4-00c04fd430c8'</span>;</span>
+<span class="code-line"></span>
+<span class="code-line">String <span class="code-function">_generateStableId</span>(String type, List&lt;String&gt; parts) {</span>
+<span class="code-line">  <span class="code-keyword">final</span> input = <span class="code-string">'$type:${parts.join(':')}'</span>;</span>
+<span class="code-line">  <span class="code-keyword">return</span> _uuid.<span class="code-function">v5</span>(_namespace, input);</span>
+<span class="code-line">}</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p class="tl">This is a fixed "seed" string that acts like a secret recipe key.</p>
+              <p class="tl">This function takes a type (like "round" or "shot") and a list of parts.</p>
+              <p class="tl">Combine them into one string like "round:123:2024-06-01".</p>
+              <p class="tl">Run it through UUIDv5 — a hash function that always produces the same ID for the same input.</p>
+              <p class="tl">The result: the same round always gets the same ID, no matter which device creates it.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout callout-accent">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <strong class="callout-title">Key Insight</strong>
+            <p>This pattern is like a library's <span class="term" data-definition="A system that assigns a unique number to every book so you can find it later. In software, it means giving every piece of data a permanent ID.">card catalog</span> — instead of randomly generating a new card number every time, the catalog uses the book's title and author to create a consistent number. Same book, same number. No duplicates.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Profile Self-Healing -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Profile Self-Healing</h2>
+        <p>Here's another clever pattern. When a user logs in, the app checks if their profile exists in the cloud database. If not, it creates a minimal one automatically. If the profile says "Golfer" but Google has their real name, it updates it. The app fixes itself:</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-line"><span class="code-comment">// SELF-HEALING: Ensure user profile exists</span></span>
+<span class="code-line"><span class="code-keyword">final</span> dbProfile = <span class="code-keyword">await</span> _client.<span class="code-function">from</span>(<span class="code-string">'User'</span>)</span>
+<span class="code-line">  .<span class="code-function">select</span>(<span class="code-string">'name, role, bio'</span>)</span>
+<span class="code-line">  .<span class="code-function">eq</span>(<span class="code-string">'id'</span>, user.id)</span>
+<span class="code-line">  .<span class="code-function">maybeSingle</span>();</span>
+<span class="code-line"></span>
+<span class="code-line"><span class="code-keyword">if</span> (dbProfile == <span class="code-keyword">null</span>) {</span>
+<span class="code-line">  <span class="code-keyword">await</span> _client.<span class="code-function">from</span>(<span class="code-string">'User'</span>).<span class="code-function">insert</span>({</span>
+<span class="code-line">    <span class="code-string">'id'</span>: user.id,</span>
+<span class="code-line">    <span class="code-string">'email'</span>: user.email ?? <span class="code-string">''</span>,</span>
+<span class="code-line">    <span class="code-string">'name'</span>: user.metadata?[<span class="code-string">'full_name'</span>] ?? <span class="code-string">'Golfer'</span>,</span>
+<span class="code-line">    <span class="code-string">'role'</span>: currentRole,</span>
+<span class="code-line">  });</span>
+<span class="code-line">} <span class="code-keyword">else</span> <span class="code-keyword">if</span> (dbProfile[<span class="code-string">'name'</span>] == <span class="code-string">'Golfer'</span></span>
+<span class="code-line">    && user.metadata?[<span class="code-string">'full_name'</span>] != <span class="code-keyword">null</span>) {</span>
+<span class="code-line">  <span class="code-keyword">await</span> _client.<span class="code-function">from</span>(<span class="code-string">'User'</span>).<span class="code-function">update</span>({</span>
+<span class="code-line">    <span class="code-string">'name'</span>: user.metadata?[<span class="code-string">'full_name'</span>],</span>
+<span class="code-line">  }).<span class="code-function">eq</span>(<span class="code-string">'id'</span>, user.id);</span>
+<span class="code-line">}</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p class="tl">Look for the user's profile in the cloud database.</p>
+              <p class="tl">Grab the name, role, and bio fields for this user ID.</p>
+              <p class="tl">If nothing comes back...</p>
+              <p class="tl">Create a brand new profile with their ID and email.</p>
+              <p class="tl">Use their Google name if available, otherwise default to "Golfer".</p>
+              <p class="tl">Set their role (player, coach, or admin).</p>
+              <p class="tl">If the profile exists but says "Golfer" and Google has a real name...</p>
+              <p class="tl">Update the profile with the real name from Google.</p>
+              <p class="tl">Only update the record that belongs to this user.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Debug the Sync</h2>
+        <div class="quiz-container" id="quiz-module4">
+          <div class="quiz-question-block"
+               data-correct="option-c"
+               data-explanation-right="Exactly! Because the app uses stable UUIDs, the same round gets the same ID on every device. When the phone syncs, Supabase sees the ID already exists and updates instead of duplicating."
+               data-explanation-wrong="Not quite. Think about how the stable UUID function works — it generates the same ID for the same data, which prevents duplicates.">
+            <h3 class="quiz-question">A user plays a round on their phone (offline), then opens the app on their iPad. The iPad syncs the round from the cloud. Later, the phone comes online and tries to sync the same round. What happens?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The round appears twice — once from each device</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The phone's version overwrites the iPad's version completely</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The round gets the same ID on both devices, so no duplicate is created</span>
+              </button>
+              <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The app crashes because it can't handle conflicting data</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module4')">Check Answer</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module4')">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+<section class="module" id="module-5" style="background: var(--color-bg)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">05</span>
+      <h1 class="module-title">Daniel — The AI Voice Caddie</h1>
+      <p class="module-subtitle">How a voice becomes coaching advice in 12 seconds</p>
+    </header>
+
+    <div class="module-body">
+      <!-- Screen 1: Who is Daniel? -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Meet Daniel</h2>
+        <p>Daniel isn't just a chatbot. He's a British-accented AI caddie who stands on the driving range with you, watches your shots, and tells you exactly what to fix. He lives inside the <code class="badge-code">AICaddieService</code> class and has a very specific personality:</p>
+
+        <div class="pattern-cards stagger-children">
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+            <div class="pattern-icon" style="background: var(--color-actor-1)">🧠</div>
+            <h4 class="pattern-title">Groq LLaMA 3.3 70B</h4>
+            <p class="pattern-desc">The brain — analyzes your shot data and generates personalized coaching advice</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+            <div class="pattern-icon" style="background: var(--color-actor-2)">🎙️</div>
+            <h4 class="pattern-title">ElevenLabs TTS</h4>
+            <p class="pattern-desc">The voice — converts text advice into spoken audio with a British accent</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+            <div class="pattern-icon" style="background: var(--color-actor-3)">📡</div>
+            <h4 class="pattern-title">SharedPreferences</h4>
+            <p class="pattern-desc">The memory — remembers if you turned voice mode on or off</p>
+          </div>
+        </div>
+
+        <p>Daniel's system prompt tells him he's "standing on the driving range in Kenya" and to "detect patterns over 3+ shots." He doesn't just comment on one swing — he remembers your last few and spots trends. That's why the service passes <code class="badge-code">recentShots</code> alongside the current shot.</p>
+      </section>
+
+      <!-- Screen 2: The AI Pipeline -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">How Daniel Talks to You</h2>
+        <p>Here's the pipeline from your practice swing to Daniel's voice in your ear:</p>
+
+        <div class="chat-window" id="chat-module5">
+          <div class="chat-messages">
+            <div class="chat-message" data-msg="0" data-sender="user" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-4)">U</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-4)">You</span>
+                <p>Just hit a 7-iron 145 yards with a slight draw. Previous shots were all pushes to the right.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="1" data-sender="service" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-3)">S</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-3)">AICaddieService</span>
+                <p>I'm packaging this shot data with your recent session history. Sending it to Groq with the system prompt...</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="2" data-sender="groq" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-1)">G</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-1)">Groq LLaMA</span>
+                <p>"Pattern detected: your clubface is closed at impact but your path is neutral. That's causing the draw. Focus on keeping the clubface square through impact."</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="3" data-sender="eleven" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-2)">E</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-2)">ElevenLabs</span>
+                <p>Converting that text to audio using the 'Daniel' voice (British, cool under pressure). Playing it back...</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="4" data-sender="daniel" style="display:none">
+              <div class="chat-avatar" style="background: #7E22CE">D</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: #7E22CE">Daniel</span>
+                <p>"I see a pattern here — your last three shots have all drawn. Check your grip pressure. You're closing the face at impact."</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-typing" id="chat-typing" style="display:none">
+            <div class="chat-avatar" id="typing-avatar">?</div>
+            <div class="chat-typing-dots">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
+          </div>
+
+          <div class="chat-controls">
+            <button class="btn chat-next-btn">Next Message</button>
+            <button class="btn chat-all-btn">Play All</button>
+            <button class="btn chat-reset-btn">Replay</button>
+            <span class="chat-progress"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Code Translation -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Code Behind Daniel</h2>
+        <p>Here's the actual code that makes Daniel work. The <code class="badge-code">getCoachingFeedback</code> method sends your shot data to Groq and returns text advice:</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-line"><span class="code-keyword">static</span> Future&lt;String&gt; <span class="code-function">getCoachingFeedback</span>({</span>
+<span class="code-line">  <span class="code-keyword">required</span> Map&lt;String, <span class="code-keyword">dynamic</span>&gt; shot,</span>
+<span class="code-line">  <span class="code-keyword">required</span> db.UserProfile player,</span>
+<span class="code-line">  <span class="code-keyword">required</span> List&lt;Map&lt;String, <span class="code-keyword">dynamic</span>&gt;&gt; recentShots,</span>
+<span class="code-line">}) <span class="code-keyword">async</span> {</span>
+<span class="code-line">  <span class="code-keyword">final</span> response = <span class="code-keyword">await</span> http.<span class="code-function">post</span>(</span>
+<span class="code-line">    Uri.<span class="code-function">parse</span>(_groqChatUrl),</span>
+<span class="code-line">    headers: {</span>
+<span class="code-line">      <span class="code-string">'Authorization'</span>: <span class="code-string">'Bearer $_groqApiKey'</span>,</span>
+<span class="code-line">      <span class="code-string">'Content-Type'</span>: <span class="code-string">'application/json'</span>,</span>
+<span class="code-line">    },</span>
+<span class="code-line">    body: <span class="code-function">jsonEncode</span>({</span>
+<span class="code-line">      <span class="code-string">'model'</span>: _groqModel,</span>
+<span class="code-line">      <span class="code-string">'temperature'</span>: <span class="code-number">0.7</span>,</span>
+<span class="code-line">      <span class="code-string">'max_tokens'</span>: <span class="code-number">150</span>,</span>
+<span class="code-line">      <span class="code-string">'messages'</span>: [</span>
+<span class="code-line">        {<span class="code-string">'role'</span>: <span class="code-string">'system'</span>, <span class="code-string">'content'</span>: <span class="code-function">_buildSystemPrompt</span>(player)},</span>
+<span class="code-line">        {<span class="code-string">'role'</span>: <span class="code-string">'user'</span>, <span class="code-string">'content'</span>: <span class="code-string">'CURRENT SHOT: $shot. RECENT: $recentShots'</span>},</span>
+<span class="code-line">      ],</span>
+<span class="code-line">    }),</span>
+<span class="code-line">  ).<span class="code-function">timeout</span>(<span class="code-keyword">const</span> <span class="code-function">Duration</span>(seconds: <span class="code-number">12</span>));</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">if</span> (response.statusCode != <span class="code-number">200</span>)</span>
+<span class="code-line">    <span class="code-keyword">throw</span> Exception(<span class="code-string">'Daniel is quiet right now.'</span>);</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">final</span> data = <span class="code-function">jsonDecode</span>(response.body);</span>
+<span class="code-line">  <span class="code-keyword">return</span> data[<span class="code-string">'choices'</span>][<span class="code-number">0</span>][<span class="code-string">'message'</span>][<span class="code-string">'content'</span>];</span>
+<span class="code-line">}</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p class="tl">This function needs three things: the current shot, your profile, and recent shots.</p>
+              <p class="tl">The current shot data (club, distance, direction, etc.).</p>
+              <p class="tl">Your profile so Daniel knows your name and handicap.</p>
+              <p class="tl">Your recent shots so Daniel can spot patterns.</p>
+              <p class="tl">Send a POST request to the Groq API endpoint.</p>
+              <p class="tl">Include the API key so Groq knows who we are.</p>
+              <p class="tl">Tell Groq we're sending JSON data.</p>
+              <p class="tl">Package the request as JSON.</p>
+              <p class="tl">Use the LLaMA 3.3 70B model — a large language model.</p>
+              <p class="tl">Temperature 0.7 means "be creative but not random."</p>
+              <p class="tl">Limit the response to 150 tokens (about 2-3 sentences).</p>
+              <p class="tl">First message: the system prompt that tells Daniel who he is.</p>
+              <p class="tl">Second message: the actual shot data Daniel needs to analyze.</p>
+              <p class="tl">Wait max 12 seconds, then give up.</p>
+              <p class="tl">If the API returned an error, throw a friendly exception.</p>
+              <p class="tl">Parse the JSON response from Groq.</p>
+              <p class="tl">Extract the actual coaching text from the response.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Pipeline Puzzle</h2>
+        <div class="quiz-container" id="quiz-module5">
+          <div class="quiz-question-block"
+               data-correct="option-b"
+               data-explanation-right="Correct! The system prompt is sent as the first message with role 'system'. This tells the AI who it is, what personality to use, and what rules to follow. The shot data comes as the second 'user' message."
+               data-explanation-wrong="Not quite. The system prompt isn't just a header — it's the first message in the conversation. The API key is in the headers, not the messages array.">
+            <h3 class="quiz-question">In the code above, where does Daniel's personality come from?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>It's embedded in the API key</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>It's the first message with role 'system'</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>It's hardcoded in the Groq model itself</span>
+              </button>
+              <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>It's passed as a URL parameter</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module5')">Check Answer</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module5')">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+<section class="module" id="module-6" style="background: var(--color-bg-warm)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">06</span>
+      <h1 class="module-title">The Handicap Engine</h1>
+      <p class="module-subtitle">How ScoreCaddie calculates your official golf handicap</p>
+    </header>
+
+    <div class="module-body">
+      <!-- Screen 1: What is a Handicap? -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">What Is a Handicap, Really?</h2>
+        <p>A <span class="term" data-definition="A number that represents how good a golfer you are. Lower is better. A 0 handicap is a professional. A 28 handicap is a beginner. It lets players of different skill levels compete fairly.">handicap</span> is golf's great equalizer. It's a single number that lets a 28-handicap beginner play against a 5-handicap skilled player — and both have a chance to win. The lower your handicap, the better you are.</p>
+        <p>ScoreCaddie implements the official <span class="term" data-definition="The World Handicap System — the global standard for calculating golf handicaps, updated in 2024. Used by golf associations worldwide.">WHS 2024</span> formulas, which means your handicap is calculated the same way as at any professional golf club. Here's the pipeline:</p>
+
+        <div class="step-cards">
+          <div class="step-card">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>ESC Cap</strong>
+              <p>Adjust any blow-up holes to a max of Net Double Bogey</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>Score Differential</strong>
+              <p>Convert your adjusted score to a standardized number</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>Best 8 of 20</strong>
+              <p>Take the best 8 differentials from your last 20 rounds</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>Caps & ESR</strong>
+              <p>Apply soft/hard caps and exceptional score reductions</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: The Math Explained -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Score Differential Formula</h2>
+        <p>Here's the core math that turns a round of golf into a handicap-relevant number. The formula is:</p>
+        <p style="text-align: center; font-family: var(--font-mono); font-size: var(--text-lg); background: var(--color-surface); padding: var(--space-4); border-radius: var(--radius-md); margin: var(--space-6) 0;"><strong>(Adjusted Score - Course Rating) × (113 / Slope Rating)</strong></p>
+        <p>What each piece means:</p>
+        <div class="badge-list">
+          <div class="badge-item">
+            <code class="badge-code">Adjusted Score</code>
+            <span class="badge-desc">Your actual score, but any hole worse than Net Double Bogey is capped</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code">Course Rating</code>
+            <span class="badge-desc">What a scratch golfer (0 handicap) would score on this course</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code">Slope Rating</code>
+            <span class="badge-desc">How much harder the course is for average golfers (113 is average)</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code">113</code>
+            <span class="badge-desc">The standard slope rating — a constant in the formula</span>
+          </div>
+        </div>
+
+        <div class="callout callout-accent">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <strong class="callout-title">Key Insight</strong>
+            <p>The <span class="term" data-definition="A number (55-155) that measures how much harder a course is for a bogey golfer compared to a scratch golfer. 113 is standard difficulty. A 130 slope is much harder.">slope rating</span> is why your handicap travels with you. If you shoot 85 at an easy course (slope 110), that's good. If you shoot 85 at a hard course (slope 135), that's excellent. The formula adjusts for difficulty so your handicap is fair no matter where you play.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Code Translation -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Code That Calculates Your Handicap</h2>
+        <p>Here's the actual <code class="badge-code">calculateHandicapIndex</code> method from the WHSEngine. It takes your last 20 differentials and produces a single handicap number:</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-line"><span class="code-keyword">static</span> double? <span class="code-function">calculateHandicapIndex</span>(</span>
+<span class="code-line">  List&lt;double&gt; allDifferentials,</span>
+<span class="code-line">  {double? lowIndex, double? latestScoreDiff, double? previousIndex}</span>
+<span class="code-line">) {</span>
+<span class="code-line">  <span class="code-keyword">if</span> (allDifferentials.isEmpty) <span class="code-keyword">return</span> <span class="code-keyword">null</span>;</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">final</span> recent = allDifferentials.length > <span class="code-number">20</span></span>
+<span class="code-line">      ? allDifferentials.sublist(allDifferentials.length - <span class="code-number">20</span>)</span>
+<span class="code-line">      : allDifferentials;</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">final</span> count = recent.length;</span>
+<span class="code-line">  <span class="code-keyword">final</span> numToUse = <span class="code-function">_getDifferentialsToUse</span>(count);</span>
+<span class="code-line">  <span class="code-keyword">if</span> (numToUse == <span class="code-number">0</span>) <span class="code-keyword">return</span> <span class="code-keyword">null</span>;</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">final</span> sorted = List&lt;double&gt;.<span class="code-function">from</span>(recent)..sort();</span>
+<span class="code-line">  <span class="code-keyword">final</span> best = sorted.sublist(<span class="code-number">0</span>, numToUse);</span>
+<span class="code-line">  <span class="code-keyword">final</span> average = best.reduce((a, b) => a + b) / best.length;</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">double</span> result = average * <span class="code-number">0.96</span>;</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">if</span> (latestScoreDiff != <span class="code-keyword">null</span> && previousIndex != <span class="code-keyword">null</span>)</span>
+<span class="code-line">    result += <span class="code-function">calculateExceptionalScoreReduction</span>(latestScoreDiff, previousIndex);</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">if</span> (lowIndex != <span class="code-keyword">null</span>)</span>
+<span class="code-line">    result = <span class="code-function">applyYearlyCap</span>(result, lowIndex);</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">return</span> (result * <span class="code-number">10</span>).roundToDouble() / <span class="code-number">10</span>;</span>
+<span class="code-line">}</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p class="tl">Takes a list of all your past score differentials.</p>
+              <p class="tl">The list of all your past differentials.</p>
+              <p class="tl">Optional: your lowest index this year and your latest differential.</p>
+              <p class="tl">If you have no scores, return nothing (can't calculate a handicap).</p>
+              <p class="tl">Only use the most recent 20 scores. WHS looks at a rolling window.</p>
+              <p class="tl">If more than 20, keep only the last 20.</p>
+              <p class="tl">Otherwise use all of them.</p>
+              <p class="tl">Count how many differentials we have.</p>
+              <p class="tl">Look up how many to use based on the count (1 for 3-5 rounds, 2 for 6-8, etc.).</p>
+              <p class="tl">If none to use, return nothing.</p>
+              <p class="tl">Sort the differentials from lowest (best) to highest (worst).</p>
+              <p class="tl">Take only the best N differentials (the low ones).</p>
+              <p class="tl">Calculate the average of those best differentials.</p>
+              <p class="tl">Multiply by 0.96 — the WHS averaging factor.</p>
+              <p class="tl">If we have a latest score and previous index...</p>
+              <p class="tl">Check if the latest score was exceptional and reduce the handicap if so.</p>
+              <p class="tl">If we have a low index anchor...</p>
+              <p class="tl">Apply the soft/hard cap so your handicap can't jump too fast.</p>
+              <p class="tl">Round to one decimal place and return.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Handicap Debugging</h2>
+        <div class="quiz-container" id="quiz-module6">
+          <div class="quiz-question-block"
+               data-correct="option-c"
+               data-explanation-right="Exactly! The soft cap means any increase above 3.0 is reduced by 50%. If your lowest index was 12.0 and your new calculation is 16.0, the soft cap kicks in at 15.0. The extra 1.0 gets halved to 0.5, so your final index is 15.5. This prevents your handicap from jumping too fast."
+               data-explanation-wrong="Not quite. The soft cap doesn't just add 3.0. It limits how much your handicap can increase above your lowest index in a year.">
+            <h3 class="quiz-question">A player's lowest index this year was 12.0. Their new calculated index is 16.0. What does the soft cap do?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Their index stays at 12.0 — no increase allowed</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Their index becomes 15.0 — hard cap of +3.0</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Their index becomes 15.5 — soft cap halves the extra increase</span>
+              </button>
+              <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Their index stays at 16.0 — no cap applies</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module6')">Check Answer</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module6')">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+  </main>
+
+</body>
+</html>
