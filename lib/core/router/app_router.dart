@@ -22,10 +22,11 @@ import '../../screens/practice/practice_range_screen.dart';
 import '../../screens/practice/practice_session_screen.dart';
 import '../../screens/practice/session_summary_screen.dart';
 import '../../screens/practice/practice_analytics_screen.dart';
+import '../../screens/rounds/casual_booking_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 import '../../screens/profile/settings_screen.dart';
 import '../../screens/profile/clubs_screen.dart';
-import '../../screens/profile/tee_time_reminder_screen.dart';
+import '../../screens/rounds/tee_times_screen.dart';
 import '../../screens/social/friends_screen.dart';
 import '../../screens/practice/custom_drill_builder_screen.dart';
 import '../../core/theme/app_theme.dart';
@@ -207,6 +208,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           return ChatScreen(otherUserId: id);
         },
       ),
+      GoRoute(
+        path: '/book-tee-time',
+        builder: (context, state) => const CasualBookingScreen(),
+      ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
@@ -364,8 +369,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
-        path: '/profile/tee-time-reminders',
-        builder: (context, state) => const TeeTimeRemindersScreen(),
+        path: '/tee-times',
+        builder: (context, state) => const TeeTimesScreen(),
       ),
       GoRoute(
         path: '/profile/friends',

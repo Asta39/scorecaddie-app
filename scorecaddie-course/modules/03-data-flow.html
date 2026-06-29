@@ -1,0 +1,199 @@
+<section class="module" id="module-3" style="background: var(--color-bg)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">03</span>
+      <h1 class="module-title">How Data Moves</h1>
+      <p class="module-subtitle">From your finger tap to the cloud and back</p>
+    </header>
+
+    <div class="module-body">
+      <!-- Screen 1: The Tap Journey -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">You Tap a Button. What Happens?</h2>
+        <p>Every tap starts a journey. In ScoreCaddie, that journey follows a predictable pipeline: <strong>Screen → Provider → Service → Database → Sync → Cloud</strong>. Understanding this pipeline is the key to debugging "why didn't my score save?"</p>
+
+        <div class="flow-animation" data-steps='[
+          {"highlight":"flow-actor-1","label":"User taps 'Save Score' on the ScoringScreen"},
+          {"highlight":"flow-actor-2","label":"Riverpod provider receives the update and rebuilds listeners"},
+          {"highlight":"flow-actor-3","label":"Service layer validates and formats the score data"},
+          {"highlight":"flow-actor-4","label":"Drift SQLite saves the score locally (instant, no internet needed)"},
+          {"highlight":"flow-actor-5","label":"SyncService detects new data and queues it for upload"},
+          {"highlight":"flow-actor-6","label":"Supabase receives the score and broadcasts it to the live leaderboard"}
+        ]'>
+          <div class="flow-actors">
+            <div class="flow-actor" id="flow-actor-1">
+              <div class="flow-actor-icon">👆</div>
+              <span>Screen</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-2">
+              <div class="flow-actor-icon">📻</div>
+              <span>Riverpod</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-3">
+              <div class="flow-actor-icon">⚙️</div>
+              <span>Service</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-4">
+              <div class="flow-actor-icon">💾</div>
+              <span>Drift</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-5">
+              <div class="flow-actor-icon">🔄</div>
+              <span>Sync</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-6">
+              <div class="flow-actor-icon">☁️</div>
+              <span>Supabase</span>
+            </div>
+          </div>
+          <div class="flow-packet" id="flow-packet"></div>
+          <div class="flow-step-label" id="flow-label">Click "Next Step" to trace the journey</div>
+          <div class="flow-controls">
+            <button class="btn flow-next-btn">Next Step</button>
+            <button class="btn flow-reset-btn">Restart</button>
+            <span class="flow-progress"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: Code Translation - main.dart -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The App's Front Door</h2>
+        <p>Every Flutter app starts with a <code class="badge-code">main.dart</code> file. It's the front door — the first thing that runs when you open the app. Here's how ScoreCaddie sets up the stage:</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-line"><span class="code-keyword">void</span> <span class="code-function">main</span>() <span class="code-keyword">async</span> {</span>
+<span class="code-line">  <span class="code-function">WidgetsFlutterBinding</span>.<span class="code-function">ensureInitialized</span>();</span>
+<span class="code-line">  <span class="code-keyword">await</span> dotenv.<span class="code-function">load</span>(fileName: <span class="code-string">'.env'</span>);</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">if</span> (dotenv.env[<span class="code-string">'ONESIGNAL_APP_ID'</span>] != <span class="code-keyword">null</span>) {</span>
+<span class="code-line">    OneSignal.<span class="code-function">initialize</span>(dotenv.env[<span class="code-string">'ONESIGNAL_APP_ID'</span>]!);</span>
+<span class="code-line">  }</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">await</span> Supabase.<span class="code-function">initialize</span>(</span>
+<span class="code-line">    url: AppConfig.supabaseUrl,</span>
+<span class="code-line">    anonKey: AppConfig.supabaseAnonKey,</span>
+<span class="code-line">    authOptions: <span class="code-keyword">const</span> <span class="code-function">FlutterAuthClientOptions</span>(</span>
+<span class="code-line">      authFlowType: AuthFlowType.pkce,</span>
+<span class="code-line">    ),</span>
+<span class="code-line">  );</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">final</span> db = <span class="code-function">AppDatabase</span>();</span>
+<span class="code-line">  <span class="code-keyword">await</span> <span class="code-function">seedCourses</span>(db);</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-function">runApp</span>(</span>
+<span class="code-line">    <span class="code-function">ProviderScope</span>(</span>
+<span class="code-line">      overrides: [databaseProvider.<span class="code-function">overrideWithValue</span>(db)],</span>
+<span class="code-line">      child: <span class="code-keyword">const</span> <span class="code-function">ScoreCaddieApp</span>(),</span>
+<span class="code-line">    ),</span>
+<span class="code-line">  );</span>
+<span class="code-line">}</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p class="tl">This is the main function — the first thing that runs when the app opens.</p>
+              <p class="tl">Make sure Flutter is ready before doing anything else.</p>
+              <p class="tl">Load the secret keys from the .env file (API keys, etc.).</p>
+              <p class="tl">If there's a OneSignal ID, set up push notifications.</p>
+              <p class="tl">Connect to the OneSignal service with that ID.</p>
+              <p class="tl">End of the push notification setup.</p>
+              <p class="tl">Connect to Supabase (the cloud backend) using the URL and key from the config.</p>
+              <p class="tl">Use PKCE for secure authentication — a fancy way of saying "make login secure."</p>
+              <p class="tl">Create the local SQLite database (Drift).</p>
+              <p class="tl">Fill the database with the list of Kenyan golf courses.</p>
+              <p class="tl">Start the app, wrapping it in a ProviderScope so Riverpod can manage state.</p>
+              <p class="tl">Pass the database into the provider system so every screen can access it.</p>
+              <p class="tl">Launch the actual app widget — the ScoreCaddieApp.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Code Translation - app.dart scaling -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Screen Scaling Trick</h2>
+        <p>Here's a clever pattern in <code class="badge-code">app.dart</code> most developers miss. The app uses a <span class="term" data-definition="A fixed reference point (like 390 pixels wide) that the UI is designed for. On smaller screens, the whole UI scales down proportionally instead of rearranging.">design baseline</span> to scale the entire UI on smaller phones:</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-line"><span class="code-keyword">const</span> <span class="code-keyword">double</span> baselineWidth = <span class="code-number">390.0</span>;</span>
+<span class="code-line"></span>
+<span class="code-line"><span class="code-keyword">if</span> (width < baselineWidth && width > <span class="code-number">0</span>) {</span>
+<span class="code-line">  <span class="code-keyword">final</span> <span class="code-keyword">double</span> scale = width / baselineWidth;</span>
+<span class="code-line">  <span class="code-keyword">return</span> <span class="code-function">FittedBox</span>(</span>
+<span class="code-line">    fit: BoxFit.fitWidth,</span>
+<span class="code-line">    alignment: Alignment.topCenter,</span>
+<span class="code-line">    child: <span class="code-function">SizedBox</span>(</span>
+<span class="code-line">      width: baselineWidth,</span>
+<span class="code-line">      height: height / scale,</span>
+<span class="code-line">      child: child,</span>
+<span class="code-line">    ),</span>
+<span class="code-line">  );</span>
+<span class="code-line">}</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p class="tl">The UI was designed for a 390-pixel-wide screen (iPhone 14 size).</p>
+              <p class="tl">If the phone is narrower than that...</p>
+              <p class="tl">Calculate how much smaller the screen is (e.g., 0.85 for an older iPhone).</p>
+              <p class="tl">Wrap the entire app in a FittedBox — like putting the UI in a shrinkable bag.</p>
+              <p class="tl">Shrink the bag to fit the screen width.</p>
+              <p class="tl">Keep the bag anchored at the top so nothing gets cut off.</p>
+              <p class="tl">Inside the bag, the UI still thinks it's 390px wide.</p>
+              <p class="tl">But the height gets adjusted so nothing gets squished.</p>
+              <p class="tl">Put the actual app content inside this scaled container.</p>
+              <p class="tl">If the screen is 390px or wider, just show the app normally.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout callout-accent">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <strong class="callout-title">Key Insight</strong>
+            <p>This is a <span class="term" data-definition="A design approach where the entire interface is scaled proportionally instead of using responsive breakpoints. Faster to build, but less flexible on very different screen sizes.">fixed-baseline scaling</span> approach. Instead of rewriting layouts for every screen size, the app assumes one size and scales down. It's faster to build but less flexible than true responsive design. If you asked an AI to "make this responsive," it might replace this with a more flexible system.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Trace the Data</h2>
+        <div class="quiz-container" id="quiz-module3">
+          <div class="quiz-question-block"
+               data-correct="option-b"
+               data-explanation-right="Exactly! Drift is the first stop. The score is saved to your phone's SQLite database immediately. Only later does the SyncService try to push it to Supabase."
+               data-explanation-wrong="Not quite. Remember: the app is offline-first. The cloud is the last stop, not the first.">
+            <h3 class="quiz-question">You enter a score. In what order does the data travel?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Screen → Supabase → Drift → Riverpod</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Screen → Riverpod → Service → Drift → Sync → Supabase</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Screen → Drift → Riverpod → Supabase → Service</span>
+              </button>
+              <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Screen → Service → Supabase → Drift → Riverpod</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module3')">Check Answer</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module3')">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>

@@ -116,3 +116,38 @@ final inquiriesProvider = StreamProvider<List<db.Inquiry>>((ref) {
         )).toList();
       });
 });
+
+class CasualTeeTimeBooking {
+  final String id;
+  final String courseId;
+  final DateTime bookingDate;
+  final String teeTime;
+  final String status;
+  final String paymentStatus;
+  CasualTeeTimeBooking({
+    required this.id, required this.courseId, required this.bookingDate,
+    required this.teeTime, required this.status, required this.paymentStatus
+  });
+}
+
+final casualTeeTimeBookingsProvider = StreamProvider<List<CasualTeeTimeBooking>>((ref) {
+  final user = ref.watch(authStateProvider).valueOrNull;
+  if (user == null) return Stream.value([]);
+  
+  return ref.watch(supabaseClientProvider)
+      .from('casual_tee_time_bookings')
+      .stream(primaryKey: ['id'])
+      .eq('player_id', user.id)
+      .order('booking_date', ascending: false)
+      .order('tee_time', ascending: false)
+      .map((list) {
+        return list.map((data) => CasualTeeTimeBooking(
+          id: data['id'],
+          courseId: data['course_id'],
+          bookingDate: DateTime.tryParse(data['booking_date']) ?? DateTime.now(),
+          teeTime: data['tee_time'],
+          status: data['status'] ?? 'CONFIRMED',
+          paymentStatus: data['payment_status'] ?? 'PENDING',
+        )).toList();
+      });
+});

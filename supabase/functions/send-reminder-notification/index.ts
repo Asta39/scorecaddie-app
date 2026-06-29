@@ -91,9 +91,9 @@ serve(async (_req) => {
       if (sent) {
         // Deactivate so it doesn't fire again next minute
         await supabase
-          .from('tee_time_reminder')
-          .update({ is_active: false })
-          .eq('id', reminder.id)
+          .from('casual_tee_time_players')
+          .update({ notification_sent_at: new Date().toISOString() })
+          .eq('id', reminder.player_id)
 
         results.push({ id: reminder.id, status: 'sent' })
       } else {

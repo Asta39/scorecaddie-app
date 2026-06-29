@@ -1,0 +1,211 @@
+<section class="module" id="module-2" style="background: var(--color-bg-warm)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">02</span>
+      <h1 class="module-title">Meet the Cast</h1>
+      <p class="module-subtitle">The six characters that make ScoreCaddie work</p>
+    </header>
+
+    <div class="module-body">
+      <!-- Screen 1: The Main Characters -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Every App Has a Cast of Characters</h2>
+        <p>Think of an app like a theater production. Each component has a role, a personality, and lines it speaks to other components. If you want to tell an AI coding tool "put this in the right place," you first need to know who the actors are.</p>
+
+        <div class="icon-rows stagger-children">
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-1)">🧭</div>
+            <div>
+              <strong>AppShell</strong>
+              <p>The stage manager — the bottom navigation bar, tab switching, and the glass container that holds every screen</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-2)">🗺️</div>
+            <div>
+              <strong>GoRouter</strong>
+              <p>The traffic cop — decides which screen you see when you tap a button or follow a deep link</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-3)">📻</div>
+            <div>
+              <strong>Riverpod</strong>
+              <p>The radio station — broadcasts state changes so every screen knows what's happening right now</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-4)">💾</div>
+            <div>
+              <strong>Drift (SQLite)</strong>
+              <p>The filing cabinet — stores every round, score, and profile on your phone, even offline</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-5)">☁️</div>
+            <div>
+              <strong>Supabase</strong>
+              <p>The cloud HQ — the backend that enables real-time leaderboards, chat, and cloud sync</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: Visual File Tree -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Where Everything Lives</h2>
+        <p>ScoreCaddie's code is organized in a <span class="term" data-definition="A way of organizing code into folders and files so each piece has a clear home. Good architecture makes it easy to find what you need.">clean architecture</span> pattern. Here's the map:</p>
+
+        <div class="file-tree">
+          <div class="ft-folder open">
+            <span class="ft-name">lib/</span>
+            <span class="ft-desc">All the Dart code lives here</span>
+            <div class="ft-children">
+              <div class="ft-file">
+                <span class="ft-name">main.dart</span>
+                <span class="ft-desc">The front door — initializes everything</span>
+              </div>
+              <div class="ft-file">
+                <span class="ft-name">app.dart</span>
+                <span class="ft-desc">The stage — sets up theme, router, and screen scaling</span>
+              </div>
+              <div class="ft-folder open">
+                <span class="ft-name">core/</span>
+                <span class="ft-desc">The engine room — services, database, theme, utils</span>
+                <div class="ft-children">
+                  <div class="ft-folder">
+                    <span class="ft-name">database/</span>
+                    <span class="ft-desc">Drift SQLite tables and queries</span>
+                  </div>
+                  <div class="ft-folder">
+                    <span class="ft-name">services/</span>
+                    <span class="ft-desc">Business logic — AI caddie, handicap, sync</span>
+                  </div>
+                  <div class="ft-folder">
+                    <span class="ft-name">cloud/</span>
+                    <span class="ft-desc">Supabase integration and sync engine</span>
+                  </div>
+                  <div class="ft-folder">
+                    <span class="ft-name">theme/</span>
+                    <span class="ft-desc">Colors, fonts, and the emerald green design system</span>
+                  </div>
+                </div>
+              </div>
+              <div class="ft-folder open">
+                <span class="ft-name">screens/</span>
+                <span class="ft-desc">The UI — one folder per feature</span>
+                <div class="ft-children">
+                  <div class="ft-folder"><span class="ft-name">auth/</span><span class="ft-desc">Login, onboarding, role selection</span></div>
+                  <div class="ft-folder"><span class="ft-name">scorecard/</span><span class="ft-desc">Course selection and scoring</span></div>
+                  <div class="ft-folder"><span class="ft-name">practice/</span><span class="ft-desc">Range, voice logging, AI feedback</span></div>
+                  <div class="ft-folder"><span class="ft-name">analytics/</span><span class="ft-desc">Stats, charts, and trends</span></div>
+                  <div class="ft-folder"><span class="ft-name">marketplace/</span><span class="ft-desc">Caddie/coach booking</span></div>
+                </div>
+              </div>
+              <div class="ft-folder">
+                <span class="ft-name">providers/</span>
+                <span class="ft-desc">Riverpod state management definitions</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Group Chat Animation -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Components Introduce Themselves</h2>
+        <p>Here's how the "cast" talks when the app starts up:</p>
+
+        <div class="chat-window" id="chat-module2">
+          <div class="chat-messages">
+            <div class="chat-message" data-msg="0" data-sender="main" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-1)">M</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-1)">main.dart</span>
+                <p>Good morning, everyone! I'm the front door. I make sure Supabase, OneSignal, and the database are all awake before the user sees anything.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="1" data-sender="router" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-2)">R</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-2)">GoRouter</span>
+                <p>I'm ready. I've got 40+ routes mapped out. If the user isn't logged in, they go to Auth. If they're logged in but haven't picked a role, they go to Role Selection.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="2" data-sender="shell" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-3)">S</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-3)">AppShell</span>
+                <p>I'm here with my frosted glass nav bar. I show 6 tabs for players, 6 different tabs for coaches. PageView handles the swipe between them.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="3" data-sender="riverpod" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-4)">RV</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-4)">Riverpod</span>
+                <p>I'm listening to everything. When a score changes, I tell every screen that cares. When the user logs in, I trigger the sync engine. I'm the radio station.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="4" data-sender="drift" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-5)">D</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-5)">Drift</span>
+                <p>I've got 18 tables ready. Courses, rounds, scores, practice shots, friends, messages — all stored locally. Even if the internet dies, I'm still here.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-typing" id="chat-typing" style="display:none">
+            <div class="chat-avatar" id="typing-avatar">?</div>
+            <div class="chat-typing-dots">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
+          </div>
+
+          <div class="chat-controls">
+            <button class="btn chat-next-btn">Next Message</button>
+            <button class="btn chat-all-btn">Play All</button>
+            <button class="btn chat-reset-btn">Replay</button>
+            <span class="chat-progress"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Who Does What?</h2>
+        <div class="quiz-container" id="quiz-module2">
+          <div class="quiz-question-block"
+               data-correct="option-b"
+               data-explanation-right="Correct! GoRouter is the traffic cop. It decides which screen to show based on the URL, auth state, and profile completeness."
+               data-explanation-wrong="Not quite. Think about which component handles navigation logic and redirects between screens.">
+            <h3 class="quiz-question">A user opens the app but isn't logged in. Which component redirects them to the login screen?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>AppShell</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>GoRouter</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Riverpod</span>
+              </button>
+              <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Drift</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module2')">Check Answer</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module2')">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>

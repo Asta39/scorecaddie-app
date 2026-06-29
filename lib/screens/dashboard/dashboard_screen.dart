@@ -145,6 +145,11 @@ class _PlayerDashboardViewState extends ConsumerState<PlayerDashboardView> {
               child: _buildStartRoundCTA(context),
             ),
             const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: _buildBookTeeTimeCTA(context),
+            ),
+            const SizedBox(height: 8),
             const StreakWidget(),
           ],
         ),
@@ -163,6 +168,10 @@ class _PlayerDashboardViewState extends ConsumerState<PlayerDashboardView> {
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 80),
         sliver: SliverList(
           delegate: SliverChildListDelegate([
+            _buildSectionHeader('UPCOMING TEE TIMES', () => context.push('/tee-times')),
+            const SizedBox(height: 16),
+            _buildUpcomingTeeTimesList(context, ref),
+            const SizedBox(height: 32),
             _buildSectionHeader('PAST ACTIVITIES', () => context.push('/rounds-history')),
             const SizedBox(height: 16),
             _buildPastActivitiesList(context, recentRounds),
@@ -199,6 +208,43 @@ class _PlayerDashboardViewState extends ConsumerState<PlayerDashboardView> {
                   Text('START ROUND', style: TextStyle(color: AppColors.grey900, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
                   SizedBox(height: 4),
                   Text('Ready for the first tee?', style: TextStyle(color: AppColors.grey900.withValues(alpha: 0.7), fontSize: 13, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            const Icon(LucideIcons.chevronRight, color: AppColors.grey900, size: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookTeeTimeCTA(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push('/book-tee-time'),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+        decoration: BoxDecoration(
+          color: AppColors.golfLime,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.grey900, width: 2),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(color: Colors.black12, shape: BoxShape.circle),
+              child: const Icon(LucideIcons.calendar, color: AppColors.grey900, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('BOOK TEE TIME', style: TextStyle(color: AppColors.grey900, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                  SizedBox(height: 4),
+                  Text('Reserve a casual round', style: TextStyle(color: AppColors.grey900.withValues(alpha: 0.7), fontSize: 12, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
@@ -306,6 +352,99 @@ class _PlayerDashboardViewState extends ConsumerState<PlayerDashboardView> {
           if (subLabel != null)
             Text(subLabel, style: TextStyle(color: textColorOverride?.withValues(alpha: 0.5) ?? AppColors.grey400, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUpcomingTeeTimesList(BuildContext context, WidgetRef ref) {
+    final teeTimesAsync = ref.watch(casualTeeTimeBookingsProvider);
+    
+    return teeTimesAsync.when(
+      data: (bookings) {
+        final upcoming = bookings.where((b) {
+          final bDate = b.bookingDate;
+          final timeParts = b.teeTime.split(':');
+          final dt = DateTime(bDate.year, bDate.month, bDate.day, int.parse(timeParts[0]), int.parse(timeParts[1]));
+          return dt.isAfter(DateTime.now());
+        }).toList();
+        
+        if (upcoming.isEmpty) return const Center(child: Text('No upcoming tee times'));
+        
+        return Column(
+          children: upcoming.take(2).map((b) => _buildTeeTimeTile(context, b)).toList(),
+        );
+      },
+      loading: () => const LoadingSpinner(size: 60),
+      error: (e, _) => Text('Error: $e'),
+    );
+  }
+
+  Widget _buildTeeTimeTile(BuildContext context, CasualTeeTimeBooking booking) {
+    final logoPath = CourseLogoHelper.getLogoAssetPath(booking.courseId);
+    final timeParts = booking.teeTime.split(':');
+    final dt = DateTime(booking.bookingDate.year, booking.bookingDate.month, booking.bookingDate.day, int.parse(timeParts[0]), int.parse(timeParts[1]));
+
+    return GestureDetector(
+      onTap: () => context.push('/tee-times'),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white, 
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.grey100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: logoPath != null ? Colors.white : AppColors.emerald50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.grey100),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))
+                ],
+              ),
+              child: logoPath != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(15),
+                      child: Image.asset(
+                        logoPath,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, _, _) => _fallbackIcon(),
+                      ),
+                    )
+                  : _fallbackIcon(),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    booking.courseId.replaceAll('-', ' ').toUpperCase(),
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: -0.3),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${DateFormat('EEEE, MMM d').format(dt)} • ${DateFormat('h:mm a').format(dt)}',
+                    style: const TextStyle(fontSize: 12, color: AppColors.grey500, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+            Icon(LucideIcons.chevronRight, color: AppColors.grey400, size: 20),
+          ],
+        ),
       ),
     );
   }

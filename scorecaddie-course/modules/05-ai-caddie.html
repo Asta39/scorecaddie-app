@@ -1,0 +1,195 @@
+<section class="module" id="module-5" style="background: var(--color-bg)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">05</span>
+      <h1 class="module-title">Daniel — The AI Voice Caddie</h1>
+      <p class="module-subtitle">How a voice becomes coaching advice in 12 seconds</p>
+    </header>
+
+    <div class="module-body">
+      <!-- Screen 1: Who is Daniel? -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Meet Daniel</h2>
+        <p>Daniel isn't just a chatbot. He's a British-accented AI caddie who stands on the driving range with you, watches your shots, and tells you exactly what to fix. He lives inside the <code class="badge-code">AICaddieService</code> class and has a very specific personality:</p>
+
+        <div class="pattern-cards stagger-children">
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+            <div class="pattern-icon" style="background: var(--color-actor-1)">🧠</div>
+            <h4 class="pattern-title">Groq LLaMA 3.3 70B</h4>
+            <p class="pattern-desc">The brain — analyzes your shot data and generates personalized coaching advice</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+            <div class="pattern-icon" style="background: var(--color-actor-2)">🎙️</div>
+            <h4 class="pattern-title">ElevenLabs TTS</h4>
+            <p class="pattern-desc">The voice — converts text advice into spoken audio with a British accent</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+            <div class="pattern-icon" style="background: var(--color-actor-3)">📡</div>
+            <h4 class="pattern-title">SharedPreferences</h4>
+            <p class="pattern-desc">The memory — remembers if you turned voice mode on or off</p>
+          </div>
+        </div>
+
+        <p>Daniel's system prompt tells him he's "standing on the driving range in Kenya" and to "detect patterns over 3+ shots." He doesn't just comment on one swing — he remembers your last few and spots trends. That's why the service passes <code class="badge-code">recentShots</code> alongside the current shot.</p>
+      </section>
+
+      <!-- Screen 2: The AI Pipeline -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">How Daniel Talks to You</h2>
+        <p>Here's the pipeline from your practice swing to Daniel's voice in your ear:</p>
+
+        <div class="chat-window" id="chat-module5">
+          <div class="chat-messages">
+            <div class="chat-message" data-msg="0" data-sender="user" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-4)">U</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-4)">You</span>
+                <p>Just hit a 7-iron 145 yards with a slight draw. Previous shots were all pushes to the right.</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="1" data-sender="service" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-3)">S</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-3)">AICaddieService</span>
+                <p>I'm packaging this shot data with your recent session history. Sending it to Groq with the system prompt...</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="2" data-sender="groq" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-1)">G</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-1)">Groq LLaMA</span>
+                <p>"Pattern detected: your clubface is closed at impact but your path is neutral. That's causing the draw. Focus on keeping the clubface square through impact."</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="3" data-sender="eleven" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-2)">E</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-2)">ElevenLabs</span>
+                <p>Converting that text to audio using the 'Daniel' voice (British, cool under pressure). Playing it back...</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="4" data-sender="daniel" style="display:none">
+              <div class="chat-avatar" style="background: #7E22CE">D</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: #7E22CE">Daniel</span>
+                <p>"I see a pattern here — your last three shots have all drawn. Check your grip pressure. You're closing the face at impact."</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-typing" id="chat-typing" style="display:none">
+            <div class="chat-avatar" id="typing-avatar">?</div>
+            <div class="chat-typing-dots">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
+          </div>
+
+          <div class="chat-controls">
+            <button class="btn chat-next-btn">Next Message</button>
+            <button class="btn chat-all-btn">Play All</button>
+            <button class="btn chat-reset-btn">Replay</button>
+            <span class="chat-progress"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Code Translation -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">The Code Behind Daniel</h2>
+        <p>Here's the actual code that makes Daniel work. The <code class="badge-code">getCoachingFeedback</code> method sends your shot data to Groq and returns text advice:</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-line"><span class="code-keyword">static</span> Future&lt;String&gt; <span class="code-function">getCoachingFeedback</span>({</span>
+<span class="code-line">  <span class="code-keyword">required</span> Map&lt;String, <span class="code-keyword">dynamic</span>&gt; shot,</span>
+<span class="code-line">  <span class="code-keyword">required</span> db.UserProfile player,</span>
+<span class="code-line">  <span class="code-keyword">required</span> List&lt;Map&lt;String, <span class="code-keyword">dynamic</span>&gt;&gt; recentShots,</span>
+<span class="code-line">}) <span class="code-keyword">async</span> {</span>
+<span class="code-line">  <span class="code-keyword">final</span> response = <span class="code-keyword">await</span> http.<span class="code-function">post</span>(</span>
+<span class="code-line">    Uri.<span class="code-function">parse</span>(_groqChatUrl),</span>
+<span class="code-line">    headers: {</span>
+<span class="code-line">      <span class="code-string">'Authorization'</span>: <span class="code-string">'Bearer $_groqApiKey'</span>,</span>
+<span class="code-line">      <span class="code-string">'Content-Type'</span>: <span class="code-string">'application/json'</span>,</span>
+<span class="code-line">    },</span>
+<span class="code-line">    body: <span class="code-function">jsonEncode</span>({</span>
+<span class="code-line">      <span class="code-string">'model'</span>: _groqModel,</span>
+<span class="code-line">      <span class="code-string">'temperature'</span>: <span class="code-number">0.7</span>,</span>
+<span class="code-line">      <span class="code-string">'max_tokens'</span>: <span class="code-number">150</span>,</span>
+<span class="code-line">      <span class="code-string">'messages'</span>: [</span>
+<span class="code-line">        {<span class="code-string">'role'</span>: <span class="code-string">'system'</span>, <span class="code-string">'content'</span>: <span class="code-function">_buildSystemPrompt</span>(player)},</span>
+<span class="code-line">        {<span class="code-string">'role'</span>: <span class="code-string">'user'</span>, <span class="code-string">'content'</span>: <span class="code-string">'CURRENT SHOT: $shot. RECENT: $recentShots'</span>},</span>
+<span class="code-line">      ],</span>
+<span class="code-line">    }),</span>
+<span class="code-line">  ).<span class="code-function">timeout</span>(<span class="code-keyword">const</span> <span class="code-function">Duration</span>(seconds: <span class="code-number">12</span>));</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">if</span> (response.statusCode != <span class="code-number">200</span>)</span>
+<span class="code-line">    <span class="code-keyword">throw</span> Exception(<span class="code-string">'Daniel is quiet right now.'</span>);</span>
+<span class="code-line"></span>
+<span class="code-line">  <span class="code-keyword">final</span> data = <span class="code-function">jsonDecode</span>(response.body);</span>
+<span class="code-line">  <span class="code-keyword">return</span> data[<span class="code-string">'choices'</span>][<span class="code-number">0</span>][<span class="code-string">'message'</span>][<span class="code-string">'content'</span>];</span>
+<span class="code-line">}</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p class="tl">This function needs three things: the current shot, your profile, and recent shots.</p>
+              <p class="tl">The current shot data (club, distance, direction, etc.).</p>
+              <p class="tl">Your profile so Daniel knows your name and handicap.</p>
+              <p class="tl">Your recent shots so Daniel can spot patterns.</p>
+              <p class="tl">Send a POST request to the Groq API endpoint.</p>
+              <p class="tl">Include the API key so Groq knows who we are.</p>
+              <p class="tl">Tell Groq we're sending JSON data.</p>
+              <p class="tl">Package the request as JSON.</p>
+              <p class="tl">Use the LLaMA 3.3 70B model — a large language model.</p>
+              <p class="tl">Temperature 0.7 means "be creative but not random."</p>
+              <p class="tl">Limit the response to 150 tokens (about 2-3 sentences).</p>
+              <p class="tl">First message: the system prompt that tells Daniel who he is.</p>
+              <p class="tl">Second message: the actual shot data Daniel needs to analyze.</p>
+              <p class="tl">Wait max 12 seconds, then give up.</p>
+              <p class="tl">If the API returned an error, throw a friendly exception.</p>
+              <p class="tl">Parse the JSON response from Groq.</p>
+              <p class="tl">Extract the actual coaching text from the response.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">Pipeline Puzzle</h2>
+        <div class="quiz-container" id="quiz-module5">
+          <div class="quiz-question-block"
+               data-correct="option-b"
+               data-explanation-right="Correct! The system prompt is sent as the first message with role 'system'. This tells the AI who it is, what personality to use, and what rules to follow. The shot data comes as the second 'user' message."
+               data-explanation-wrong="Not quite. The system prompt isn't just a header — it's the first message in the conversation. The API key is in the headers, not the messages array.">
+            <h3 class="quiz-question">In the code above, where does Daniel's personality come from?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>It's embedded in the API key</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>It's the first message with role 'system'</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>It's hardcoded in the Groq model itself</span>
+              </button>
+              <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>It's passed as a URL parameter</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module5')">Check Answer</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module5')">Try Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
