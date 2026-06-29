@@ -30,7 +30,6 @@ dependencies:
   
   # UI
   google_fonts: ^6.2.1
-  lucide_icons: ^0.257.0
   qr_flutter: ^4.1.0
   screenshot: ^3.0.0
   
@@ -72,6 +71,8 @@ dependencies:
   onesignal_flutter: ^5.6.0
   supabase: ^2.0.0
   rxdart: ^0.28.0
+  lucide_icons_flutter: ^3.1.14+2
+  flutter_credit_card: ^4.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -84,6 +85,7 @@ dev_dependencies:
   custom_lint: ^0.7.5
   riverpod_lint: ^2.6.5
   flutter_native_splash: ^2.4.7
+  mocktail: ^1.0.5
 
 flutter:
   uses-material-design: true

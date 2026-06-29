@@ -181,6 +181,7 @@ class CompetitionActionsNotifier
     String? mpesaPhone,
     String? teeColor,
     String? flightName,
+    String? preferredTimeWindow,
   }) async {
     final user = ref.read(authStateProvider).valueOrNull;
     if (user == null) return false;
@@ -203,6 +204,7 @@ class CompetitionActionsNotifier
           'entry_status': 'confirmed',
           'payment_status': 'paid',
           'mpesa_phone_number': mpesaPhone,
+          'preferred_time_window': preferredTimeWindow,
           'paystack_reference': 'SIMULATED-${DateTime.now().millisecondsSinceEpoch}',
         });
         state = state.copyWith(
@@ -218,6 +220,7 @@ class CompetitionActionsNotifier
           'flight_name': flightName,
           'entry_status': 'confirmed',
           'payment_status': 'paid',
+          'preferred_time_window': preferredTimeWindow,
         });
         state = state.copyWith(
             isLoading: false, successMessage: 'Entry submitted and confirmed successfully!');
@@ -227,6 +230,107 @@ class CompetitionActionsNotifier
       debugPrint('CompetitionActions: enterCompetition error: $e');
       state = state.copyWith(
           isLoading: false, errorMessage: 'Failed to enter competition: $e');
+      return false;
+    }
+  }
+
+  /// Move a player's tee time slot to a vacant starting sheet slot.
+  Future<bool> moveTeeTimeSlot({
+    required String competitionId,
+    required String? oldStartingSheetId,
+    required String newStartingSheetId,
+  }) async {
+    final user = ref.read(authStateProvider).valueOrNull;
+    if (user == null) return false;
+
+    state = state.copyWith(isLoading: true);
+    try {
+      // 1. Fetch player details
+      final entry = await _supabase
+          .from('competition_entries')
+          .select('id, playing_handicap, user:User!player_id(name, handicapIndex)')
+          .eq('competition_id', competitionId)
+          .eq('player_id', user.id)
+          .maybeSingle();
+
+      if (entry == null) {
+        state = state.copyWith(isLoading: false, errorMessage: 'You are not registered for this competition.');
+        return false;
+      }
+
+
+      // 2. Clear old slot
+      if (oldStartingSheetId != null) {
+        await _supabase
+            .from('starting_sheets')
+            .delete()
+            .eq('id', oldStartingSheetId);
+      }
+
+      // 3. Occupy new slot
+      await _supabase
+          .from('starting_sheets')
+          .update({
+            'entry_id': entry['id'],
+          })
+          .eq('id', newStartingSheetId);
+
+      state = state.copyWith(isLoading: false, successMessage: 'Tee time slot moved successfully!');
+      ref.invalidate(startingSheetProvider(competitionId));
+      return true;
+    } catch (e) {
+      debugPrint('CompetitionActions: moveTeeTimeSlot error: $e');
+      state = state.copyWith(isLoading: false, errorMessage: 'Failed to move tee time: $e');
+      return false;
+    }
+  }
+
+  /// Swap tee time slots between the logged-in player and another golfer.
+  Future<bool> swapTeeTimeSlot({
+    required String competitionId,
+    required String myStartingSheetId,
+    required String targetStartingSheetId,
+  }) async {
+    state = state.copyWith(isLoading: true);
+    try {
+      final myRow = await _supabase
+          .from('starting_sheets')
+          .select()
+          .eq('id', myStartingSheetId)
+          .single();
+
+      final targetRow = await _supabase
+          .from('starting_sheets')
+          .select()
+          .eq('id', targetStartingSheetId)
+          .single();
+
+      await _supabase
+          .from('starting_sheets')
+          .update({
+            'tee_time': targetRow['tee_time'],
+            'tee_number': targetRow['tee_number'],
+            'group_number': targetRow['group_number'],
+            'round_number': targetRow['round_number'],
+          })
+          .eq('id', myStartingSheetId);
+
+      await _supabase
+          .from('starting_sheets')
+          .update({
+            'tee_time': myRow['tee_time'],
+            'tee_number': myRow['tee_number'],
+            'group_number': myRow['group_number'],
+            'round_number': myRow['round_number'],
+          })
+          .eq('id', targetStartingSheetId);
+
+      state = state.copyWith(isLoading: false, successMessage: 'Tee times swapped successfully!');
+      ref.invalidate(startingSheetProvider(competitionId));
+      return true;
+    } catch (e) {
+      debugPrint('CompetitionActions: swapTeeTimeSlot error: $e');
+      state = state.copyWith(isLoading: false, errorMessage: 'Failed to swap tee times: $e');
       return false;
     }
   }

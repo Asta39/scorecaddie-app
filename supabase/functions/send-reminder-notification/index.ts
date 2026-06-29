@@ -23,8 +23,10 @@ async function sendOneSignalNotification(
 
   const payload = {
     app_id: ONESIGNAL_APP_ID,
-    include_external_user_ids: [userId],
-    channel_for_external_user_ids: "push",
+    include_aliases: {
+      external_id: [userId]
+    },
+    target_channel: "push",
     headings: { en: title },
     contents: { en: body },
     data: {

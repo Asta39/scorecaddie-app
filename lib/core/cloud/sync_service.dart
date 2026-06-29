@@ -930,7 +930,7 @@ class SyncService {
   Future<void> syncRound(db.Round round, List<db.HoleScore> holes) async {
     if (_uid == null) return;
     try {
-      final supabase = Supabase.instance.client;
+      final supabase = _ref.read(supabaseClientProvider);
       
       final allCourses = await _database.select(_database.courses).get();
       final localCourse = allCourses.where((c) => c.id == round.courseId).firstOrNull;

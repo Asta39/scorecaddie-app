@@ -494,6 +494,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.5.2"
+  flutter_credit_card:
+    dependency: "direct main"
+    description:
+      name: flutter_credit_card
+      sha256: a31154e62667e6e1f089ea357941e9285e4b42b9cb699392e55c978e19f864a0
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.0"
   flutter_dotenv:
     dependency: "direct main"
     description:
@@ -944,14 +952,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.3.3"
-  lucide_icons:
+  lucide_icons_flutter:
     dependency: "direct main"
     description:
-      name: lucide_icons
-      sha256: ad24d0fd65707e48add30bebada7d90bff2a1bba0a72d6e9b19d44246b0e83c4
+      name: lucide_icons_flutter
+      sha256: "7c5dc01a32a9905ae34e2d84224e92d6d0c42acf8926df9e01c35a1446bf1b69"
       url: "https://pub.dev"
     source: hosted
-    version: "0.257.0"
+    version: "3.1.14+2"
   matcher:
     dependency: transitive
     description:
@@ -992,6 +1000,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.11"
+  mocktail:
+    dependency: "direct dev"
+    description:
+      name: mocktail
+      sha256: "5e1bf53cc7baa8062a33b84424deb61513858ea05c601b8509e683815b5914aa"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.5"
   native_toolchain_c:
     dependency: transitive
     description:

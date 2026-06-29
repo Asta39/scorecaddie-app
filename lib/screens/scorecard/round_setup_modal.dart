@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/database/database.dart' as db;
 import '../../core/utils/whs_engine.dart';
@@ -30,6 +30,11 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
   db.Tee? _selectedTee;
   List<db.Tee> _tees = [];
   bool _loading = true;
+  
+  // Marker state
+  db.Friend? _selectedMarker;
+  String _manualMarkerName = '';
+  final TextEditingController _markerNameController = TextEditingController();
 
   @override
   void initState() {
@@ -45,6 +50,12 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
       if (tees.isNotEmpty) _selectedTee = tees.first;
       _loading = false;
     });
+  }
+
+  @override
+  void dispose() {
+    _markerNameController.dispose();
+    super.dispose();
   }
 
   int _calculateCH(double handicapIndex) {
@@ -109,6 +120,86 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
               // ── Course Handicap Card ────────────────────────────────
               _buildCHCard(hIndex),
 
+              const SizedBox(height: 32),
+
+              // ── Marker Selection ────────────────────────────────────
+              const Text('ASSIGN A MARKER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
+              const SizedBox(height: 12),
+              ref.watch(friendsProvider).when(
+                data: (friends) {
+                  final showManual = _selectedMarker == null;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.grey50,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.grey200),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<db.Friend?>(
+                            value: _selectedMarker,
+                            hint: const Text('Select a Marker (Friend)', style: TextStyle(color: AppColors.grey400, fontSize: 14)),
+                            isExpanded: true,
+                            dropdownColor: Colors.white,
+                            items: [
+                              const DropdownMenuItem<db.Friend?>(
+                                value: null,
+                                child: Text('Enter Marker Manually...', style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w500, fontSize: 14)),
+                              ),
+                              ...friends.map((f) => DropdownMenuItem<db.Friend?>(
+                                value: f,
+                                child: Text(f.friendName ?? 'Unknown Friend', style: const TextStyle(color: AppColors.grey900, fontSize: 14)),
+                              )),
+                            ],
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedMarker = val;
+                                if (val != null) {
+                                  _manualMarkerName = '';
+                                  _markerNameController.text = '';
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                      if (showManual) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _markerNameController,
+                          style: const TextStyle(color: AppColors.grey900, fontSize: 14, fontWeight: FontWeight.w600),
+                          decoration: InputDecoration(
+                            hintText: 'Enter Marker\'s Name',
+                            hintStyle: const TextStyle(color: AppColors.grey400, fontSize: 14, fontWeight: FontWeight.normal),
+                            filled: true,
+                            fillColor: AppColors.grey50,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(color: AppColors.grey200),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(color: AppColors.golfLime, width: 2),
+                            ),
+                          ),
+                          onChanged: (val) => _manualMarkerName = val,
+                        ),
+                      ],
+                    ],
+                  );
+                },
+                loading: () => const Center(child: CupertinoActivityIndicator()),
+                error: (_, __) => const Text('Error loading friends'),
+              ),
+
               const SizedBox(height: 40),
               
               SizedBox(
@@ -116,6 +207,14 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
                 height: 64,
                 child: FilledButton(
                   onPressed: () {
+                    final markerName = _selectedMarker?.friendName ?? _manualMarkerName.trim();
+                    if (markerName.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please assign a marker for WHS/KGU round certification.')),
+                      );
+                      return;
+                    }
+
                     final ch = _calculateCH(hIndex);
                     Navigator.pop(context); // Close Modal
                     context.push('/scoring', extra: {
@@ -123,6 +222,8 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
                       'holesPlayed': _format == '18 Holes' ? 18 : (_format == 'Front 9' ? 9 : -9),
                       'teeId': _selectedTee?.id,
                       'courseHandicap': ch,
+                      'markerName': markerName,
+                      'markerId': _selectedMarker?.friendId,
                     });
                   },
                   style: FilledButton.styleFrom(

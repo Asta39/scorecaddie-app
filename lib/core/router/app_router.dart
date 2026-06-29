@@ -32,7 +32,7 @@ import '../../core/theme/app_theme.dart';
 import '../../screens/achievements/achievements_gallery_screen.dart';
 import '../../screens/social/leaderboard_screen.dart';
 import '../../screens/social/group_round_lobby.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../screens/profile/help_screen.dart';
 import '../../core/cloud/group_sync_service.dart';
 import '../../screens/auth/role_selection_screen.dart';
@@ -417,6 +417,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             holesPlayed: extra['holesPlayed'] ?? 18,
             teeId: extra['teeId'],
             courseHandicap: extra['courseHandicap'] ?? 0,
+            markerName: extra['markerName'],
+            markerId: extra['markerId'],
           );
         },
       ),

@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_theme.dart';
 
 class ProfileImage extends StatelessWidget {

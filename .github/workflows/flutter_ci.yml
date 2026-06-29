@@ -27,6 +27,9 @@ jobs:
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
 
+      - name: Create dummy .env for analyze
+        run: touch .env
+
       - name: Analyze (warnings as errors)
         run: flutter analyze --fatal-warnings
 

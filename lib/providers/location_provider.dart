@@ -25,3 +25,13 @@ final locationProvider = FutureProvider<Position?>((ref) async {
 
   return await Geolocator.getCurrentPosition();
 });
+
+final locationStreamProvider = StreamProvider<Position?>((ref) {
+  // Check permission stream in the background or just map stream
+  return Geolocator.getPositionStream(
+    locationSettings: const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 2,
+    ),
+  ).map<Position?>((p) => p).handleError((error) => null);
+});

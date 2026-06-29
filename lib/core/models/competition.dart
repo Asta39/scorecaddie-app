@@ -169,6 +169,7 @@ class CompetitionEntry {
   final String? confirmedBy;
   final DateTime? confirmedAt;
   final DateTime createdAt;
+  final String? preferredTimeWindow;
 
   // Joined fields
   final String? playerName;
@@ -189,6 +190,7 @@ class CompetitionEntry {
     this.confirmedBy,
     this.confirmedAt,
     required this.createdAt,
+    this.preferredTimeWindow,
     this.playerName,
     this.playerHandicap,
     this.playerAvatarUrl,
@@ -211,6 +213,7 @@ class CompetitionEntry {
           ? DateTime.parse(json['confirmed_at'] as String)
           : null,
       createdAt: DateTime.parse(json['created_at'] as String),
+      preferredTimeWindow: json['preferred_time_window'] as String?,
       playerName: json['full_name'] as String?,
       playerHandicap: (json['handicap_index'] as num?)?.toDouble(),
       playerAvatarUrl: json['avatar_url'] as String?,

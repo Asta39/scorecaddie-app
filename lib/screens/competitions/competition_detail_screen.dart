@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/models/competition.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/competition_providers.dart';
 import '../../widgets/loading_spinner.dart';
+import '../../widgets/stk_push_dialog.dart';
 
 class CompetitionDetailScreen extends ConsumerStatefulWidget {
   final String competitionId;
@@ -460,8 +461,9 @@ class _StartingSheetTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sheetAsync =
-        ref.watch(startingSheetProvider(competition.id));
+    final sheetAsync = ref.watch(startingSheetProvider(competition.id));
+    final user = ref.watch(authStateProvider).valueOrNull;
+    final entryAsync = ref.watch(myEntryProvider(competition.id));
 
     return sheetAsync.when(
       loading: () => const Center(child: LoadingSpinner(size: 60)),
@@ -482,6 +484,10 @@ class _StartingSheetTab extends ConsumerWidget {
           );
         }
 
+        final myRow = rows.where((r) => r.playerId == user?.id).firstOrNull;
+        final entry = entryAsync.valueOrNull;
+        final isRegistered = entry != null && entry.entryStatus == 'confirmed';
+
         // Group by tee time
         final grouped = <DateTime, List<StartingSheetRow>>{};
         for (final row in rows) {
@@ -492,11 +498,48 @@ class _StartingSheetTab extends ConsumerWidget {
 
         return ListView(
           padding: const EdgeInsets.all(16),
-          children: grouped.entries.map((e) {
-            final teeTime = e.key;
-            final group = e.value;
-            return _TeeTimeGroup(teeTime: teeTime, players: group, isAdmin: isAdmin);
-          }).toList(),
+          children: [
+            if (isRegistered) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.golfLime.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.golfLime),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.info, color: AppColors.grey900, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        myRow != null
+                            ? 'You are scheduled at ${DateFormat('HH:mm').format(myRow.teeTime)} (Hole ${myRow.teeNumber}). Tap "Swap" or "Claim" to adjust.'
+                            : 'You are registered! Select a vacant slot below to claim your tee time.',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.grey900),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            ...grouped.entries.map((e) {
+              final teeTime = e.key;
+              final group = e.value;
+              return _TeeTimeGroup(
+                teeTime: teeTime,
+                players: group,
+                isAdmin: isAdmin,
+                myRow: myRow,
+                isRegistered: isRegistered,
+                competition: competition,
+              );
+            }),
+          ],
         );
       },
     );
@@ -507,8 +550,18 @@ class _TeeTimeGroup extends StatelessWidget {
   final DateTime teeTime;
   final List<StartingSheetRow> players;
   final bool isAdmin;
+  final StartingSheetRow? myRow;
+  final bool isRegistered;
+  final Competition competition;
 
-  const _TeeTimeGroup({required this.teeTime, required this.players, required this.isAdmin});
+  const _TeeTimeGroup({
+    required this.teeTime,
+    required this.players,
+    required this.isAdmin,
+    this.myRow,
+    required this.isRegistered,
+    required this.competition,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -543,39 +596,106 @@ class _TeeTimeGroup extends StatelessWidget {
             ],
           ),
         ),
-        ...players.map((p) => _SheetPlayerTile(row: p, isAdmin: isAdmin)),
+        ...players.map((p) => _SheetPlayerTile(
+              row: p,
+              isAdmin: isAdmin,
+              myRow: myRow,
+              isRegistered: isRegistered,
+              competition: competition,
+            )),
         const SizedBox(height: 4),
       ],
     );
   }
 }
 
-class _SheetPlayerTile extends StatelessWidget {
+class _SheetPlayerTile extends ConsumerWidget {
   final StartingSheetRow row;
   final bool isAdmin;
-  const _SheetPlayerTile({required this.row, required this.isAdmin});
+  final StartingSheetRow? myRow;
+  final bool isRegistered;
+  final Competition competition;
+
+  const _SheetPlayerTile({
+    required this.row,
+    required this.isAdmin,
+    this.myRow,
+    required this.isRegistered,
+    required this.competition,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isVacant = row.playerId == null;
+    final isMe = row.playerId != null && row.playerId == myRow?.playerId;
+
+    if (isVacant) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.grey50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.grey200, style: BorderStyle.solid),
+        ),
+        child: Row(
+          children: [
+            const Icon(LucideIcons.userPlus, size: 16, color: AppColors.grey400),
+            const SizedBox(width: 10),
+            const Text(
+              'Vacant Slot',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.grey400,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const Spacer(),
+            if (isRegistered && myRow?.id != row.id)
+              GestureDetector(
+                onTap: () => _claimSlot(context, ref),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.golfLime,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'Claim',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      color: AppColors.grey900,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isMe ? AppColors.golfLime.withValues(alpha: 0.15) : Colors.white,
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isMe ? AppColors.golfLime : AppColors.grey100),
       ),
       child: Row(
         children: [
           Text(
-            row.playerName ?? 'Unknown Player',
-            style: const TextStyle(
-                fontWeight: FontWeight.w700, color: AppColors.grey900),
+            isMe ? 'You (${row.playerName})' : (row.playerName ?? 'Unknown Player'),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: isMe ? AppColors.grey900 : AppColors.grey900,
+            ),
           ),
           const Spacer(),
           Text(
             'HC: ${row.playingHandicap?.toStringAsFixed(1) ?? "-"}',
-            style: const TextStyle(
-                fontSize: 12, color: AppColors.grey500),
+            style: const TextStyle(fontSize: 12, color: AppColors.grey500),
           ),
           if (row.teeColor != null) ...[
             const SizedBox(width: 8),
@@ -585,6 +705,17 @@ class _SheetPlayerTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _teeColor(row.teeColor!),
                 shape: BoxShape.circle,
+              ),
+            ),
+          ],
+          if (isRegistered && myRow != null && !isMe) ...[
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () => _requestSwap(context, ref),
+              child: const Icon(
+                LucideIcons.arrowRightLeft,
+                color: AppColors.grey500,
+                size: 16,
               ),
             ),
           ],
@@ -606,6 +737,67 @@ class _SheetPlayerTile extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _claimSlot(BuildContext context, WidgetRef ref) async {
+    final scaffold = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Move Tee Time?'),
+        content: Text(myRow != null
+            ? 'Do you want to move from your current tee time to ${DateFormat('HH:mm').format(row.teeTime)}?'
+            : 'Do you want to claim the tee time slot at ${DateFormat('HH:mm').format(row.teeTime)}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Move')),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success = await ref.read(competitionActionsProvider.notifier).moveTeeTimeSlot(
+            competitionId: competition.id,
+            oldStartingSheetId: myRow?.id,
+            newStartingSheetId: row.id,
+          );
+      scaffold.showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Tee time slot moved successfully!' : 'Failed to move tee time.'),
+          backgroundColor: success ? AppColors.emerald700 : Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _requestSwap(BuildContext context, WidgetRef ref) async {
+    final scaffold = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Request Tee Time Swap?'),
+        content: Text(
+            'Would you like to swap your tee time slot at ${DateFormat('HH:mm').format(myRow!.teeTime)} with ${row.playerName}\'s slot at ${DateFormat('HH:mm').format(row.teeTime)}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Swap')),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success = await ref.read(competitionActionsProvider.notifier).swapTeeTimeSlot(
+            competitionId: competition.id,
+            myStartingSheetId: myRow!.id,
+            targetStartingSheetId: row.id,
+          );
+      scaffold.showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Tee time slots swapped successfully!' : 'Failed to swap tee times.'),
+          backgroundColor: success ? AppColors.emerald700 : Colors.red,
+        ),
+      );
+    }
   }
 
   Color _teeColor(String color) {
@@ -851,6 +1043,7 @@ class CompetitionEntrySheet extends ConsumerStatefulWidget {
 class _CompetitionEntrySheetState
     extends ConsumerState<CompetitionEntrySheet> {
   String _selectedTee = 'white';
+  String _selectedWindow = 'morning';
   bool _isSubmitting = false;
   final TextEditingController _mpesaPhoneController = TextEditingController();
   late TextEditingController _handicapController;
@@ -1000,6 +1193,44 @@ class _CompetitionEntrySheetState
               );
             }).toList(),
           ),
+          const SizedBox(height: 16),
+          const Text('Preferred Tee Time Window',
+              style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.grey700)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.grey50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.grey200),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedWindow,
+                isExpanded: true,
+                icon: const Icon(LucideIcons.chevronDown, color: AppColors.grey500),
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedWindow = val);
+                },
+                items: const [
+                  DropdownMenuItem(
+                    value: 'morning',
+                    child: Text('Early Morning (7:00 - 9:00 AM)', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.grey800, fontSize: 14)),
+                  ),
+                  DropdownMenuItem(
+                    value: 'midday',
+                    child: Text('Midday (9:00 AM - 12:00 PM)', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.grey800, fontSize: 14)),
+                  ),
+                  DropdownMenuItem(
+                    value: 'afternoon',
+                    child: Text('Afternoon (12:00 PM+)', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.grey800, fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+          ),
           if (widget.competition.entryFee > 0) ...[
             const SizedBox(height: 16),
             Container(
@@ -1098,27 +1329,57 @@ class _CompetitionEntrySheetState
       return;
     }
 
-    setState(() => _isSubmitting = true);
     final hc = double.tryParse(_handicapController.text) ?? widget.profile?.handicap ?? 0.0;
-    final success = await ref
-        .read(competitionActionsProvider.notifier)
-        .enterCompetition(
-          competitionId: widget.competition.id,
-          playingHandicap: hc,
-          entryFee: widget.competition.entryFee,
-          mpesaPhone: _mpesaPhoneController.text.trim(),
-          teeColor: _selectedTee,
-        );
-    if (context.mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success
-              ? 'Entry submitted! Awaiting club confirmation.'
-              : 'Failed to submit entry. Please try again.'),
-          backgroundColor: success ? AppColors.emerald700 : Colors.red,
+    
+    if (widget.competition.entryFee > 0) {
+      final mpesaPhone = _mpesaPhoneController.text.trim();
+      final success = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) => STKPushConfirmationDialog(
+          mpesaPhone: mpesaPhone,
+          amount: widget.competition.entryFee,
+          currency: widget.competition.currency,
+          onConfirm: () => ref
+              .read(competitionActionsProvider.notifier)
+              .enterCompetition(
+                competitionId: widget.competition.id,
+                playingHandicap: hc,
+                entryFee: widget.competition.entryFee,
+                mpesaPhone: mpesaPhone,
+                teeColor: _selectedTee,
+                preferredTimeWindow: _selectedWindow,
+              ),
         ),
       );
+
+      if (success == true && context.mounted) {
+        Navigator.pop(context);
+      }
+    } else {
+      // Free Entry
+      setState(() => _isSubmitting = true);
+      final success = await ref
+          .read(competitionActionsProvider.notifier)
+          .enterCompetition(
+            competitionId: widget.competition.id,
+            playingHandicap: hc,
+            entryFee: widget.competition.entryFee,
+            teeColor: _selectedTee,
+            preferredTimeWindow: _selectedWindow,
+          );
+      if (context.mounted) {
+        setState(() => _isSubmitting = false);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success
+                ? 'Entry submitted successfully!'
+                : 'Failed to submit entry. Please try again.'),
+            backgroundColor: success ? AppColors.emerald700 : Colors.red,
+          ),
+        );
+      }
     }
   }
 

@@ -3,7 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:uuid/uuid.dart';
 import '../../core/theme/app_theme.dart';
@@ -13,12 +13,16 @@ import '../../core/utils/whs_engine.dart';
 import '../../core/models/achievement_model.dart';
 import '../../widgets/achievement_dialog.dart';
 import '../../widgets/top_notification.dart';
+import '../../widgets/certification_signature_dialog.dart';
+import '../../widgets/gps_yardage_card.dart';
 
 class ScoringScreen extends ConsumerStatefulWidget {
   final int courseId;
   final int holesPlayed;
   final int? teeId;
   final int courseHandicap;
+  final String? markerName;
+  final String? markerId;
 
   const ScoringScreen({
     super.key,
@@ -26,6 +30,8 @@ class ScoringScreen extends ConsumerStatefulWidget {
     required this.holesPlayed,
     this.teeId,
     required this.courseHandicap,
+    this.markerName,
+    this.markerId,
   });
 
   @override
@@ -120,6 +126,26 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
     try {
       final db = ref.read(databaseProvider);
       final user = ref.read(authStateProvider).valueOrNull;
+      
+      if (useForAnalytics) {
+        final profile = ref.read(userProfileProvider).valueOrNull;
+        final playerName = profile?.name ?? 'Player';
+        final markerName = widget.markerName ?? 'Marker';
+
+        final certified = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogCtx) => CertificationSignatureDialog(
+            playerName: playerName,
+            markerName: markerName,
+          ),
+        );
+
+        if (certified != true) {
+          setState(() => _isSaving = false);
+          return;
+        }
+      }
 
       // 1. Calculate ESC Adjusted Gross Score
       int adjustedGross = 0;
@@ -418,6 +444,14 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
                 child: Text('MAX: $cap', style: const TextStyle(color: AppColors.doubleBogey, fontWeight: FontWeight.w900, fontSize: 10)),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          GPSYardageCard(
+            courseLatitude: _course?.latitude,
+            courseLongitude: _course?.longitude,
+            holeNumber: hole.holeNumber,
+            par: hole.par,
+            teeDistance: hole.distance,
           ),
           const Spacer(),
           

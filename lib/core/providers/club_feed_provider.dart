@@ -93,6 +93,7 @@ class ClubMember {
   final String status;
   final double? handicap;
   final String? avatarUrl;
+  final String privacyLevel;
 
   ClubMember({
     required this.id,
@@ -101,6 +102,7 @@ class ClubMember {
     required this.status,
     this.handicap,
     this.avatarUrl,
+    required this.privacyLevel,
   });
 
   factory ClubMember.fromJson(Map<String, dynamic> json) {
@@ -111,6 +113,7 @@ class ClubMember {
       status: json['status'],
       handicap: json['user_profiles']?['handicap']?.toDouble(),
       avatarUrl: json['user_profiles']?['avatar_url'],
+      privacyLevel: json['user_profiles']?['privacyLevel'] ?? 'Private',
     );
   }
 }
@@ -120,7 +123,7 @@ final clubMembersProvider = FutureProvider.autoDispose.family<List<ClubMember>, 
   
   final response = await supabase
       .from('player_club_memberships')
-      .select('id, player_id, status, user_profiles:User!player_club_memberships_player_id_fkey(name, handicap:handicapIndex, avatar_url:avatarUrl)')
+      .select('id, player_id, status, user_profiles:User!player_club_memberships_player_id_fkey(name, handicap:handicapIndex, avatar_url:avatarUrl, privacyLevel)')
       .eq('club_id', clubId);
 
   return (response as List).map((m) => ClubMember.fromJson(m)).toList();
@@ -135,7 +138,7 @@ final aggregatedClubMembersProvider = FutureProvider.autoDispose<List<ClubMember
   
   final response = await supabase
       .from('player_club_memberships')
-      .select('id, player_id, status, user_profiles:User!player_club_memberships_player_id_fkey(name, handicap:handicapIndex, avatar_url:avatarUrl)')
+      .select('id, player_id, status, user_profiles:User!player_club_memberships_player_id_fkey(name, handicap:handicapIndex, avatar_url:avatarUrl, privacyLevel)')
       .filter('club_id', 'in', clubIds);
 
   return (response as List).map((m) => ClubMember.fromJson(m)).toList();
@@ -204,4 +207,80 @@ final availableClubsProvider = FutureProvider.autoDispose<List<Map<String, dynam
   final supabase = Supabase.instance.client;
   final response = await supabase.from('clubs').select('id, name, location').eq('status', 'active').order('name');
   return List<Map<String, dynamic>>.from(response);
+});
+
+final activeClubIdProvider = StateProvider<String?>((ref) => null);
+
+final activeClubProvider = Provider<UserClubMembership?>((ref) {
+  final membershipsAsync = ref.watch(userClubMembershipsProvider);
+  final activeId = ref.watch(activeClubIdProvider);
+  
+  if (membershipsAsync.valueOrNull == null || membershipsAsync.valueOrNull!.isEmpty) return null;
+  final memberships = membershipsAsync.valueOrNull!;
+  
+  if (activeId != null) {
+    try {
+      return memberships.firstWhere((m) => m.clubId == activeId);
+    } catch (_) {}
+  }
+  
+  try {
+    return memberships.firstWhere((m) => m.isHomeClub);
+  } catch (_) {
+    return memberships.first;
+  }
+});
+
+final activeClubFeedProvider = FutureProvider.autoDispose<List<ClubPost>>((ref) async {
+  final activeClub = ref.watch(activeClubProvider);
+  if (activeClub == null) return [];
+
+  final supabase = Supabase.instance.client;
+  
+  final postsResponse = await supabase
+      .from('club_posts')
+      .select('id, title, content, post_type, image_url, created_at, profiles:User(name)')
+      .eq('club_id', activeClub.clubId)
+      .order('created_at', ascending: false);
+
+  final compsResponse = await supabase
+      .from('competitions')
+      .select('id, name, description, created_at, poster_url, club_id, Course:club_id(name)')
+      .eq('club_id', activeClub.clubId)
+      .eq('is_template', false)
+      .order('created_at', ascending: false);
+
+  final posts = (postsResponse as List).map((post) => ClubPost.fromJson(post)).toList();
+
+  final comps = (compsResponse as List).map((comp) {
+    final clubName = comp['Course'] != null ? comp['Course']['name'] : 'Club Admin';
+    return ClubPost(
+      id: comp['id'],
+      title: comp['name'] ?? 'Competition',
+      content: comp['description'] ?? 'Join the upcoming competition!',
+      postType: 'competition',
+      imageUrl: comp['poster_url'],
+      createdAt: DateTime.parse(comp['created_at']),
+      authorName: clubName,
+    );
+  }).toList();
+
+  final allPosts = [...posts, ...comps];
+  allPosts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+  return allPosts;
+});
+
+final activeClubMembersListProvider = FutureProvider.autoDispose<List<ClubMember>>((ref) async {
+  final activeClub = ref.watch(activeClubProvider);
+  if (activeClub == null) return [];
+
+  final supabase = Supabase.instance.client;
+  
+  final response = await supabase
+      .from('player_club_memberships')
+      .select('id, player_id, status, user_profiles:User!player_club_memberships_player_id_fkey(name, handicap:handicapIndex, avatar_url:avatarUrl)')
+      .eq('club_id', activeClub.clubId);
+
+  return (response as List).map((m) => ClubMember.fromJson(m)).toList();
 });
