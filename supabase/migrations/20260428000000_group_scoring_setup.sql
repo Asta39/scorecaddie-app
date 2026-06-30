@@ -3,7 +3,7 @@ BEGIN;
 
 -- 1. Create GroupRoundScore table
 CREATE TABLE IF NOT EXISTS "GroupRoundScore" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "groupRoundId" UUID NOT NULL REFERENCES "GroupRound"("id") ON DELETE CASCADE,
     "participantId" UUID NOT NULL REFERENCES "GroupRoundParticipant"("id") ON DELETE CASCADE,
     "userId" TEXT NOT NULL REFERENCES "User"("id"),

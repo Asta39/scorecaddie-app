@@ -4,7 +4,7 @@
 
 -- 1. Create Drill Assignments table for Coach-Player linkage
 CREATE TABLE IF NOT EXISTS public.drill_assignments (
-  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   drill_id uuid NOT NULL, -- References a drill template (we'll add coach_id to drills next)
   coach_id text NOT NULL REFERENCES public."User"("firebaseUid"),
   player_id text NOT NULL REFERENCES public."User"("firebaseUid"),
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.drill_assignments (
 -- Note: Drills might be in public.drills or another table. 
 -- Based on the Flutter code, let's ensure we have a drills table that supports templates.
 CREATE TABLE IF NOT EXISTS public.drills (
-  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   creator_id text REFERENCES public."User"("firebaseUid"),
   name text NOT NULL,
   description text,

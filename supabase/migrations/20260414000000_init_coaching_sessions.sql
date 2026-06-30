@@ -43,7 +43,7 @@ ALTER TABLE public."User" ADD COLUMN IF NOT EXISTS rating numeric(3,2) default 5
 
 -- â”€â”€â”€ coaching_sessions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 create table if not exists public.coaching_sessions (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   coach_id text not null references public."User"("firebaseUid"),                  -- Firebase UID of the coach
   name text not null,
   description text default '',
@@ -68,7 +68,7 @@ create table if not exists public.coaching_sessions (
 
 -- ——— session_occurrences ——————————————————————————————————————————
 create table if not exists public.session_occurrences (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   session_id uuid not null references public.coaching_sessions(id) on delete cascade,
   date date not null,
   status text not null default 'upcoming', -- 'upcoming' | 'in_progress' | 'completed' | 'cancelled'
@@ -79,7 +79,7 @@ create table if not exists public.session_occurrences (
 
 -- â”€â”€â”€ session_enrollments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 create table if not exists public.session_enrollments (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   session_id uuid not null references public.coaching_sessions(id) on delete cascade,
   player_id text not null references public."User"("firebaseUid"),                 -- Firebase UID of the player
   status text not null default 'active',   -- 'active' | 'completed' | 'dropped'
@@ -502,7 +502,7 @@ $$;
 
 -- â”€â”€â”€ session_attendance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 create table if not exists public.session_attendance (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   occurrence_id uuid not null references public.session_occurrences(id) on delete cascade,
   player_id text not null references public."User"("firebaseUid"),
   is_present boolean not null default true,

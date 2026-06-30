@@ -25,6 +25,7 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
   
   List<Map<String, dynamic>> _courses = [];
   bool _isLoadingCourses = true;
+  Set<String> _homeClubs = {};
   
   List<Map<String, dynamic>> _availableSlots = [];
   bool _isLoadingSlots = false;
@@ -47,8 +48,29 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
           for (var course in coursesList) {
             uniqueCourses[course['name']] = course;
           }
-          _courses = uniqueCourses.values.toList();
-          _courses.sort((a, b) => a['name'].toString().compareTo(b['name'].toString()));
+          final sortedCourses = uniqueCourses.values.toList();
+          
+          try {
+            final user = supabase.auth.currentUser;
+            if (user != null) {
+              final membershipRes = await supabase.from('player_club_memberships').select('club_id').eq('player_id', user.id).eq('status', 'active');
+              final homeClubs = (membershipRes as List).map((m) => m['club_id'].toString()).toSet();
+              
+              sortedCourses.sort((a, b) {
+                final aIsHome = homeClubs.contains(a['id'].toString());
+                final bIsHome = homeClubs.contains(b['id'].toString());
+                if (aIsHome && !bIsHome) return -1;
+                if (!aIsHome && bIsHome) return 1;
+                return a['name'].toString().compareTo(b['name'].toString());
+              });
+              
+              if (mounted) setState(() => _homeClubs = homeClubs);
+            }
+          } catch (e) {
+            sortedCourses.sort((a, b) => a['name'].toString().compareTo(b['name'].toString()));
+          }
+          
+          _courses = sortedCourses;
           _isLoadingCourses = false;
         });
       }
@@ -64,27 +86,26 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
     
     try {
       final String dateStr = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
-      final List<String> possibleTimes = ['07:30', '07:40', '07:50', '08:00', '08:10', '08:20', '08:30'];
       final List<Map<String, dynamic>> slots = [];
       
-      for (final time in possibleTimes) {
-        try {
-          final res = await supabase.rpc('check_tee_time_availability', params: {
-            'p_course_id': _selectedCourseId,
-            'p_booking_date': dateStr,
-            'p_tee_time': '$time:00',
-            'p_max_capacity': 4
-          });
-          final available = res as int;
+      try {
+        final res = await supabase.rpc('get_available_tee_times', params: {
+          'p_course_id': _selectedCourseId,
+          'p_date': dateStr,
+        });
+        final List<dynamic> data = res;
+        for (final row in data) {
+          final timeStr = row['time_slot'].toString().substring(0, 5);
+          final spots = row['spots_available'] as int;
           slots.add({
-            'time': time,
-            'available': available,
-            'blocked': available == 0,
-            'reason': available == 0 ? 'Full' : null,
+            'time': timeStr,
+            'available': spots,
+            'blocked': spots == 0,
+            'reason': spots == 0 ? 'Full' : null,
           });
-        } catch (e) {
-           slots.add({'time': time, 'available': 4, 'blocked': false});
         }
+      } catch (e) {
+        debugPrint('Error with get_available_tee_times: $e');
       }
 
       if (mounted) {
@@ -218,7 +239,19 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
                 children: [
                   Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.grey900)),
                   const SizedBox(height: 4),
-                  Text(location, style: const TextStyle(fontSize: 13, color: AppColors.grey500)),
+                  Row(
+                    children: [
+                      Text(location, style: const TextStyle(fontSize: 13, color: AppColors.grey500)),
+                      if (_homeClubs.contains(id)) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: AppColors.golfLime.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
+                          child: const Text('Home Club', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.emerald800)),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -499,8 +532,13 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
             children: [
               Icon(LucideIcons.info, color: AppColors.blue600),
               const SizedBox(width: 12),
-              const Expanded(
-                child: Text('Payment for this round will be handled at the pro shop upon arrival.', style: TextStyle(color: AppColors.blue700, fontSize: 13)),
+              Expanded(
+                child: Text(
+                  _homeClubs.contains(_selectedCourseId) 
+                    ? 'Payment for this round will be handled at the pro shop upon arrival.'
+                    : 'Notice: Since this is not your home club, guest rates may apply at the pro shop.', 
+                  style: const TextStyle(color: AppColors.blue700, fontSize: 13)
+                ),
               ),
             ],
           ),
@@ -630,7 +668,8 @@ class _PlayerSearchSheetState extends State<_PlayerSearchSheet> {
       final supabase = Supabase.instance.client;
       final res = await supabase
           .from('User')
-          .select('id, name')
+          .select('id, name, avatarUrl')
+          .eq('role', 'PLAYER')
           .ilike('name', '%$query%')
           .limit(10);
           
@@ -669,16 +708,22 @@ class _PlayerSearchSheetState extends State<_PlayerSearchSheet> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _performSearch,
-              decoration: InputDecoration(
-                hintText: 'Search for a player...',
-                prefixIcon: const Icon(LucideIcons.search, color: AppColors.grey400),
-                filled: true,
-                fillColor: AppColors.grey50,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _performSearch,
+                    decoration: InputDecoration(
+                      hintText: 'Search Scorecaddie players...',
+                      prefixIcon: const Icon(LucideIcons.search, color: AppColors.grey400),
+                      filled: true,
+                      fillColor: AppColors.grey50,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
@@ -688,18 +733,56 @@ class _PlayerSearchSheetState extends State<_PlayerSearchSheet> {
                 : ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     children: [
-                      if (_searchController.text.isNotEmpty)
-                        ListTile(
-                          leading: CircleAvatar(backgroundColor: AppColors.emerald50, child: const Icon(LucideIcons.userPlus, color: AppColors.emerald700)),
-                          title: Text('Add "${_searchController.text}" as Guest'),
-                          onTap: () {
-                            widget.onAddCustomGuest(_searchController.text);
-                            Navigator.pop(context);
-                          },
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.emerald50.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.emerald200),
                         ),
-                      if (_searchController.text.isNotEmpty) const Divider(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Add Custom Guest', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    decoration: InputDecoration(
+                                      hintText: 'Guest Name',
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      isDense: true,
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                    ),
+                                    onSubmitted: (name) {
+                                      if (name.isNotEmpty) {
+                                        widget.onAddCustomGuest(name);
+                                        Navigator.pop(context);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Text('Search Results', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.grey500)),
+                      const SizedBox(height: 8),
+                      if (_searchResults.isEmpty && _searchController.text.isNotEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Text('No players found. Try adding them as a custom guest above.'),
+                        ),
                       ..._searchResults.map((user) => ListTile(
-                        leading: CircleAvatar(backgroundColor: AppColors.grey100, child: const Icon(LucideIcons.user, color: AppColors.grey400)),
+                        leading: CircleAvatar(
+                          backgroundColor: AppColors.grey100,
+                          backgroundImage: user['avatarUrl'] != null ? NetworkImage(user['avatarUrl']) : null,
+                          child: user['avatarUrl'] == null ? const Icon(LucideIcons.user, color: AppColors.grey400) : null,
+                        ),
                         title: Text(user['name'] ?? 'Unknown User'),
                         onTap: () {
                           widget.onAddAppUser(user);
