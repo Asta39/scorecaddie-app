@@ -96,12 +96,12 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
         final List<dynamic> data = res;
         for (final row in data) {
           final timeStr = row['time_slot'].toString().substring(0, 5);
-          final spots = row['spots_available'] as int;
+          final spots = row['remaining_capacity'] as int;
           slots.add({
             'time': timeStr,
             'available': spots,
-            'blocked': spots == 0,
-            'reason': spots == 0 ? 'Full' : null,
+            'blocked': spots == 0 || row['is_blocked'] == true,
+            'reason': row['is_blocked'] == true ? row['block_reason'] : (spots == 0 ? 'Full' : null),
           });
         }
       } catch (e) {
