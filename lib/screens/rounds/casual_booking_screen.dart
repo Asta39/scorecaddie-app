@@ -41,35 +41,35 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
   Future<void> _fetchCourses() async {
     try {
       final response = await supabase.from('Course').select('id, name, location').order('name');
+      final coursesList = List<Map<String, dynamic>>.from(response);
+      final Map<String, Map<String, dynamic>> uniqueCourses = {};
+      for (var course in coursesList) {
+        uniqueCourses[course['name']] = course;
+      }
+      final sortedCourses = uniqueCourses.values.toList();
+      
+      Set<String> homeClubs = {};
+      try {
+        final user = supabase.auth.currentUser;
+        if (user != null) {
+          final membershipRes = await supabase.from('player_club_memberships').select('club_id').eq('player_id', user.id).eq('status', 'active');
+          homeClubs = (membershipRes as List).map((m) => m['club_id'].toString()).toSet();
+          
+          sortedCourses.sort((a, b) {
+            final aIsHome = homeClubs.contains(a['id'].toString());
+            final bIsHome = homeClubs.contains(b['id'].toString());
+            if (aIsHome && !bIsHome) return -1;
+            if (!aIsHome && bIsHome) return 1;
+            return a['name'].toString().compareTo(b['name'].toString());
+          });
+        }
+      } catch (e) {
+        sortedCourses.sort((a, b) => a['name'].toString().compareTo(b['name'].toString()));
+      }
+      
       if (mounted) {
         setState(() {
-          final coursesList = List<Map<String, dynamic>>.from(response);
-          final Map<String, Map<String, dynamic>> uniqueCourses = {};
-          for (var course in coursesList) {
-            uniqueCourses[course['name']] = course;
-          }
-          final sortedCourses = uniqueCourses.values.toList();
-          
-          try {
-            final user = supabase.auth.currentUser;
-            if (user != null) {
-              final membershipRes = await supabase.from('player_club_memberships').select('club_id').eq('player_id', user.id).eq('status', 'active');
-              final homeClubs = (membershipRes as List).map((m) => m['club_id'].toString()).toSet();
-              
-              sortedCourses.sort((a, b) {
-                final aIsHome = homeClubs.contains(a['id'].toString());
-                final bIsHome = homeClubs.contains(b['id'].toString());
-                if (aIsHome && !bIsHome) return -1;
-                if (!aIsHome && bIsHome) return 1;
-                return a['name'].toString().compareTo(b['name'].toString());
-              });
-              
-              if (mounted) setState(() => _homeClubs = homeClubs);
-            }
-          } catch (e) {
-            sortedCourses.sort((a, b) => a['name'].toString().compareTo(b['name'].toString()));
-          }
-          
+          _homeClubs = homeClubs;
           _courses = sortedCourses;
           _isLoadingCourses = false;
         });
