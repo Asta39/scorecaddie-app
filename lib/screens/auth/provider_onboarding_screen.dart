@@ -146,6 +146,29 @@ class _ProviderOnboardingScreenState extends ConsumerState<ProviderOnboardingScr
 
       final role = ref.read(userProfileProvider).valueOrNull?.role ?? 'caddie';
       
+      bool isVerifiedCoach = false;
+      if (role == 'coach' && user.email != null) {
+        final matchRes = await Supabase.instance.client.rpc(
+          'match_user_to_clubs',
+          params: {'user_email': user.email!}
+        );
+        final matches = List<Map<String, dynamic>>.from(matchRes);
+        final coachMatches = matches.where((m) => m['role'] == 'coach').toList();
+        
+        if (coachMatches.isNotEmpty) {
+           isVerifiedCoach = true;
+           // Link them to their matched clubs as active
+           for (var club in coachMatches) {
+             await Supabase.instance.client.from('player_club_memberships').upsert({
+               'player_id': user.id,
+               'club_id': club['club_id'],
+               'status': 'active',
+               'is_home_club': false
+             }, onConflict: 'player_id, club_id');
+           }
+        }
+      }
+
       final double finalPrice = role == 'caddie' 
           ? (_selectedHomeCourse?.caddieFee ?? 1000.0)
           : (double.tryParse(_priceController.text) ?? 0.0);
@@ -163,7 +186,7 @@ class _ProviderOnboardingScreenState extends ConsumerState<ProviderOnboardingScr
         coursesJson: drift.Value(jsonEncode([_selectedHomeCourse?.name])),
         personalityType: drift.Value(role == 'caddie' ? _selectedPersonality : null),
         specializationsJson: drift.Value(role == 'coach' && _selectedSpecializations.isNotEmpty ? _selectedSpecializations.join(',') : null),
-        hasCertification: drift.Value(role == 'coach' ? _hasCertification : false),
+        hasCertification: drift.Value(role == 'coach' ? (isVerifiedCoach ? true : _hasCertification) : false),
         certificationName: drift.Value(role == 'coach' && _hasCertification ? _certificationNameController.text.trim() : null),
         certificationUrl: drift.Value(role == 'coach' ? _certificationImage?.path : null),
         coachingLocation: drift.Value(role == 'coach' ? _selectedLocation : null),
@@ -183,7 +206,7 @@ class _ProviderOnboardingScreenState extends ConsumerState<ProviderOnboardingScr
           uid: drift.Value(user.id),
           name: drift.Value(name),
           avatarUrl: drift.Value(_profileImage?.path),
-          pfpVerified: drift.Value(_isPfpVerified),
+          pfpVerified: drift.Value(isVerifiedCoach ? true : _isPfpVerified),
           role: drift.Value(upperRole),
           providerStatus: const drift.Value('AVAILABLE'),
           profileComplete: const drift.Value(true),

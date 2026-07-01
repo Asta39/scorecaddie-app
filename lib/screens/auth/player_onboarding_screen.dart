@@ -31,9 +31,12 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
   String? _lastCheckedName;
   Timer? _debounce;
   
-  List<Map<String, dynamic>> _clubs = [];
-  String? _selectedClubId;
+  List<Map<String, dynamic>> _matchedClubs = [];
+  List<Map<String, dynamic>> _allClubs = [];
   bool _isLoadingClubs = true;
+  
+  String? _homeClubId;
+  Set<String> _waitlistClubIds = {};
 
   @override
   void initState() {
@@ -44,13 +47,37 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
   
   Future<void> _fetchClubs() async {
     try {
+      final user = ref.read(authStateProvider).valueOrNull;
+      if (user?.email != null) {
+        // Try autonomous matching
+        final matchRes = await Supabase.instance.client.rpc(
+          'match_user_to_clubs',
+          params: {'user_email': user!.email!}
+        );
+        final matches = List<Map<String, dynamic>>.from(matchRes);
+        
+        if (matches.isNotEmpty) {
+          _matchedClubs = matches;
+          // Set handicap index if available and > 0
+          final hc = matches.first['handicap_index'];
+          if (hc != null && hc > 0) {
+            _handicapController.text = hc.toString();
+          }
+          if (matches.length == 1) {
+            _homeClubId = matches.first['club_id'];
+          }
+        }
+      }
+
+      // Always fetch all clubs for fallback
       final res = await Supabase.instance.client
           .from('clubs')
           .select('id, name, location')
           .order('name');
+          
       if (mounted) {
         setState(() {
-          _clubs = List<Map<String, dynamic>>.from(res);
+          _allClubs = List<Map<String, dynamic>>.from(res);
           _isLoadingClubs = false;
         });
       }
@@ -108,8 +135,8 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
       return;
     }
     
-    if (_selectedClubId == null) {
-      TopNotification.showError(context, 'Please select your home club.');
+    if (_homeClubId == null) {
+      TopNotification.showError(context, 'Please select your primary club.');
       return;
     }
     
@@ -133,12 +160,30 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
         ),
       );
       
-      // Also save club membership as pending
-      await Supabase.instance.client.from('player_club_memberships').insert({
-        'player_id': user.id,
-        'club_id': _selectedClubId,
-        'status': 'pending'
-      });
+      if (_matchedClubs.isNotEmpty) {
+        // Active members directly based on autonomous matching
+        for (var club in _matchedClubs) {
+          await Supabase.instance.client.from('player_club_memberships').upsert({
+            'player_id': user.id,
+            'club_id': club['club_id'],
+            'status': 'active',
+            'is_home_club': club['club_id'] == _homeClubId
+          }, onConflict: 'player_id, club_id');
+        }
+      } else {
+        // Waitlist logic
+        final Set<String> toWaitlist = {..._waitlistClubIds};
+        toWaitlist.add(_homeClubId!);
+        
+        for (var cid in toWaitlist) {
+          await Supabase.instance.client.from('player_club_memberships').upsert({
+            'player_id': user.id,
+            'club_id': cid,
+            'status': 'pending',
+            'is_home_club': cid == _homeClubId
+          }, onConflict: 'player_id, club_id');
+        }
+      }
 
       if (mounted) {
         Future.delayed(const Duration(milliseconds: 100), () {
@@ -225,63 +270,161 @@ class _PlayerOnboardingScreenState extends ConsumerState<PlayerOnboardingScreen>
 
                   const SizedBox(height: 32),
                   
-                  // Club Selection
-                  const Text(
-                    'SELECT YOUR HOME CLUB',
-                    style: TextStyle(
-                      color: AppColors.grey600,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+                  // Club Selection UI based on matching
+                  if (_matchedClubs.isNotEmpty) ...[
+                    const Text(
+                      'YOUR AUTHORIZED CLUBS',
+                      style: TextStyle(color: AppColors.emerald600, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: _isLoadingClubs ? null : () {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: AppColors.white,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    const SizedBox(height: 12),
+                    if (_matchedClubs.length == 1)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(color: AppColors.emerald50, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.emerald100)),
+                        child: Row(
+                          children: [
+                            const Icon(LucideIcons.checkCircle2, color: AppColors.emerald600),
+                            const SizedBox(width: 12),
+                            Text(
+                              _matchedClubs.first['club_name'] ?? 'Club',
+                              style: const TextStyle(color: AppColors.emerald900, fontWeight: FontWeight.w700, fontSize: 16),
+                            ),
+                          ],
                         ),
-                        builder: (context) {
-                          return _ClubPickerSheet(
-                            clubs: _clubs,
-                            selectedClubId: _selectedClubId,
-                            onSelected: (id) {
-                              setState(() => _selectedClubId = id);
-                              Navigator.pop(context);
+                      )
+                    else
+                      GestureDetector(
+                        onTap: () {
+                          // Allow them to pick primary from matches
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: AppColors.white,
+                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+                            builder: (context) {
+                              return _ClubPickerSheet(
+                                clubs: _matchedClubs.map((m) => {'id': m['club_id'], 'name': m['club_name']}).toList(),
+                                selectedClubId: _homeClubId,
+                                onSelected: (id) {
+                                  setState(() => _homeClubId = id);
+                                  Navigator.pop(context);
+                                },
+                              );
                             },
                           );
                         },
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.grey50,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.grey100),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _selectedClubId != null 
-                                ? _clubs.firstWhere((c) => c['id'] == _selectedClubId, orElse: () => {'name': 'Unknown Club'})['name'] 
-                                : (_isLoadingClubs ? 'Loading clubs...' : 'Choose your club'),
-                            style: TextStyle(
-                              color: _selectedClubId != null ? AppColors.grey900 : AppColors.grey500, 
-                              fontWeight: _selectedClubId != null ? FontWeight.w700 : FontWeight.w500, 
-                              fontSize: 16
-                            ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          decoration: BoxDecoration(color: AppColors.emerald50, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.emerald100)),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _homeClubId != null 
+                                    ? _matchedClubs.firstWhere((c) => c['club_id'] == _homeClubId, orElse: () => {'club_name': 'Unknown Club'})['club_name'] 
+                                    : 'Select primary club...',
+                                style: TextStyle(color: _homeClubId != null ? AppColors.emerald900 : AppColors.emerald600, fontWeight: FontWeight.w700, fontSize: 16),
+                              ),
+                              const Icon(LucideIcons.chevronDown, color: AppColors.emerald600),
+                            ],
                           ),
-                          const Icon(LucideIcons.chevronDown, color: AppColors.grey400),
-                        ],
+                        ),
+                      ),
+                  ] else ...[
+                    const Text(
+                      'SELECT YOUR PRIMARY CLUB (WAITLIST)',
+                      style: TextStyle(color: AppColors.grey600, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: _isLoadingClubs ? null : () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: AppColors.white,
+                          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+                          builder: (context) {
+                            return _ClubPickerSheet(
+                              clubs: _allClubs,
+                              selectedClubId: _homeClubId,
+                              onSelected: (id) {
+                                setState(() => _homeClubId = id);
+                                Navigator.pop(context);
+                              },
+                            );
+                          },
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.grey100)),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _homeClubId != null 
+                                  ? _allClubs.firstWhere((c) => c['id'] == _homeClubId, orElse: () => {'name': 'Unknown Club'})['name'] 
+                                  : (_isLoadingClubs ? 'Loading clubs...' : 'Choose your club'),
+                              style: TextStyle(
+                                color: _homeClubId != null ? AppColors.grey900 : AppColors.grey500, 
+                                fontWeight: _homeClubId != null ? FontWeight.w700 : FontWeight.w500, 
+                                fontSize: 16
+                              ),
+                            ),
+                            const Icon(LucideIcons.chevronDown, color: AppColors.grey400),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'SELECT SECONDARY CLUBS (OPTIONAL)',
+                      style: TextStyle(color: AppColors.grey600, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: _isLoadingClubs ? null : () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: AppColors.white,
+                          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+                          builder: (context) {
+                            return _MultiClubPickerSheet(
+                              clubs: _allClubs,
+                              selectedClubIds: _waitlistClubIds,
+                              disabledClubId: _homeClubId,
+                              onChanged: (ids) {
+                                setState(() => _waitlistClubIds = ids);
+                              },
+                            );
+                          },
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.grey100)),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _waitlistClubIds.isNotEmpty 
+                                    ? '${_waitlistClubIds.length} clubs selected' 
+                                    : 'Add more clubs...',
+                                style: TextStyle(
+                                  color: _waitlistClubIds.isNotEmpty ? AppColors.grey900 : AppColors.grey500, 
+                                  fontWeight: _waitlistClubIds.isNotEmpty ? FontWeight.w700 : FontWeight.w500, 
+                                  fontSize: 16
+                                ),
+                              ),
+                            ),
+                            const Icon(LucideIcons.chevronDown, color: AppColors.grey400),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 80),
                   
@@ -478,6 +621,115 @@ class _ClubPickerSheetState extends State<_ClubPickerSheet> {
                     subtitle: club['location'] != null ? Text(club['location'], style: const TextStyle(color: AppColors.grey400, fontSize: 13)) : null,
                     trailing: isSelected ? const Icon(LucideIcons.checkCircle2, color: AppColors.emerald500) : null,
                     onTap: () => widget.onSelected(club['id']),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MultiClubPickerSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> clubs;
+  final Set<String> selectedClubIds;
+  final String? disabledClubId;
+  final ValueChanged<Set<String>> onChanged;
+
+  const _MultiClubPickerSheet({
+    required this.clubs,
+    required this.selectedClubIds,
+    this.disabledClubId,
+    required this.onChanged,
+  });
+
+  @override
+  State<_MultiClubPickerSheet> createState() => _MultiClubPickerSheetState();
+}
+
+class _MultiClubPickerSheetState extends State<_MultiClubPickerSheet> {
+  String _searchQuery = '';
+  late Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set.from(widget.selectedClubIds);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredClubs = widget.clubs.where((c) {
+      if (c['id'] == widget.disabledClubId) return false;
+      final name = c['name']?.toString().toLowerCase() ?? '';
+      final loc = c['location']?.toString().toLowerCase() ?? '';
+      final q = _searchQuery.toLowerCase();
+      return name.contains(q) || loc.contains(q);
+    }).toList();
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(color: AppColors.grey200, borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Select Secondary Clubs', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.grey900)),
+                TextButton(
+                  onPressed: () {
+                    widget.onChanged(_selected);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w700)),
+                )
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Search clubs...',
+                prefixIcon: const Icon(LucideIcons.search, color: AppColors.grey400),
+                filled: true,
+                fillColor: AppColors.grey50,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              ),
+              onChanged: (val) => setState(() => _searchQuery = val),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.separated(
+                itemCount: filteredClubs.length,
+                separatorBuilder: (context, index) => const Divider(color: AppColors.grey100, height: 1),
+                itemBuilder: (context, index) {
+                  final club = filteredClubs[index];
+                  final isSelected = _selected.contains(club['id']);
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(club['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                    subtitle: club['location'] != null ? Text(club['location'], style: const TextStyle(color: AppColors.grey400, fontSize: 13)) : null,
+                    trailing: isSelected ? const Icon(LucideIcons.checkSquare, color: AppColors.primary) : const Icon(LucideIcons.square, color: AppColors.grey300),
+                    onTap: () {
+                      setState(() {
+                        if (isSelected) {
+                          _selected.remove(club['id']);
+                        } else {
+                          _selected.add(club['id']);
+                        }
+                      });
+                    },
                   );
                 },
               ),
