@@ -13,6 +13,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart' as db;
 import '../../widgets/top_notification.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProviderOnboardingScreen extends ConsumerStatefulWidget {
   const ProviderOnboardingScreen({super.key});

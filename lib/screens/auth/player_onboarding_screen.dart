@@ -720,7 +720,7 @@ class _MultiClubPickerSheetState extends State<_MultiClubPickerSheet> {
                     contentPadding: EdgeInsets.zero,
                     title: Text(club['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                     subtitle: club['location'] != null ? Text(club['location'], style: const TextStyle(color: AppColors.grey400, fontSize: 13)) : null,
-                    trailing: isSelected ? const Icon(LucideIcons.checkSquare, color: AppColors.primary) : const Icon(LucideIcons.square, color: AppColors.grey300),
+                    trailing: isSelected ? const Icon(LucideIcons.checkSquare, color: AppColors.emerald500) : const Icon(LucideIcons.square, color: AppColors.grey300),
                     onTap: () {
                       setState(() {
                         if (isSelected) {
