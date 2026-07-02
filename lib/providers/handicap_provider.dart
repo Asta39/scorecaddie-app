@@ -64,7 +64,16 @@ final handicapProvider = StreamProvider<HandicapStatus>((ref) {
     // Filter out rounds marked as not for analytics (e.g. partial rounds)
     final rounds = allRounds.where((r) => r.useForAnalytics).toList();
 
-    if (rounds.isEmpty) return HandicapStatus(lowIndex: lowIndexAnchor);
+    // If no rounds recorded yet, seed from the imported profile handicap
+    // (set during onboarding from club roster CSV) so dashboard never shows N/A
+    if (rounds.isEmpty) {
+      final seededHandicap = profile?.handicap;
+      return HandicapStatus(
+        currentIndex: seededHandicap,
+        lowIndex: lowIndexAnchor ?? seededHandicap,
+        roundsNeededForUpdate: 3,
+      );
+    }
 
     // 1. Extract valid differentials
     final allDiffs = rounds

@@ -150,6 +150,8 @@ class UserClubMembership {
   final String status;
   final bool isHomeClub;
   final String clubName;
+  final String? membershipNumber;
+  final DateTime? renewalDate;
 
   UserClubMembership({
     required this.id,
@@ -157,17 +159,9 @@ class UserClubMembership {
     required this.status,
     required this.isHomeClub,
     required this.clubName,
+    this.membershipNumber,
+    this.renewalDate,
   });
-
-  factory UserClubMembership.fromJson(Map<String, dynamic> json) {
-    return UserClubMembership(
-      id: json['id'],
-      clubId: json['club_id'],
-      status: json['status'],
-      isHomeClub: json['is_home_club'] ?? false,
-      clubName: json['clubs']?['name'] ?? 'Unknown Club',
-    );
-  }
 }
 
 final userClubMembershipsProvider = FutureProvider.autoDispose<List<UserClubMembership>>((ref) async {
@@ -175,30 +169,26 @@ final userClubMembershipsProvider = FutureProvider.autoDispose<List<UserClubMemb
   final userId = supabase.auth.currentUser?.id;
   if (userId == null) return [];
 
-  final membershipResponse = await supabase
+  // Single query joining clubs directly — no secondary lookup, no clubs status filter
+  // This ensures pending members still see their club screen
+  final response = await supabase
       .from('player_club_memberships')
-      .select('id, club_id, status, is_home_club')
+      .select('id, club_id, status, is_home_club, membership_number, renewal_date, clubs(id, name)')
       .eq('player_id', userId);
 
-  if ((membershipResponse as List).isEmpty) return [];
+  if ((response as List).isEmpty) return [];
 
-  final clubIds = membershipResponse.map((m) => m['club_id'] as String).toList();
-  final clubsResponse = await supabase
-      .from('clubs')
-      .select('id, name')
-      .filter('id', 'in', clubIds);
-
-  final clubsMap = {
-    for (var c in (clubsResponse as List)) c['id']: c['name']
-  };
-
-  return membershipResponse.map((m) {
+  return response.map<UserClubMembership>((m) {
+    final clubData = m['clubs'] as Map<String, dynamic>?;
+    final renewalStr = m['renewal_date'] as String?;
     return UserClubMembership(
       id: m['id'],
       clubId: m['club_id'],
       status: m['status'],
       isHomeClub: m['is_home_club'] ?? false,
-      clubName: clubsMap[m['club_id']] ?? 'Unknown Club',
+      clubName: clubData?['name'] ?? 'Unknown Club',
+      membershipNumber: m['membership_number'] as String?,
+      renewalDate: renewalStr != null ? DateTime.tryParse(renewalStr) : null,
     );
   }).toList();
 });

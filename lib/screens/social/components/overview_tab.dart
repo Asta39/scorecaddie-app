@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:flutter_credit_card/flutter_credit_card.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/club_feed_provider.dart';
@@ -10,6 +9,8 @@ import '../../../core/models/competition.dart';
 import '../../../providers/competition_providers.dart';
 import '../../../widgets/top_notification.dart';
 import '../../../widgets/post_card.dart';
+import '../../../widgets/profile_image.dart';
+import '../../../providers/app_providers.dart';
 
 class ClubOverviewTab extends ConsumerWidget {
   const ClubOverviewTab({super.key});
@@ -41,6 +42,9 @@ class ClubOverviewTab extends ConsumerWidget {
         final latestResult = allPosts.where((p) => p.postType == 'result').firstOrNull;
         final latestActivity = allPosts.where((p) => p.postType != 'competition' && p.postType != 'result').firstOrNull;
 
+        final profileAsync = ref.watch(userProfileProvider);
+        final profile = profileAsync.valueOrNull;
+
         return SingleChildScrollView(
           padding: const EdgeInsets.only(top: 20, bottom: 140),
           child: Column(
@@ -55,31 +59,49 @@ class ClubOverviewTab extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              if (activeClub != null)
+              if (activeClub != null) ...[  
+                // Pending approval banner
+                if (activeClub.status == 'pending')
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.amber.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.clock, size: 16, color: Colors.amber.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Your membership is pending approval by the club admin.',
+                              style: TextStyle(fontSize: 12, color: Colors.amber.shade800, fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: CreditCardWidget(
-                    cardNumber: '0000 0000 0000 1923',
-                    expiryDate: '12/26',
-                    cardHolderName: userName,
-                    cvvCode: '123',
-                    showBackView: false,
-                    bankName: activeClub.clubName,
-                    cardBgColor: AppColors.golfLime,
-                    glassmorphismConfig: null,
-                    isHolderNameVisible: true,
-                    isSwipeGestureEnabled: false,
-                    onCreditCardWidgetChange: (CreditCardBrand brand) {},
-                    customCardTypeIcons: <CustomCardTypeIcon>[
-                      CustomCardTypeIcon(
-                        cardType: CardType.mastercard,
-                        cardImage: Image.asset('assets/images/mastercard.png', height: 48, width: 48),
-                      ),
-                    ],
+                  child: _ClubMembershipCard(
+                    clubName: activeClub.clubName,
+                    memberName: userName,
+                    membershipNumber: activeClub.membershipNumber,
+                    renewalDate: activeClub.renewalDate,
+                    avatarUrl: profile?.avatarUrl,
+                    isPending: activeClub.status == 'pending',
                   ),
-                )
-              else
-                _buildEmptyStateCard('No Clubs Joined', 'You haven\'t joined any clubs yet.'),
+                ),
+              ] else
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildEmptyStateCard('No Clubs Joined', 'You haven\'t joined any clubs yet.'),
+                ),
 
               const SizedBox(height: 16),
 
@@ -557,4 +579,269 @@ class ClubOverviewTab extends ConsumerWidget {
       },
     );
   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Custom Club Membership Card
+// iOS aesthetic: off-white frosted surface, golf illustration watermark,
+// floating drop shadow, no border.
+// ────────────────────────────────────────────────────────────────────────────
+class _ClubMembershipCard extends StatelessWidget {
+  final String clubName;
+  final String memberName;
+  final String? membershipNumber;
+  final DateTime? renewalDate;
+  final String? avatarUrl;
+  final bool isPending;
+
+  const _ClubMembershipCard({
+    required this.clubName,
+    required this.memberName,
+    this.membershipNumber,
+    this.renewalDate,
+    this.avatarUrl,
+    this.isPending = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final renewalText = renewalDate != null
+        ? '${renewalDate!.day.toString().padLeft(2, '0')}/${renewalDate!.month.toString().padLeft(2, '0')}/${renewalDate!.year}'
+        : '—';
+
+    return Container(
+      width: double.infinity,
+      height: 148,
+      decoration: BoxDecoration(
+        // Slightly off-white — warmer than pure white, like a premium card
+        color: const Color(0xFFF5F5F0),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 24,
+            spreadRadius: 0,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            spreadRadius: 0,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: Stack(
+        children: [
+          // Golf illustration watermark
+          Positioned(
+            right: -18,
+            bottom: -18,
+            child: Opacity(
+              opacity: 0.06,
+              child: CustomPaint(
+                size: const Size(160, 160),
+                painter: _GolfIllustrationPainter(),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 110,
+            top: -30,
+            child: Opacity(
+              opacity: 0.04,
+              child: CustomPaint(
+                size: const Size(100, 100),
+                painter: _GolfBallPainter(),
+              ),
+            ),
+          ),
+          // Content
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Left: info column
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Club name label
+                      Text(
+                        clubName.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                          color: AppColors.grey500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      // Member name
+                      Text(
+                        memberName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.grey900,
+                          height: 1.1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 14),
+                      // Bottom row: member number + renewal
+                      Row(
+                        children: [
+                          _InfoChip(
+                            label: 'MEMBER',
+                            value: membershipNumber ?? '—',
+                          ),
+                          const SizedBox(width: 12),
+                          _InfoChip(
+                            label: 'RENEWAL',
+                            value: renewalText,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Right: profile picture
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: ProfileImage(
+                      url: avatarUrl,
+                      size: 68,
+                      name: memberName,
+                      isCircle: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Pending tint overlay
+          if (isPending)
+            Positioned(
+              top: 14,
+              left: 14,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.clock, size: 10, color: Colors.amber.shade800),
+                    const SizedBox(width: 4),
+                    Text('PENDING', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.amber.shade800, letterSpacing: 0.8)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoChip({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: AppColors.grey400, letterSpacing: 0.8)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.grey800, fontFamily: 'monospace')),
+      ],
+    );
+  }
+}
+
+// Minimal golf flag + hole illustration painter
+class _GolfIllustrationPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.grey900
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+
+    // Flagpole
+    canvas.drawLine(Offset(size.width * 0.35, size.height * 0.1), Offset(size.width * 0.35, size.height * 0.85), paint);
+    // Flag
+    final flagPath = Path()
+      ..moveTo(size.width * 0.35, size.height * 0.1)
+      ..lineTo(size.width * 0.7, size.height * 0.22)
+      ..lineTo(size.width * 0.35, size.height * 0.34)
+      ..close();
+    canvas.drawPath(flagPath, paint..style = PaintingStyle.fill);
+    // Ground arc / hole
+    final rect = Rect.fromCenter(
+      center: Offset(size.width * 0.35, size.height * 0.85),
+      width: size.width * 0.55,
+      height: size.height * 0.15,
+    );
+    canvas.drawArc(rect, 0, 3.14159, false, paint..style = PaintingStyle.stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// Simple golf ball painter
+class _GolfBallPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.grey900
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width * 0.42;
+    canvas.drawCircle(center, radius, paint);
+    // Dimple lines
+    for (var i = -2; i <= 2; i++) {
+      final y = center.dy + i * radius * 0.3;
+      final halfW = (radius * radius - (y - center.dy) * (y - center.dy));
+      if (halfW > 0) {
+        final hw = halfW < 0 ? 0.0 : halfW;
+        canvas.drawLine(
+          Offset(center.dx - hw * 0.6, y),
+          Offset(center.dx + hw * 0.6, y),
+          paint..strokeWidth = 2,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
