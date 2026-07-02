@@ -169,24 +169,42 @@ final userClubMembershipsProvider = FutureProvider.autoDispose<List<UserClubMemb
   final userId = supabase.auth.currentUser?.id;
   if (userId == null) return [];
 
-  // Single query joining clubs directly — no secondary lookup, no clubs status filter
-  // This ensures pending members still see their club screen
-  final response = await supabase
-      .from('player_club_memberships')
-      .select('id, club_id, status, is_home_club, membership_number, renewal_date, clubs(id, name)')
-      .eq('player_id', userId);
+  // Step 1: Fetch memberships (with new optional columns)
+  List membershipResponse;
+  try {
+    membershipResponse = await supabase
+        .from('player_club_memberships')
+        .select('id, club_id, status, is_home_club, membership_number, renewal_date')
+        .eq('player_id', userId);
+  } catch (_) {
+    // Fallback without new columns if migration hasn't run yet
+    membershipResponse = await supabase
+        .from('player_club_memberships')
+        .select('id, club_id, status, is_home_club')
+        .eq('player_id', userId);
+  }
 
-  if ((response as List).isEmpty) return [];
+  if (membershipResponse.isEmpty) return [];
 
-  return response.map<UserClubMembership>((m) {
-    final clubData = m['clubs'] as Map<String, dynamic>?;
+  // Step 2: Fetch club names separately (avoids nested join RLS issues)
+  final clubIds = membershipResponse.map((m) => m['club_id'] as String).toList();
+  final clubsResponse = await supabase
+      .from('clubs')
+      .select('id, name')
+      .inFilter('id', clubIds);
+
+  final clubsMap = {
+    for (var c in (clubsResponse as List)) c['id']: c['name'] as String
+  };
+
+  return membershipResponse.map<UserClubMembership>((m) {
     final renewalStr = m['renewal_date'] as String?;
     return UserClubMembership(
       id: m['id'],
       clubId: m['club_id'],
       status: m['status'],
       isHomeClub: m['is_home_club'] ?? false,
-      clubName: clubData?['name'] ?? 'Unknown Club',
+      clubName: clubsMap[m['club_id']] ?? 'Unknown Club',
       membershipNumber: m['membership_number'] as String?,
       renewalDate: renewalStr != null ? DateTime.tryParse(renewalStr) : null,
     );
