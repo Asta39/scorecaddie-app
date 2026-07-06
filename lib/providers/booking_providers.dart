@@ -120,12 +120,13 @@ final inquiriesProvider = StreamProvider<List<db.Inquiry>>((ref) {
 class CasualTeeTimeBooking {
   final String id;
   final String courseId;
+  final String courseName;
   final DateTime bookingDate;
   final String teeTime;
   final String status;
   final String paymentStatus;
   CasualTeeTimeBooking({
-    required this.id, required this.courseId, required this.bookingDate,
+    required this.id, required this.courseId, required this.courseName, required this.bookingDate,
     required this.teeTime, required this.status, required this.paymentStatus
   });
 }
@@ -136,17 +137,21 @@ final casualTeeTimeBookingsProvider = FutureProvider.autoDispose<List<CasualTeeT
 
   final response = await ref.watch(supabaseClientProvider)
       .from('casual_tee_time_bookings')
-      .select('id, course_id, booking_date, tee_time, status, payment_status')
+      .select('id, course_id, booking_date, tee_time, status, payment_status, Course(name)')
       .eq('player_id', user.id)
       .order('booking_date', ascending: false)
       .order('tee_time', ascending: false);
 
-  return (response as List).map((data) => CasualTeeTimeBooking(
-    id: data['id'],
-    courseId: data['course_id'],
-    bookingDate: DateTime.tryParse(data['booking_date']) ?? DateTime.now(),
-    teeTime: data['tee_time'],
-    status: data['status'] ?? 'CONFIRMED',
-    paymentStatus: data['payment_status'] ?? 'PENDING',
-  )).toList();
+  return (response as List).map((data) {
+    final courseData = data['Course'] as Map<String, dynamic>?;
+    return CasualTeeTimeBooking(
+      id: data['id'],
+      courseId: data['course_id'],
+      courseName: courseData?['name'] ?? 'Unknown Course',
+      bookingDate: DateTime.tryParse(data['booking_date']) ?? DateTime.now(),
+      teeTime: data['tee_time'],
+      status: data['status'] ?? 'CONFIRMED',
+      paymentStatus: data['payment_status'] ?? 'PENDING',
+    );
+  }).toList();
 });

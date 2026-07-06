@@ -104,6 +104,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isSplashRoute) return null;
 
       final isAuthRoute = state.matchedLocation == '/auth';
+      final isLoginCallback = state.matchedLocation == '/login-callback';
       final isOnboardingRoute = state.matchedLocation == '/select-role' ||
           state.matchedLocation == '/player-onboarding' ||
           state.matchedLocation == '/provider-onboarding';
@@ -111,9 +112,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // 1. If we are still determining auth state, don't redirect yet
       if (authState.isLoading) return null;
 
-      // 2. Not logged in -> go to /auth
+      // 2. Not logged in -> go to /auth (unless it's the auth route or the OAuth callback)
       if (!isLoggedIn) {
-        return isAuthRoute ? null : '/auth';
+        return (isAuthRoute || isLoginCallback) ? null : '/auth';
       }
       
       // 3. User is logged in — explicitly wait for profile data before deciding next step
@@ -157,6 +158,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null; // Stay on the current onboarding route
     },
     routes: [
+      GoRoute(
+        path: '/login-callback',
+        builder: (context, state) => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      ),
       GoRoute(
         path: '/splash',
         builder: (context, state) => const SplashScreen(),

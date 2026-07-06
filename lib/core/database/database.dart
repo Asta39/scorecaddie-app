@@ -492,7 +492,9 @@ class AppDatabase extends _$AppDatabase {
     List<CourseHole> results = [];
     if (teeId != null) {
       results = await (select(courseHoles)..where((h) => h.courseId.equals(courseId) & h.teeId.equals(teeId))..orderBy([(h) => OrderingTerm.asc(h.holeNumber)])).get();
-      return results; // No deduplication needed for a specific tee
+      if (results.isNotEmpty) {
+        return results; // No deduplication needed for a specific tee
+      }
     }
     
     // 2. Fallback to general holes (where teeId is null) if no specific tee holes

@@ -1385,7 +1385,7 @@ class _ScanSetupSheetState extends ConsumerState<_ScanSetupSheet> {
                             final file = File(image.path);
                             final bytes = await file.readAsBytes();
                             ref.read(scorecardScannerProvider.notifier).setImage(bytes, image.path);
-                            if (mounted) {
+                            if (context.mounted) {
                               Navigator.pop(context); // Close setup bottom sheet
                               context.push('/scanner/camera'); // Go directly to camera screen (shows preview & confirm button)
                             }

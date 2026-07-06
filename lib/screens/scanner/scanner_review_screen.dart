@@ -535,7 +535,18 @@ class _ScannerReviewScreenState extends ConsumerState<ScannerReviewScreen> {
                       ),
                       itemBuilder: (context, index) {
                         final hole = result.holes[index];
-                        final official = _officialHoles.firstWhere((h) => h.holeNumber == hole.hole, orElse: () => _officialHoles.first);
+                        final official = _officialHoles.firstWhere(
+                          (h) => h.holeNumber == hole.hole,
+                          orElse: () => _officialHoles.isNotEmpty
+                              ? _officialHoles.first
+                              : db.CourseHole(
+                                  id: 0,
+                                  courseId: state.course!.id,
+                                  holeNumber: hole.hole,
+                                  par: hole.par,
+                                  handicapIndex: hole.hole,
+                                ),
+                        );
                         final isMismatch = hole.par != official.par;
 
                         return InkWell(

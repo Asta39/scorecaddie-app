@@ -48,16 +48,27 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
       }
       final sortedCourses = uniqueCourses.values.toList();
       
-      Set<String> homeClubs = {};
+      Set<String> homeCourseIds = {};
       try {
         final user = supabase.auth.currentUser;
         if (user != null) {
-          final membershipRes = await supabase.from('player_club_memberships').select('club_id').eq('player_id', user.id).eq('status', 'active');
-          homeClubs = (membershipRes as List).map((m) => m['club_id'].toString()).toSet();
+          final membershipRes = await supabase.from('player_club_memberships').select('club_id, clubs(name)').eq('player_id', user.id).eq('status', 'active');
+          
+          final myClubNames = (membershipRes as List).map((m) {
+            final name = (m['clubs'] as Map)['name']?.toString().toLowerCase() ?? '';
+            return name.replaceAll('golf club', '').replaceAll('club', '').trim();
+          }).where((n) => n.isNotEmpty).toSet();
+
+          for (var course in sortedCourses) {
+             final courseName = course['name'].toString().toLowerCase().replaceAll('golf club', '').replaceAll('club', '').trim();
+             if (myClubNames.contains(courseName)) {
+                homeCourseIds.add(course['id'].toString());
+             }
+          }
           
           sortedCourses.sort((a, b) {
-            final aIsHome = homeClubs.contains(a['id'].toString());
-            final bIsHome = homeClubs.contains(b['id'].toString());
+            final aIsHome = homeCourseIds.contains(a['id'].toString());
+            final bIsHome = homeCourseIds.contains(b['id'].toString());
             if (aIsHome && !bIsHome) return -1;
             if (!aIsHome && bIsHome) return 1;
             return a['name'].toString().compareTo(b['name'].toString());
@@ -69,7 +80,7 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
       
       if (mounted) {
         setState(() {
-          _homeClubs = homeClubs;
+          _homeClubs = homeCourseIds;
           _courses = sortedCourses;
           _isLoadingCourses = false;
         });
@@ -612,20 +623,18 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
       // Add Host
       await supabase.from('casual_tee_time_players').insert({
         'booking_id': bookingId,
-        'player_id': user.id,
-        'guest_name': null,
-        'status': 'CONFIRMED',
-        'notify': _beNotified,
+        'user_id': user.id,
+        'custom_name': null,
+        'is_guest': false,
       });
       
       // Add Guests
       for (final g in _guestPlayers) {
         await supabase.from('casual_tee_time_players').insert({
           'booking_id': bookingId,
-          'player_id': g['id'], // may be null for custom guests
-          'guest_name': g['id'] == null ? g['name'] : null,
-          'status': 'CONFIRMED',
-          'notify': g['id'] != null ? true : false,
+          'user_id': g['id'], 
+          'custom_name': g['id'] == null ? g['name'] : null,
+          'is_guest': g['id'] == null,
         });
       }
       

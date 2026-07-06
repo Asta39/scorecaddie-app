@@ -112,7 +112,7 @@ class _TeeTimeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logoPath = CourseLogoHelper.getLogoAssetPath(booking.courseId);
+    final logoPath = CourseLogoHelper.getLogoAssetPath(booking.courseName);
     final timeParts = booking.teeTime.split(':');
     final dt = DateTime(booking.bookingDate.year, booking.bookingDate.month, booking.bookingDate.day, int.parse(timeParts[0]), int.parse(timeParts[1]));
 
