@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/providers/club_feed_provider.dart';
 import '../../widgets/post_card.dart';
+import '../../widgets/pill.dart';
 import 'components/overview_tab.dart';
 
 class ClubCommunityScreen extends ConsumerStatefulWidget {
@@ -114,7 +115,7 @@ class _ClubCommunityScreenState extends ConsumerState<ClubCommunityScreen> with 
           unselectedLabelColor: AppColors.grey400,
           indicatorColor: AppColors.golfLime,
           indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppTypeScale.meta),
           tabs: _tabs.map((t) => Tab(text: t.$1)).toList(),
         ),
       ),
@@ -220,7 +221,7 @@ class _EventsTabState extends ConsumerState<_EventsTab> {
                       child: GestureDetector(
                         onTap: () => setState(() => _viewType = 'list'),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
                           decoration: BoxDecoration(
                             color: _viewType == 'list' ? Colors.white : Colors.transparent,
                             borderRadius: BorderRadius.circular(10),
@@ -232,9 +233,9 @@ class _EventsTabState extends ConsumerState<_EventsTab> {
                           child: Text(
                             'List View',
                             style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: _viewType == 'list' ? FontWeight.bold : FontWeight.w600,
-                              color: _viewType == 'list' ? AppColors.grey900 : AppColors.grey400,
+                              fontSize: AppTypeScale.meta,
+                              fontWeight: _viewType == 'list' ? FontWeight.w800 : FontWeight.w600,
+                              color: _viewType == 'list' ? AppColors.grey900 : AppColors.grey500,
                             ),
                           ),
                         ),
@@ -244,7 +245,7 @@ class _EventsTabState extends ConsumerState<_EventsTab> {
                       child: GestureDetector(
                         onTap: () => setState(() => _viewType = 'diary'),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
                           decoration: BoxDecoration(
                             color: _viewType == 'diary' ? Colors.white : Colors.transparent,
                             borderRadius: BorderRadius.circular(10),
@@ -256,9 +257,9 @@ class _EventsTabState extends ConsumerState<_EventsTab> {
                           child: Text(
                             'Club Diary',
                             style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: _viewType == 'diary' ? FontWeight.bold : FontWeight.w600,
-                              color: _viewType == 'diary' ? AppColors.grey900 : AppColors.grey400,
+                              fontSize: AppTypeScale.meta,
+                              fontWeight: _viewType == 'diary' ? FontWeight.w800 : FontWeight.w600,
+                              color: _viewType == 'diary' ? AppColors.grey900 : AppColors.grey500,
                             ),
                           ),
                         ),
@@ -542,14 +543,14 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: TextField(
-                style: const TextStyle(color: AppColors.grey900, fontSize: 14),
+                style: const TextStyle(color: AppColors.grey900, fontSize: AppTypeScale.body),
                 decoration: InputDecoration(
                   hintText: 'Search members by name...',
-                  hintStyle: const TextStyle(color: AppColors.grey400, fontSize: 14),
-                  prefixIcon: const Icon(LucideIcons.search, color: AppColors.grey400, size: 20),
+                  hintStyle: const TextStyle(color: AppColors.grey500, fontSize: AppTypeScale.body),
+                  prefixIcon: const Icon(LucideIcons.search, color: AppColors.grey500, size: 22),
                   filled: true,
                   fillColor: AppColors.grey50,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -583,20 +584,20 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(18),
                             border: Border.all(color: AppColors.grey100),
                           ),
                           child: Row(
                             children: [
                               CircleAvatar(
-                                radius: 24,
+                                radius: 26,
                                 backgroundColor: AppColors.golfLime.withValues(alpha: 0.2),
                                 backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
                                 child: member.avatarUrl == null
-                                    ? Text(member.name[0].toUpperCase(), style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.bold))
+                                    ? Text(member.name[0].toUpperCase(), style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w800, fontSize: 18))
                                     : null,
                               ),
                               const SizedBox(width: 16),
@@ -606,31 +607,23 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                                   children: [
                                     Text(
                                       member.name,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.grey900),
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppTypeScale.body, color: AppColors.grey900),
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 6),
                                     Row(
                                       children: [
                                         Text(
                                           member.handicap != null ? 'Handicap: ${member.handicap}' : 'No handicap',
-                                          style: const TextStyle(color: AppColors.grey500, fontSize: 12),
+                                          style: const TextStyle(color: AppColors.grey600, fontSize: AppTypeScale.caption, fontWeight: FontWeight.w600),
                                         ),
                                         const SizedBox(width: 8),
                                         if (!isPublic)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.grey100,
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: const Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(LucideIcons.lock, size: 10, color: AppColors.grey400),
-                                                SizedBox(width: 4),
-                                                Text('Private', style: TextStyle(fontSize: 9, color: AppColors.grey400, fontWeight: FontWeight.bold)),
-                                              ],
-                                            ),
+                                          Pill(
+                                            icon: LucideIcons.lock,
+                                            label: 'Private',
+                                            background: AppColors.grey100,
+                                            foreground: AppColors.grey600,
+                                            dense: true,
                                           ),
                                       ],
                                     ),
@@ -639,12 +632,13 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                               ),
                               if (isPublic)
                                 IconButton(
-                                  icon: const Icon(LucideIcons.phone, color: AppColors.grey900),
+                                  icon: const Icon(LucideIcons.phone, color: AppColors.grey900, size: 22),
                                   onPressed: () => _makeCall(mockPhone),
                                   style: IconButton.styleFrom(
                                     backgroundColor: AppColors.golfLime,
-                                    padding: const EdgeInsets.all(10),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    minimumSize: const Size(AppTypeScale.minTapTarget, AppTypeScale.minTapTarget),
+                                    padding: const EdgeInsets.all(12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                   ),
                                 ),
                             ],

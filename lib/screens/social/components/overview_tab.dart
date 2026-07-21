@@ -10,6 +10,7 @@ import '../../../providers/competition_providers.dart';
 import '../../../widgets/top_notification.dart';
 import '../../../widgets/post_card.dart';
 import '../../../widgets/profile_image.dart';
+import '../../../widgets/pill.dart';
 import '../../../providers/app_providers.dart';
 
 class ClubOverviewTab extends ConsumerWidget {
@@ -55,7 +56,7 @@ class ClubOverviewTab extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
                   activeClub?.isHomeClub == true ? 'HOME CLUB' : 'SELECTED CLUB',
-                  style: const TextStyle(color: AppColors.grey500, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
+                  style: const TextStyle(color: AppColors.grey600, fontSize: AppTypeScale.caption, fontWeight: FontWeight.w700, letterSpacing: 1),
                 ),
               ),
               const SizedBox(height: 12),
@@ -66,20 +67,20 @@ class ClubOverviewTab extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
                         color: Colors.amber.shade50,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Colors.amber.shade200),
                       ),
                       child: Row(
                         children: [
-                          Icon(LucideIcons.clock, size: 16, color: Colors.amber.shade700),
-                          const SizedBox(width: 8),
+                          Icon(LucideIcons.clock, size: 20, color: Colors.amber.shade700),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Your membership is pending approval by the club admin.',
-                              style: TextStyle(fontSize: 12, color: Colors.amber.shade800, fontWeight: FontWeight.w500),
+                              style: TextStyle(fontSize: AppTypeScale.body, color: Colors.amber.shade800, fontWeight: FontWeight.w600, height: 1.35),
                             ),
                           ),
                         ],
@@ -236,27 +237,27 @@ class ClubOverviewTab extends ConsumerWidget {
 
   Widget _buildStatPill(IconData icon, String value, String label, Color color) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.grey200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(9),
             ),
-            child: Icon(icon, size: 16, color: color),
+            child: Icon(icon, size: 18, color: color == AppColors.golfLime ? AppColors.grey900 : color),
           ),
-          const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.grey900)),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.grey500, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 10),
+          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.grey900)),
+          const SizedBox(height: 3),
+          Text(label, style: const TextStyle(fontSize: AppTypeScale.caption, color: AppColors.grey600, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -268,11 +269,11 @@ class ClubOverviewTab extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.grey900)),
+          Text(title, style: const TextStyle(fontSize: AppTypeScale.title, fontWeight: FontWeight.w800, color: AppColors.grey900)),
           TextButton(
             onPressed: onAction,
-            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-            child: Text(actionLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.grey900)),
+            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, AppTypeScale.minTapTarget), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            child: Text(actionLabel, style: const TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w700, color: AppColors.emerald700)),
           ),
         ],
       ),
@@ -281,21 +282,21 @@ class ClubOverviewTab extends ConsumerWidget {
 
   Widget _buildEmptyStateCard(String title, String subtitle) {
     return Container(
-      width: 250,
+      width: 260,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.grey200),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.calendarOff, size: 32, color: AppColors.grey300),
-          const SizedBox(height: 12),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.grey900)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.grey500), textAlign: TextAlign.center),
+          Icon(LucideIcons.calendarOff, size: 34, color: AppColors.grey300),
+          const SizedBox(height: 14),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppTypeScale.body, color: AppColors.grey900)),
+          const SizedBox(height: 6),
+          Text(subtitle, style: const TextStyle(fontSize: AppTypeScale.caption, color: AppColors.grey600), textAlign: TextAlign.center),
         ],
       ),
     );
@@ -307,7 +308,7 @@ class ClubOverviewTab extends ConsumerWidget {
       margin: const EdgeInsets.only(right: 12),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.grey200),
       ),
       child: Column(
@@ -317,7 +318,7 @@ class ClubOverviewTab extends ConsumerWidget {
             Expanded(
               flex: 2,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                 child: Image.network(comp.posterUrl!, width: double.infinity, fit: BoxFit.cover),
               ),
             )
@@ -327,17 +328,17 @@ class ClubOverviewTab extends ConsumerWidget {
               child: Container(
                 decoration: const BoxDecoration(
                   color: AppColors.golfLime,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
                 child: const Center(
-                  child: Icon(LucideIcons.trophy, size: 32, color: AppColors.grey900),
+                  child: Icon(LucideIcons.trophy, size: 36, color: AppColors.grey900),
                 ),
               ),
             ),
           Expanded(
             flex: 3,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -345,34 +346,34 @@ class ClubOverviewTab extends ConsumerWidget {
                     comp.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.grey900),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppTypeScale.body, color: AppColors.grey900),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 5),
                   Text(
                     comp.description ?? 'Tap to view event details',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: AppColors.grey500),
+                    style: const TextStyle(fontSize: AppTypeScale.caption, color: AppColors.grey600, height: 1.3),
                   ),
                 ],
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
             child: SizedBox(
               width: double.infinity,
-              height: 32,
+              height: 44,
               child: ElevatedButton(
                 onPressed: () => context.push('/competitions/${comp.id}'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.golfLime,
                   foregroundColor: AppColors.grey900,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: EdgeInsets.zero,
                 ),
-                child: const Text('Enter', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                child: const Text('Enter', style: TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w800)),
               ),
             ),
           ),
@@ -388,11 +389,11 @@ class ClubOverviewTab extends ConsumerWidget {
         if (isActive) context.push('/club-life/${club.clubId}');
       },
       child: Container(
-        width: 150,
+        width: 160,
         margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppColors.grey200),
         ),
         padding: const EdgeInsets.all(16),
@@ -400,34 +401,24 @@ class ClubOverviewTab extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 color: AppColors.golfLime,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
               ),
               alignment: Alignment.center,
-              child: Text(club.clubName[0].toUpperCase(), style: const TextStyle(color: AppColors.grey900, fontSize: 18, fontWeight: FontWeight.bold)),
+              child: Text(club.clubName[0].toUpperCase(), style: const TextStyle(color: AppColors.grey900, fontSize: 20, fontWeight: FontWeight.w800)),
             ),
             const SizedBox(height: 12),
-            Text(club.clubName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.grey900), maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(club.clubName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppTypeScale.body, color: AppColors.grey900), maxLines: 2, overflow: TextOverflow.ellipsis),
             const Spacer(),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              decoration: BoxDecoration(
-                color: isActive ? AppColors.golfLime.withValues(alpha: 0.2) : Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                isActive ? 'Enter Club' : 'Pending',
-                style: TextStyle(
-                  color: isActive ? AppColors.grey900 : Colors.orange.shade700,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            Pill(
+              label: isActive ? 'Enter Club' : 'Pending',
+              background: isActive ? AppColors.golfLime.withValues(alpha: 0.2) : Colors.orange.shade50,
+              foreground: isActive ? AppColors.grey900 : Colors.orange.shade700,
+              dense: true,
+              expand: true,
             ),
           ],
         ),
@@ -458,7 +449,7 @@ class ClubOverviewTab extends ConsumerWidget {
               child: const Icon(LucideIcons.plus, color: AppColors.grey900, size: 18),
             ),
             const SizedBox(height: 12),
-            const Text('Explore\nClubs', textAlign: TextAlign.center, style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.bold)),
+            const Text('Explore\nClubs', textAlign: TextAlign.center, style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w800, fontSize: AppTypeScale.caption)),
           ],
         ),
       ),
@@ -673,10 +664,10 @@ class _ClubMembershipCard extends StatelessWidget {
                       Text(
                         clubName.toUpperCase(),
                         style: const TextStyle(
-                          fontSize: 10,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 1.4,
-                          color: AppColors.grey500,
+                          letterSpacing: 1.2,
+                          color: AppColors.grey600,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -744,20 +735,12 @@ class _ClubMembershipCard extends StatelessWidget {
             Positioned(
               top: 14,
               left: 14,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.clock, size: 10, color: Colors.amber.shade800),
-                    const SizedBox(width: 4),
-                    Text('PENDING', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.amber.shade800, letterSpacing: 0.8)),
-                  ],
-                ),
+              child: Pill(
+                icon: LucideIcons.clock,
+                label: 'PENDING',
+                background: Colors.amber.shade100,
+                foreground: Colors.amber.shade800,
+                dense: true,
               ),
             ),
         ],
@@ -776,9 +759,9 @@ class _InfoChip extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: AppColors.grey400, letterSpacing: 0.8)),
-        const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.grey800, fontFamily: 'monospace')),
+        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.grey500, letterSpacing: 0.6)),
+        const SizedBox(height: 3),
+        Text(value, style: const TextStyle(fontSize: AppTypeScale.caption, fontWeight: FontWeight.w700, color: AppColors.grey800, fontFamily: 'monospace')),
       ],
     );
   }
