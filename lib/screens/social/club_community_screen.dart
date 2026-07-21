@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/providers/club_feed_provider.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/pill.dart';
+import '../../widgets/member_glass_card.dart';
 import 'components/overview_tab.dart';
 
 class ClubCommunityScreen extends ConsumerStatefulWidget {
@@ -582,67 +583,13 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                         final isPublic = member.privacyLevel == 'Public';
                         final mockPhone = '+2547${(member.playerId.hashCode % 100000000).toString().padLeft(8, '0')}';
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: AppColors.grey100),
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 26,
-                                backgroundColor: AppColors.golfLime.withValues(alpha: 0.2),
-                                backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
-                                child: member.avatarUrl == null
-                                    ? Text(member.name[0].toUpperCase(), style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w800, fontSize: 18))
-                                    : null,
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      member.name,
-                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppTypeScale.body, color: AppColors.grey900),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        Text(
-                                          member.handicap != null ? 'Handicap: ${member.handicap}' : 'No handicap',
-                                          style: const TextStyle(color: AppColors.grey600, fontSize: AppTypeScale.caption, fontWeight: FontWeight.w600),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        if (!isPublic)
-                                          Pill(
-                                            icon: LucideIcons.lock,
-                                            label: 'Private',
-                                            background: AppColors.grey100,
-                                            foreground: AppColors.grey600,
-                                            dense: true,
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (isPublic)
-                                IconButton(
-                                  icon: const Icon(LucideIcons.phone, color: AppColors.grey900, size: 22),
-                                  onPressed: () => _makeCall(mockPhone),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: AppColors.golfLime,
-                                    minimumSize: const Size(AppTypeScale.minTapTarget, AppTypeScale.minTapTarget),
-                                    padding: const EdgeInsets.all(12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                  ),
-                                ),
-                            ],
-                          ),
+                        return MemberGlassCard(
+                          name: member.name,
+                          avatarUrl: member.avatarUrl,
+                          handicap: member.handicap,
+                          status: member.status,
+                          isPublic: isPublic,
+                          onCall: () => _makeCall(mockPhone),
                         );
                       },
                     ),
