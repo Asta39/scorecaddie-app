@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -643,15 +644,15 @@ class _ClubMembershipCard extends StatelessWidget {
       width: double.infinity,
       height: 148,
       decoration: BoxDecoration(
-        // Slightly off-white — warmer than pure white, like a premium card
-        color: const Color(0xFFF5F5F0),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: AppColors.golfLime.withValues(alpha: 0.25),
             blurRadius: 24,
             spreadRadius: 0,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, 10),
           ),
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -664,26 +665,59 @@ class _ClubMembershipCard extends StatelessWidget {
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-          // Golf illustration watermark
+          // Liquid-glass gradient — golf lime washes across roughly the left
+          // half of the card, then dissolves into the frosted white glass
+          // rather than cutting off with a hard edge.
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    AppColors.golfLime.withValues(alpha: 0.9),
+                    AppColors.golfLime.withValues(alpha: 0.55),
+                    AppColors.golfLime.withValues(alpha: 0.12),
+                    Colors.white.withValues(alpha: 0.0),
+                  ],
+                  stops: const [0.0, 0.38, 0.62, 1.0],
+                ),
+              ),
+            ),
+          ),
+          // Soft blur over the gradient blends its edge into the glass —
+          // the core of the "liquid" look, cheap since it's a single small
+          // card rather than a full-screen effect.
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: Container(color: Colors.white.withValues(alpha: 0.04)),
+            ),
+          ),
+          // Specular highlight, top-left — the glassy sheen.
+          Positioned(
+            top: -30,
+            left: -20,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [Colors.white.withValues(alpha: 0.5), Colors.white.withValues(alpha: 0.0)],
+                ),
+              ),
+            ),
+          ),
+          // Golf illustration watermark, kept subtle over the glass side
           Positioned(
             right: -18,
             bottom: -18,
             child: Opacity(
-              opacity: 0.06,
+              opacity: 0.05,
               child: CustomPaint(
                 size: const Size(160, 160),
                 painter: _GolfIllustrationPainter(),
-              ),
-            ),
-          ),
-          Positioned(
-            right: 110,
-            top: -30,
-            child: Opacity(
-              opacity: 0.04,
-              child: CustomPaint(
-                size: const Size(100, 100),
-                painter: _GolfBallPainter(),
               ),
             ),
           ),
@@ -832,36 +866,6 @@ class _GolfIllustrationPainter extends CustomPainter {
       height: size.height * 0.15,
     );
     canvas.drawArc(rect, 0, 3.14159, false, paint..style = PaintingStyle.stroke);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// Simple golf ball painter
-class _GolfBallPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.grey900
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width * 0.42;
-    canvas.drawCircle(center, radius, paint);
-    // Dimple lines
-    for (var i = -2; i <= 2; i++) {
-      final y = center.dy + i * radius * 0.3;
-      final halfW = (radius * radius - (y - center.dy) * (y - center.dy));
-      if (halfW > 0) {
-        final hw = halfW < 0 ? 0.0 : halfW;
-        canvas.drawLine(
-          Offset(center.dx - hw * 0.6, y),
-          Offset(center.dx + hw * 0.6, y),
-          paint..strokeWidth = 2,
-        );
-      }
-    }
   }
 
   @override
