@@ -1,9 +1,8 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:pdfx/pdfx.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_theme.dart';
+import '../core/services/pdf_cache_service.dart';
 import 'pill.dart';
 import '../core/providers/restaurant_provider.dart';
 import '../screens/restaurant/menu_pdf_viewer_screen.dart';
@@ -20,32 +19,19 @@ class MenuPdfCard extends StatefulWidget {
 }
 
 class _MenuPdfCardState extends State<MenuPdfCard> {
-  Uint8List? _thumbnail;
+  File? _thumbnail;
   bool _failed = false;
 
   @override
   void initState() {
     super.initState();
-    _renderFirstPage();
+    _loadThumbnail();
   }
 
-  Future<void> _renderFirstPage() async {
+  Future<void> _loadThumbnail() async {
     try {
-      final response = await http.get(Uri.parse(widget.document.pdfUrl));
-      final document = await PdfDocument.openData(response.bodyBytes);
-      final page = await document.getPage(1);
-      final image = await page.render(
-        width: page.width * 2,
-        height: page.height * 2,
-        format: PdfPageImageFormat.jpeg,
-      );
-      await page.close();
-      await document.close();
-      if (mounted && image != null) {
-        setState(() => _thumbnail = image.bytes);
-      } else if (mounted) {
-        setState(() => _failed = true);
-      }
+      final file = await PdfCacheService.getCachedThumbnail(widget.document.pdfUrl);
+      if (mounted) setState(() => _thumbnail = file);
     } catch (_) {
       if (mounted) setState(() => _failed = true);
     }
@@ -72,7 +58,7 @@ class _MenuPdfCardState extends State<MenuPdfCard> {
             AspectRatio(
               aspectRatio: 0.75,
               child: _thumbnail != null
-                  ? Image.memory(_thumbnail!, fit: BoxFit.cover)
+                  ? Image.file(_thumbnail!, fit: BoxFit.cover)
                   : Container(
                       color: AppColors.grey50,
                       alignment: Alignment.center,

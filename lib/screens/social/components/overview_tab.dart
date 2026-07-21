@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/club_feed_provider.dart';
@@ -142,11 +143,10 @@ class ClubOverviewTab extends ConsumerWidget {
                     ),
                     child: Row(
                       children: [
-                        Container(
+                        const SizedBox(
                           width: 48,
                           height: 48,
-                          decoration: BoxDecoration(color: AppColors.emerald50, borderRadius: BorderRadius.circular(14)),
-                          child: const Icon(LucideIcons.utensils, color: AppColors.emerald700),
+                          child: Icon(FontAwesomeIcons.utensils, color: AppColors.golfLime, size: 26),
                         ),
                         const SizedBox(width: 14),
                         const Expanded(

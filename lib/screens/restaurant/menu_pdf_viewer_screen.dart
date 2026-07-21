@@ -1,8 +1,7 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:pdfx/pdfx.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/pdf_cache_service.dart';
 import '../../widgets/pill.dart';
 
 /// Full in-app viewer for an uploaded menu PDF — scrollable, pinch-to-zoom,
@@ -23,12 +22,12 @@ class _MenuPdfViewerScreenState extends State<MenuPdfViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = PdfControllerPinch(document: PdfDocument.openData(_downloadBytes()));
+    _controller = PdfControllerPinch(document: _openCachedDocument());
   }
 
-  Future<Uint8List> _downloadBytes() async {
-    final response = await http.get(Uri.parse(widget.pdfUrl));
-    return response.bodyBytes;
+  Future<PdfDocument> _openCachedDocument() async {
+    final file = await PdfCacheService.getCachedFile(widget.pdfUrl);
+    return PdfDocument.openFile(file.path);
   }
 
   @override
