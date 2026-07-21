@@ -28,6 +28,7 @@ import '../../screens/profile/settings_screen.dart';
 import '../../screens/profile/clubs_screen.dart';
 import '../../screens/rounds/tee_times_screen.dart';
 import '../../screens/social/friends_screen.dart';
+import '../../screens/restaurant/restaurant_screen.dart';
 import '../../screens/practice/custom_drill_builder_screen.dart';
 import '../../core/theme/app_theme.dart';
 import '../../screens/achievements/achievements_gallery_screen.dart';
@@ -218,6 +219,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/book-tee-time',
         builder: (context, state) => const CasualBookingScreen(),
+      ),
+      GoRoute(
+        path: '/restaurant',
+        builder: (context, state) => const RestaurantScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),

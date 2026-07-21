@@ -126,6 +126,46 @@ class ClubOverviewTab extends ConsumerWidget {
                 ),
               ),
 
+              const SizedBox(height: 16),
+
+              // 2b. RESTAURANT QUICK ACTION
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: GestureDetector(
+                  onTap: () => context.push('/restaurant'),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.grey200),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(color: AppColors.emerald50, borderRadius: BorderRadius.circular(14)),
+                          child: const Icon(LucideIcons.utensils, color: AppColors.emerald700),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Restaurant', style: TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w800, color: AppColors.grey900)),
+                              SizedBox(height: 2),
+                              Text('Browse the menu or reserve a table', style: TextStyle(fontSize: AppTypeScale.caption, color: AppColors.grey500, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                        const Icon(LucideIcons.chevronRight, color: AppColors.grey400),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 24),
 
               // 3. UPCOMING EVENTS
