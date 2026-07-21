@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/providers/club_feed_provider.dart';
 import '../../core/providers/restaurant_provider.dart';
 import '../../widgets/pill.dart';
+import '../../widgets/menu_pdf_card.dart';
 import 'table_reservation_screen.dart';
 
 /// Player-facing Restaurant tab: browse the club's menu, or reserve a table.
@@ -77,16 +78,18 @@ class _MenuTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuAsync = ref.watch(clubMenuProvider(clubId));
+    final docsAsync = ref.watch(clubMenuDocumentsProvider(clubId));
 
     return menuAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => const Center(child: Text('Could not load the menu.')),
       data: (items) {
-        if (items.isEmpty) {
+        final docs = docsAsync.valueOrNull ?? [];
+        if (items.isEmpty && docs.isEmpty) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(32),
-              child: Text('No dishes have been published yet.', style: TextStyle(color: AppColors.grey500, fontSize: AppTypeScale.body)),
+              child: Text('No menu has been published yet.', style: TextStyle(color: AppColors.grey500, fontSize: AppTypeScale.body)),
             ),
           );
         }
@@ -99,6 +102,21 @@ class _MenuTab extends ConsumerWidget {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (docs.isNotEmpty) ...[
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.62,
+                ),
+                itemCount: docs.length,
+                itemBuilder: (context, i) => MenuPdfCard(document: docs[i]),
+              ),
+              const SizedBox(height: 12),
+            ],
             for (final cat in categoryOrder)
               if (byCategory[cat]?.isNotEmpty == true) ...[
                 Padding(

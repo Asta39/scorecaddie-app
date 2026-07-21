@@ -96,6 +96,31 @@ final restaurantTablesProvider =
   return (response as List).map((r) => RestaurantTable.fromJson(r)).toList();
 });
 
+class MenuDocument {
+  final String id;
+  final String name;
+  final String pdfUrl;
+
+  MenuDocument({required this.id, required this.name, required this.pdfUrl});
+
+  factory MenuDocument.fromJson(Map<String, dynamic> json) {
+    final path = json['pdf_path'] as String;
+    final url = Supabase.instance.client.storage.from('menu-pdfs').getPublicUrl(path);
+    return MenuDocument(id: json['id'], name: json['name'], pdfUrl: url);
+  }
+}
+
+final clubMenuDocumentsProvider =
+    FutureProvider.autoDispose.family<List<MenuDocument>, String>((ref, clubId) async {
+  final supabase = Supabase.instance.client;
+  final response = await supabase
+      .from('club_menu_documents')
+      .select('id, name, pdf_path')
+      .eq('club_id', clubId)
+      .order('sort_order');
+  return (response as List).map((r) => MenuDocument.fromJson(r)).toList();
+});
+
 final clubMenuProvider = FutureProvider.autoDispose.family<List<MenuItem>, String>((ref, clubId) async {
   final supabase = Supabase.instance.client;
   final response = await supabase
