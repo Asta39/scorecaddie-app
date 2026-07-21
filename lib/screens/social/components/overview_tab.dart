@@ -642,163 +642,145 @@ class _ClubMembershipCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      height: 148,
+      height: 210,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
-          BoxShadow(
-            color: AppColors.golfLime.withValues(alpha: 0.25),
-            blurRadius: 24,
-            spreadRadius: 0,
-            offset: const Offset(0, 10),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            spreadRadius: 0,
-            offset: const Offset(0, 1),
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 30, offset: const Offset(0, 14)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 4, offset: const Offset(0, 1)),
         ],
       ),
       clipBehavior: Clip.hardEdge,
       child: Stack(
+        fit: StackFit.expand,
         children: [
-          // Liquid-glass gradient — golf lime washes across roughly the left
-          // half of the card, then dissolves into the frosted white glass
-          // rather than cutting off with a hard edge.
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    AppColors.golfLime.withValues(alpha: 0.9),
-                    AppColors.golfLime.withValues(alpha: 0.55),
-                    AppColors.golfLime.withValues(alpha: 0.12),
-                    Colors.white.withValues(alpha: 0.0),
-                  ],
-                  stops: const [0.0, 0.38, 0.62, 1.0],
-                ),
+          // The glass material itself: blur whatever sits behind the card,
+          // then push saturation/brightness up a touch — the two moves that
+          // make a blur read as "glass" instead of "frosted paper".
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+            child: ColorFiltered(
+              colorFilter: const ColorFilter.matrix(<double>[
+                1.08, 0, 0, 0, 6,
+                0, 1.08, 0, 0, 6,
+                0, 0, 1.08, 0, 6,
+                0, 0, 0, 1, 0,
+              ]),
+              child: Container(color: Colors.white.withValues(alpha: 0.35)),
+            ),
+          ),
+          // A very faint tonal wash — just enough for the glass to carry a
+          // hint of the brand color without becoming a colored background.
+          Container(color: AppColors.golfLime.withValues(alpha: 0.05)),
+          // Refractive edge: brighter along the top-left rim, fading out —
+          // mimics how real glass catches light at its edge.
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: 0.55),
+                  Colors.white.withValues(alpha: 0.08),
+                  Colors.white.withValues(alpha: 0.0),
+                  Colors.white.withValues(alpha: 0.12),
+                ],
+                stops: const [0.0, 0.35, 0.7, 1.0],
               ),
             ),
           ),
-          // Soft blur over the gradient blends its edge into the glass —
-          // the core of the "liquid" look, cheap since it's a single small
-          // card rather than a full-screen effect.
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: Container(color: Colors.white.withValues(alpha: 0.04)),
-            ),
-          ),
-          // Specular highlight, top-left — the glassy sheen.
+          // Glossy specular highlight, upper-left — the "pop" of liquid glass.
           Positioned(
-            top: -30,
-            left: -20,
+            top: -50,
+            left: -30,
             child: Container(
-              width: 140,
-              height: 140,
+              width: 180,
+              height: 180,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [Colors.white.withValues(alpha: 0.5), Colors.white.withValues(alpha: 0.0)],
+                  colors: [Colors.white.withValues(alpha: 0.65), Colors.white.withValues(alpha: 0.0)],
                 ),
               ),
             ),
           ),
-          // Golf illustration watermark, kept subtle over the glass side
-          Positioned(
-            right: -18,
-            bottom: -18,
-            child: Opacity(
-              opacity: 0.05,
-              child: CustomPaint(
-                size: const Size(160, 160),
-                painter: _GolfIllustrationPainter(),
+          // Thin bright rim around the whole card, like a beveled glass edge.
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.4),
               ),
             ),
           ),
-          // Content
+          // Content — sits on top of the glass.
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Left: info column
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Club name label
-                      Text(
-                        clubName.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.2,
-                          color: AppColors.grey600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      // Member name
-                      Text(
-                        memberName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.grey900,
-                          height: 1.1,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 14),
-                      // Bottom row: member number + renewal
-                      Row(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _InfoChip(
-                            label: 'MEMBER',
-                            value: membershipNumber ?? '—',
+                          Text(
+                            clubName.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                              color: AppColors.grey700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(width: 12),
-                          _InfoChip(
-                            label: 'RENEWAL',
-                            value: renewalText,
+                          const SizedBox(height: 6),
+                          Text(
+                            memberName,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.grey900,
+                              height: 1.1,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Right: profile picture
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.12),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: ProfileImage(
-                      url: avatarUrl,
-                      size: 68,
-                      name: memberName,
-                      isCircle: true,
                     ),
-                  ),
+                    const SizedBox(width: 16),
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 2),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 4)),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: ProfileImage(
+                          url: avatarUrl,
+                          size: 64,
+                          name: memberName,
+                          isCircle: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    _InfoChip(label: 'MEMBER', value: membershipNumber ?? '—'),
+                    const SizedBox(width: 14),
+                    _InfoChip(label: 'RENEWAL', value: renewalText),
+                  ],
                 ),
               ],
             ),
@@ -838,36 +820,4 @@ class _InfoChip extends StatelessWidget {
       ],
     );
   }
-}
-
-// Minimal golf flag + hole illustration painter
-class _GolfIllustrationPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.grey900
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-
-    // Flagpole
-    canvas.drawLine(Offset(size.width * 0.35, size.height * 0.1), Offset(size.width * 0.35, size.height * 0.85), paint);
-    // Flag
-    final flagPath = Path()
-      ..moveTo(size.width * 0.35, size.height * 0.1)
-      ..lineTo(size.width * 0.7, size.height * 0.22)
-      ..lineTo(size.width * 0.35, size.height * 0.34)
-      ..close();
-    canvas.drawPath(flagPath, paint..style = PaintingStyle.fill);
-    // Ground arc / hole
-    final rect = Rect.fromCenter(
-      center: Offset(size.width * 0.35, size.height * 0.85),
-      width: size.width * 0.55,
-      height: size.height * 0.15,
-    );
-    canvas.drawArc(rect, 0, 3.14159, false, paint..style = PaintingStyle.stroke);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
