@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/providers/restaurant_provider.dart';
 import '../../widgets/pill.dart';
 import '../../widgets/table_visual.dart';
+import '../../widgets/animated_checkmark.dart';
 
 const _timeSlots = ['12:00', '12:30', '13:00', '13:30', '18:00', '18:30', '19:00', '19:30', '20:00'];
 
@@ -305,12 +306,7 @@ class ReservationConfirmedDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: const BoxDecoration(color: AppColors.emerald50, shape: BoxShape.circle),
-              child: const Icon(LucideIcons.check, color: AppColors.emerald600, size: 36),
-            ),
+            const AnimatedCheckmark(),
             const SizedBox(height: 20),
             const Text(
               'Table Reserved',
