@@ -196,10 +196,21 @@ class _TableReservationScreenState extends ConsumerState<TableReservationScreen>
       });
       ref.invalidate(bookedTableIdsProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Table reserved at ${widget.location.name}, ${_selectedDate.month}/${_selectedDate.day} at $_selectedTime')),
+        final tables = ref.read(restaurantTablesProvider(widget.location.id)).valueOrNull ?? [];
+        final matchingTable = tables.where((t) => t.id == _selectedTableId);
+        final tableNumber = matchingTable.isNotEmpty ? matchingTable.first.tableNumber : '—';
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => ReservationConfirmedDialog(
+            locationName: widget.location.name,
+            tableNumber: tableNumber,
+            date: _selectedDate,
+            time: _selectedTime,
+            partySize: _partySize,
+          ),
         );
-        Navigator.of(context).pop();
+        if (mounted) Navigator.of(context).pop();
       }
     } on PostgrestException catch (e) {
       if (mounted) {
@@ -254,6 +265,116 @@ class _DateStrip extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Confirmation modal shown after a successful table reservation — replaces
+/// the old bottom SnackBar, which was easy to miss and didn't carry the
+/// booking details.
+class ReservationConfirmedDialog extends StatelessWidget {
+  final String locationName;
+  final String tableNumber;
+  final DateTime date;
+  final String time;
+  final int partySize;
+
+  const ReservationConfirmedDialog({
+    super.key,
+    required this.locationName,
+    required this.tableNumber,
+    required this.date,
+    required this.time,
+    required this.partySize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dateLabel = '${weekdayLabels[date.weekday - 1]}, ${date.month}/${date.day}';
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(color: AppColors.emerald50, shape: BoxShape.circle),
+              child: const Icon(LucideIcons.check, color: AppColors.emerald600, size: 36),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Table Reserved',
+              style: TextStyle(fontSize: AppTypeScale.headline, fontWeight: FontWeight.w800, color: AppColors.grey900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              locationName,
+              style: const TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w600, color: AppColors.grey600),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: AppColors.grey25, borderRadius: BorderRadius.circular(18)),
+              child: Column(
+                children: [
+                  _DetailRow(icon: LucideIcons.calendar, label: 'Date', value: dateLabel),
+                  const SizedBox(height: 10),
+                  _DetailRow(icon: LucideIcons.clock, label: 'Time', value: time),
+                  const SizedBox(height: 10),
+                  _DetailRow(icon: LucideIcons.armchair, label: 'Table', value: tableNumber),
+                  const SizedBox(height: 10),
+                  _DetailRow(icon: LucideIcons.users, label: 'Party size', value: '$partySize'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: AppTypeScale.minTapTarget,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.emerald600,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Done', style: TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _DetailRow({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.grey500),
+        const SizedBox(width: 10),
+        Text(label, style: const TextStyle(fontSize: AppTypeScale.meta, color: AppColors.grey500, fontWeight: FontWeight.w600)),
+        const Spacer(),
+        Text(value, style: const TextStyle(fontSize: AppTypeScale.body, color: AppColors.grey900, fontWeight: FontWeight.w800)),
+      ],
     );
   }
 }
