@@ -626,6 +626,7 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
         'user_id': user.id,
         'custom_name': null,
         'is_guest': false,
+        'notify': _beNotified,
       });
       
       // Add Guests
