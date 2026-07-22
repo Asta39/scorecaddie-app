@@ -41,19 +41,19 @@ class PracticeHighlightCardWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           HighlightCardHeader(
-            eyebrow: 'PRACTICE SESSION',
+            eyebrow: 'Practice session',
             title: drill?.name ?? '${session.sessionType} Session',
             subtitle: '$dateStr · $totalShots balls tracked',
           ),
-          const SizedBox(height: 56),
-          Text('CONSISTENCY', style: HighlightCardKit.eyebrow()),
-          const SizedBox(height: 8),
-          Text('$consistency%', style: HighlightCardKit.hero(size: 200)),
-          const SizedBox(height: 8),
-          Text('$greatCount great · $goodCount good', style: HighlightCardKit.body()),
           const SizedBox(height: 48),
-          Text('SHOT QUALITY OVER TIME', style: HighlightCardKit.eyebrow()),
-          const SizedBox(height: 20),
+          Text('Consistency', style: HighlightCardKit.eyebrow()),
+          const SizedBox(height: 6),
+          Text('$consistency%', style: HighlightCardKit.hero(size: 188)),
+          const SizedBox(height: 6),
+          Text('$greatCount great · $goodCount good', style: HighlightCardKit.body()),
+          const SizedBox(height: 44),
+          Text('Shot quality over time', style: HighlightCardKit.eyebrow()),
+          const SizedBox(height: 18),
           SizedBox(
             height: 220,
             child: LineChart(

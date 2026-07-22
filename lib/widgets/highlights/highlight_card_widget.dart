@@ -40,47 +40,37 @@ class HighlightCardWidget extends StatelessWidget {
     }
 
     final diff = round.totalScore - round.coursePar;
-    final toParStr = diff == 0 ? 'E' : (diff > 0 ? '+$diff' : '$diff');
-    final toParColor = diff < 0 ? AppColors.emerald700 : (diff > 0 ? AppColors.grey500 : AppColors.grey900);
+    final toParStr = diff == 0 ? 'EVEN PAR' : (diff > 0 ? '+$diff TO PAR' : '$diff TO PAR');
+    final toParBg = diff < 0 ? AppColors.emerald700 : (diff > 0 ? AppColors.grey900 : AppColors.grey700);
 
     return HighlightCardCanvas(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           HighlightCardHeader(
-            eyebrow: 'ROUND COMPLETE',
+            eyebrow: 'Round complete',
             title: round.courseName,
             subtitle: DateFormat('MMMM d, yyyy').format(round.playedAt),
           ),
-          const SizedBox(height: 56),
+          const SizedBox(height: 48),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text('${round.totalScore}', style: HighlightCardKit.hero()),
-              const SizedBox(width: 24),
+              const SizedBox(width: 20),
               Padding(
-                padding: const EdgeInsets.only(bottom: 24),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: toParColor),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    toParStr,
-                    style: HighlightCardKit.statValue(color: toParColor).copyWith(fontSize: 36),
-                  ),
-                ),
+                padding: const EdgeInsets.only(bottom: 20),
+                child: HighlightAccentBadge(label: toParStr, background: toParBg),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('TOTAL STROKES', style: HighlightCardKit.statLabel()),
-          const SizedBox(height: 48),
-          _ScorecardTable(title: 'FRONT 9', scores: holeScores.where((h) => h.holeNumber <= 9).toList()),
-          const SizedBox(height: 28),
-          _ScorecardTable(title: 'BACK 9', scores: holeScores.where((h) => h.holeNumber > 9).toList()),
-          const SizedBox(height: 48),
+          const SizedBox(height: 4),
+          Text('Total strokes', style: HighlightCardKit.statLabel()),
+          const SizedBox(height: 44),
+          _ScorecardTable(title: 'Front 9', scores: holeScores.where((h) => h.holeNumber <= 9).toList()),
+          const SizedBox(height: 24),
+          _ScorecardTable(title: 'Back 9', scores: holeScores.where((h) => h.holeNumber > 9).toList()),
+          const SizedBox(height: 44),
           HighlightStatRow(stats: [
             HighlightStat(label: 'Putts', value: '$totalPutts'),
             HighlightStat(label: 'Greens in Reg', value: '$girCount/${holeScores.length}'),
@@ -108,20 +98,18 @@ class _ScorecardTable extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: HighlightCardKit.eyebrow()),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Container(
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.grey200),
-            borderRadius: BorderRadius.circular(12),
+            color: AppColors.grey25,
+            borderRadius: BorderRadius.circular(20),
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
-              _row('Hole', scores.map((h) => '${h.holeNumber}').toList(), bold: true, bg: AppColors.grey25),
-              const Divider(height: 1, color: AppColors.grey200),
+              _row('Hole', scores.map((h) => '${h.holeNumber}').toList(), bold: true),
               _row('Par', scores.map((h) => '${h.par}').toList(), color: AppColors.grey500),
-              const Divider(height: 1, color: AppColors.grey200),
-              _row('Score', scores.map((h) => '${h.score}').toList(), bold: true),
+              _row('Score', scores.map((h) => '${h.score}').toList(), bold: true, bg: Colors.white),
             ],
           ),
         ),
@@ -147,8 +135,11 @@ class _ScorecardTable extends StatelessWidget {
                 child: Center(
                   child: Text(
                     v,
-                    style: HighlightCardKit.statLabel(color: color ?? AppColors.grey900)
-                        .copyWith(fontSize: 24, fontWeight: bold ? FontWeight.w700 : FontWeight.w500),
+                    style: HighlightCardKit.statLabel(color: color ?? AppColors.grey900).copyWith(
+                          fontSize: 24,
+                          fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                          fontFeatures: HighlightCardKit.tabular,
+                        ),
                   ),
                 ),
               )),

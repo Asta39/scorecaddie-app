@@ -21,8 +21,14 @@ class HighlightCardService {
     String? subject,
   }) async {
     try {
-      // 1. Capture the widget as an image
-      // Optimized for Instagram Stories (1080x1920)
+      // 1. Capture the widget as an image.
+      // The card widget already lays itself out at the exact Stories canvas
+      // size (1080x1920 logical px — see HighlightCardKit). Previously this
+      // rendered at pixelRatio 3.0 (3240x5760) and then force-resized down
+      // to targetSize 1080x1920, and that extra resize pass is what was
+      // visibly softening/artifacting the shared image. Capturing at
+      // pixelRatio 1.0 with no targetSize renders the true 1080x1920 output
+      // directly, with no intermediate downscale.
       final Uint8List imageBytes = await _screenshotController.captureFromWidget(
         Material(
           color: Colors.transparent,
@@ -30,8 +36,7 @@ class HighlightCardService {
         ),
         delay: const Duration(milliseconds: 500),
         context: context,
-        pixelRatio: 3.0, // Force high resolution density
-        targetSize: const Size(1080, 1920),
+        pixelRatio: 1.0,
       );
 
       // 2. Save to temporary directory

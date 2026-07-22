@@ -36,24 +36,24 @@ class PracticeAnalyticsHighlightCardWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           HighlightCardHeader(
-            eyebrow: 'PRACTICE MASTERY',
+            eyebrow: 'Practice mastery',
             title: dateStr,
             subtitle: '${stats.totalSessions} sessions logged',
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 36),
           HighlightStatRow(stats: [
             HighlightStat(label: 'Sessions', value: '${stats.totalSessions}'),
             HighlightStat(label: 'Balls Hit', value: '${stats.totalBalls}'),
             HighlightStat(label: 'Avg Accuracy', value: '$avgAccuracy%'),
           ]),
-          const SizedBox(height: 48),
-          Text('CLUB ACCURACY', style: HighlightCardKit.eyebrow()),
-          const SizedBox(height: 20),
+          const SizedBox(height: 44),
+          Text('Club accuracy', style: HighlightCardKit.eyebrow()),
+          const SizedBox(height: 18),
           ...stats.clubBreakdown.take(4).map((c) => _ClubAccuracyRow(clubName: c.clubName, accuracy: c.accuracy)),
           if (stats.accuracyTrend.isNotEmpty) ...[
-            const SizedBox(height: 40),
-            Text('ACCURACY TREND', style: HighlightCardKit.eyebrow()),
-            const SizedBox(height: 20),
+            const SizedBox(height: 36),
+            Text('Accuracy trend', style: HighlightCardKit.eyebrow()),
+            const SizedBox(height: 18),
             SizedBox(
               height: 180,
               child: LineChart(

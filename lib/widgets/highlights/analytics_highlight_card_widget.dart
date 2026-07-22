@@ -27,24 +27,24 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           HighlightCardHeader(
-            eyebrow: 'CAREER STATS',
+            eyebrow: 'Career stats',
             title: userName,
             subtitle: '${stats.roundsPlayed} rounds logged',
           ),
-          const SizedBox(height: 56),
-          Text('HANDICAP INDEX', style: HighlightCardKit.eyebrow()),
-          const SizedBox(height: 8),
-          Text(HandicapCalculator.format(stats.handicapIndex), style: HighlightCardKit.hero(size: 200)),
-          const SizedBox(height: 40),
+          const SizedBox(height: 48),
+          Text('Handicap index', style: HighlightCardKit.eyebrow()),
+          const SizedBox(height: 6),
+          Text(HandicapCalculator.format(stats.handicapIndex), style: HighlightCardKit.hero(size: 188)),
+          const SizedBox(height: 36),
           HighlightStatRow(stats: [
             HighlightStat(label: 'Best Score', value: stats.bestScoreString),
             HighlightStat(label: 'Avg Score', value: stats.avgScoreString),
             HighlightStat(label: 'Fairways', value: '${stats.fairwayHitPercentage.toInt()}%'),
             HighlightStat(label: 'GIR', value: '${stats.greensInRegulationPercentage.toInt()}%'),
           ]),
-          const SizedBox(height: 48),
-          Text('AVERAGE BY PAR', style: HighlightCardKit.eyebrow()),
-          const SizedBox(height: 20),
+          const SizedBox(height: 44),
+          Text('Average by par', style: HighlightCardKit.eyebrow()),
+          const SizedBox(height: 18),
           Row(
             children: [3, 4, 5].map((par) {
               final avg = stats.parAverages[par] ?? 0;
@@ -55,11 +55,11 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('PAR $par', style: HighlightCardKit.statLabel()),
+                      Text('Par $par', style: HighlightCardKit.statLabel()),
                       const SizedBox(height: 4),
                       Text(
                         avg > 0 ? avg.toStringAsFixed(1) : '—',
-                        style: HighlightCardKit.title(size: 40, color: isGood ? AppColors.emerald700 : AppColors.grey900),
+                        style: HighlightCardKit.title(size: 38, color: isGood ? AppColors.emerald700 : AppColors.grey900),
                       ),
                     ],
                   ),
@@ -68,11 +68,11 @@ class AnalyticsHighlightCardWidget extends StatelessWidget {
             }).toList(),
           ),
           if (stats.front9Scores.isNotEmpty) ...[
-            const SizedBox(height: 48),
+            const SizedBox(height: 44),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('FRONT 9 VS BACK 9', style: HighlightCardKit.eyebrow()),
+                Text('Front 9 vs back 9', style: HighlightCardKit.eyebrow()),
                 Row(
                   children: [
                     _legend('Front', AppColors.grey400),
