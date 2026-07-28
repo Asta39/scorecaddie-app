@@ -129,6 +129,8 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
                   _buildAboutSection(provider),
                   const SizedBox(height: 32),
                   if (provider.role == 'COACH' || provider.role == 'coach') ...[
+                    _buildCoachSessionsLink(context, provider),
+                    const SizedBox(height: 32),
                     _buildCertifications(provider),
                     const SizedBox(height: 32),
                   ],
@@ -346,6 +348,47 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Entry point into the coach's bookable sessions. Without this the
+  /// /marketplace/coach/:coachId/sessions route had no caller anywhere in the
+  /// app, so the whole session-booking flow was unreachable outside a deep link.
+  Widget _buildCoachSessionsLink(BuildContext context, db.Provider provider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('COACHING SESSIONS'),
+        GestureDetector(
+          onTap: () => context.push('/marketplace/coach/${provider.userId}/sessions'),
+          child: _buildSectionContainer(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.calendarDays, color: AppColors.emerald700),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'View & book sessions',
+                        style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.grey900, fontSize: 16),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'See upcoming group and private sessions',
+                        style: TextStyle(color: AppColors.grey600, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(LucideIcons.chevronRight, color: AppColors.grey400, size: 20),
+              ],
+            ),
           ),
         ),
       ],

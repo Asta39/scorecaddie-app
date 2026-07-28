@@ -197,10 +197,15 @@ class _ProviderOnboardingScreenState extends ConsumerState<ProviderOnboardingScr
         profileComplete: const drift.Value(true),
       ));
 
-      // 2. Update core profile — include the role so dashboard routes correctly
+      // 2. Update core profile — include the role so dashboard routes correctly.
+      // The local profile role is stored lowercase everywhere else (sync pull
+      // and profile_service both lowercase it, and every role check compares
+      // against 'coach'/'caddie'). Writing it uppercase here left a freshly
+      // onboarded coach on the player dashboard until the next sync pull.
+      // The uppercase form the server expects is applied in ApiService.
       final name = _nameController.text.trim();
-      final upperRole = role.toUpperCase();
-      
+      final localRole = role.toLowerCase();
+
       await ref.read(profileServiceProvider).updateProfile(
         user.id,
         db.UserProfilesCompanion(
@@ -208,7 +213,7 @@ class _ProviderOnboardingScreenState extends ConsumerState<ProviderOnboardingScr
           name: drift.Value(name),
           avatarUrl: drift.Value(_profileImage?.path),
           pfpVerified: drift.Value(isVerifiedCoach ? true : _isPfpVerified),
-          role: drift.Value(upperRole),
+          role: drift.Value(localRole),
           providerStatus: const drift.Value('AVAILABLE'),
           profileComplete: const drift.Value(true),
           updatedAt: drift.Value(DateTime.now()),

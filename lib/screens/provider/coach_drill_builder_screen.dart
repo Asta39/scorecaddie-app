@@ -24,6 +24,11 @@ class _CoachDrillBuilderScreenState extends ConsumerState<CoachDrillBuilderScree
   int _duration = 15;
   bool _isSaving = false;
   bool _isLoadingSteps = false;
+  // Saving an edited drill deletes its existing steps and re-inserts whatever
+  // is on screen. If the original steps failed to load, the screen still holds
+  // the default single blank step — saving in that state would silently wipe
+  // the real ones, so saving stays blocked until a reload succeeds.
+  bool _stepsLoadFailed = false;
   
   List<Map<String, dynamic>> _steps = [
     {'instruction': '', 'balls': 10},
@@ -43,7 +48,10 @@ class _CoachDrillBuilderScreenState extends ConsumerState<CoachDrillBuilderScree
   }
 
   Future<void> _loadSteps() async {
-    setState(() => _isLoadingSteps = true);
+    setState(() {
+      _isLoadingSteps = true;
+      _stepsLoadFailed = false;
+    });
     try {
       final steps = await ref.read(coachingServiceProvider).getDrillSteps(widget.drill!['id']);
       if (steps.isNotEmpty) {
@@ -56,6 +64,7 @@ class _CoachDrillBuilderScreenState extends ConsumerState<CoachDrillBuilderScree
       }
     } catch (e) {
       debugPrint('Error loading steps: $e');
+      setState(() => _stepsLoadFailed = true);
     } finally {
       setState(() => _isLoadingSteps = false);
     }
@@ -132,15 +141,47 @@ class _CoachDrillBuilderScreenState extends ConsumerState<CoachDrillBuilderScree
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: CupertinoActivityIndicator(),
             )
-          else
+          else if (!_stepsLoadFailed && !_isLoadingSteps)
             TextButton(
               onPressed: _saveDrill,
               child: const Text('Save', style: TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.bold)),
             ),
         ],
       ),
-      body: _isLoadingSteps 
+      body: _isLoadingSteps
         ? const Center(child: CupertinoActivityIndicator())
+        : _stepsLoadFailed
+        ? Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    "Couldn't load this drill's steps.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.grey900),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Editing now would overwrite them, so saving is disabled until they load.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: AppColors.grey600),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _loadSteps,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.emerald700,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          )
         : Form(
         key: _formKey,
         child: SingleChildScrollView(

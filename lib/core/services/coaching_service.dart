@@ -243,17 +243,26 @@ class CoachingService {
         };
       }
 
+      // Count distinct players, not enrollment rows — one player enrolled in
+      // three of this coach's sessions is one student, not three.
       final studentsResponse = await _supabase
           .from('session_enrollments')
           .select('player_id')
-          .inFilter('session_id', sessionIds)
-          .count(CountOption.exact);
-      
-      // 3. Get recent activity count (enrollments in last 30 days)
+          .inFilter('session_id', sessionIds);
+      final uniqueStudents = (studentsResponse as List)
+          .map((e) => e['player_id'])
+          .whereType<String>()
+          .toSet()
+          .length;
+
+      // 3. Get recent activity count (enrollments in last 30 days).
+      // Must be scoped to this coach's sessions — without the session filter
+      // this counted every enrollment on the platform.
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
       final activityResponse = await _supabase
           .from('session_enrollments')
           .select('id')
+          .inFilter('session_id', sessionIds)
           .eq('status', 'active')
           .gt('enrolled_at', thirtyDaysAgo)
           .count(CountOption.exact);
@@ -261,7 +270,7 @@ class CoachingService {
       return {
         'rating': (userResponse['rating'] as num?)?.toDouble() ?? 5.0,
         'views': (userResponse['views'] as num?)?.toInt() ?? 0,
-        'students': studentsResponse.count,
+        'students': uniqueStudents,
         'activity': activityResponse.count,
       };
     } catch (e) {

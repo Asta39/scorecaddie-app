@@ -28,7 +28,14 @@ class CoachPublicSessionsScreen extends ConsumerWidget {
         centerTitle: true,
       ),
       body: sessionsAsync.when(
-        data: (sessions) {
+        data: (allSessions) {
+          // The underlying provider returns every session for the coach so
+          // their own dashboard can show completed/cancelled tabs. A player
+          // browsing to book must only see the ones still open.
+          final sessions = allSessions
+              .where((s) => s.status == 'active' || s.status == 'full')
+              .toList();
+
           if (sessions.isEmpty) {
             return Center(
               child: Column(
