@@ -61,6 +61,13 @@ class ApiService {
         'coursesJson': coursesJson,
         'certificationUrl': certificationUrl,
         'coachingLocation': coachingLocation,
+        // These four were accepted as parameters but never written, so a
+        // coach's certification flag/name, specializations and target audience
+        // silently vanished on every sync and came back empty after reinstall.
+        'hasCertification': hasCertification,
+        'certificationName': certificationName,
+        'specializations': specializations,
+        'targetAudience': targetAudience,
         'profileComplete': profileComplete,
         'updatedAt': DateTime.now().toIso8601String(),
       }, onConflict: 'id');

@@ -389,24 +389,43 @@ class SyncService {
         // If it's a provider, update provider table too with merging
         if (finalRole == 'coach' || finalRole == 'caddie') {
           final localProv = await _database.getProvider(_uid);
-          
+
+          // The remote columns are declared with defaults (price/experience
+          // default to 0, coursesJson to '[]'), so a plain `??` fallback is
+          // not enough: `0 ?? local` keeps the 0 because 0 isn't null. That
+          // is what wiped a coach's hourly rate, experience and home club
+          // back to "0"/"Not set" on the next pull. Only take a remote value
+          // when it actually carries data.
+          String? preferText(String? remote, String? local) =>
+              (remote != null && remote.trim().isNotEmpty) ? remote : local;
+          int preferInt(int? remote, int? local) =>
+              (remote != null && remote > 0) ? remote : (local ?? remote ?? 0);
+          double preferDouble(double? remote, double? local) =>
+              (remote != null && remote > 0) ? remote : (local ?? remote ?? 0.0);
+          String preferJson(String? remote, String? local) {
+            final r = remote?.trim();
+            if (r != null && r.isNotEmpty && r != '[]' && r != '{}') return r;
+            return local ?? '[]';
+          }
+
           await _database.upsertProvider(db.ProvidersCompanion(
             userId: drift.Value(_uid),
             role: drift.Value(finalRole),
             name: drift.Value(mergedName),
-            phone: drift.Value(data['phone'] as String? ?? localProv?.phone ?? ''),
-            whatsapp: drift.Value(data['whatsapp'] as String? ?? localProv?.whatsapp),
-            bio: drift.Value(data['bio'] as String? ?? localProv?.bio),
-            experience: drift.Value(data['experience'] as int? ?? localProv?.experience ?? 0),
-            price: drift.Value((data['price'] as num?)?.toDouble() ?? localProv?.price ?? 0.0),
-            personalityType: drift.Value(data['personalityType'] as String? ?? localProv?.personalityType),
-            coursesJson: drift.Value(data['coursesJson'] as String? ?? localProv?.coursesJson ?? '[]'),
-            hasCertification: drift.Value(data['hasCertification'] as bool? ?? localProv?.hasCertification ?? false),
-            certificationName: drift.Value(data['certificationName'] as String? ?? localProv?.certificationName),
-            certificationUrl: drift.Value(data['certificationUrl'] as String? ?? localProv?.certificationUrl),
-            coachingLocation: drift.Value(data['coachingLocation'] as String? ?? localProv?.coachingLocation),
-            specializationsJson: drift.Value(data['specializations'] as String? ?? localProv?.specializationsJson),
-            targetAudienceJson: drift.Value(data['targetAudience'] as String? ?? localProv?.targetAudienceJson),
+            phone: drift.Value(preferText(data['phone'] as String?, localProv?.phone) ?? ''),
+            whatsapp: drift.Value(preferText(data['whatsapp'] as String?, localProv?.whatsapp)),
+            bio: drift.Value(preferText(data['bio'] as String?, localProv?.bio)),
+            experience: drift.Value(preferInt(data['experience'] as int?, localProv?.experience)),
+            price: drift.Value(preferDouble((data['price'] as num?)?.toDouble(), localProv?.price)),
+            personalityType: drift.Value(preferText(data['personalityType'] as String?, localProv?.personalityType)),
+            coursesJson: drift.Value(preferJson(data['coursesJson'] as String?, localProv?.coursesJson)),
+            hasCertification: drift.Value(
+                (data['hasCertification'] as bool?) == true || (localProv?.hasCertification ?? false)),
+            certificationName: drift.Value(preferText(data['certificationName'] as String?, localProv?.certificationName)),
+            certificationUrl: drift.Value(preferText(data['certificationUrl'] as String?, localProv?.certificationUrl)),
+            coachingLocation: drift.Value(preferText(data['coachingLocation'] as String?, localProv?.coachingLocation)),
+            specializationsJson: drift.Value(preferText(data['specializations'] as String?, localProv?.specializationsJson)),
+            targetAudienceJson: drift.Value(preferText(data['targetAudience'] as String?, localProv?.targetAudienceJson)),
             profileComplete: drift.Value(mergedComplete),
           ));
         }

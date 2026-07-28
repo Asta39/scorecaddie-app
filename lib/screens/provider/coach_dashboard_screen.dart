@@ -27,6 +27,9 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
     
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      // The cards are white; without a tinted canvas behind them they were
+      // white-on-white and read as one flat sheet with no card edges at all.
+      backgroundColor: isDark ? AppColors.grey900 : const Color(0xFFF0F1EC),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -134,11 +137,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
   Widget _buildPillActions(BuildContext context, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.grey800 : Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 15, offset: const Offset(0, 5))],
-      ),
+      decoration: coachCardSurface(isDark, radius: 32),
       child: Row(
         children: [
           _PillBtn(label: 'Schedule', icon: LucideIcons.calendar, color: Colors.indigo, onTap: () => context.push('/coach/sessions')),
@@ -172,11 +171,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
 
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.grey800 : Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
+      decoration: coachCardSurface(isDark, radius: 28),
       child: Column(
         children: [
           Row(
@@ -226,10 +221,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.grey800 : Colors.white,
-                borderRadius: BorderRadius.circular(18),
-              ),
+              decoration: coachCardSurface(isDark, radius: 18),
               child: Row(
                 children: [
                   ProfileImage(url: profile?['avatarUrl'], size: 40, borderRadius: 10),
@@ -267,32 +259,30 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final String status;
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isAvailable = status == 'AVAILABLE';
-    final color = isAvailable ? AppColors.emerald500 : AppColors.grey400;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+/// One surface treatment for every card on the coach dashboard: white fill,
+/// a hairline border so the edge survives against the tinted canvas, and a
+/// soft two-layer shadow for lift. Replaces the near-invisible
+/// `alpha: 0.02` shadow each card used to declare on its own.
+BoxDecoration coachCardSurface(bool isDark, {double radius = 24}) {
+  return BoxDecoration(
+    color: isDark ? AppColors.grey800 : Colors.white,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(
+      color: isDark ? Colors.white.withValues(alpha: 0.06) : AppColors.grey900.withValues(alpha: 0.06),
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: AppColors.grey900.withValues(alpha: isDark ? 0.30 : 0.06),
+        blurRadius: 20,
+        offset: const Offset(0, 8),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 8),
-          Text(isAvailable ? 'LIVE' : 'OFFLINE', style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-        ],
+      BoxShadow(
+        color: AppColors.grey900.withValues(alpha: isDark ? 0.20 : 0.03),
+        blurRadius: 3,
+        offset: const Offset(0, 1),
       ),
-    );
-  }
+    ],
+  );
 }
 
 class _MetricCard extends StatelessWidget {
@@ -307,11 +297,7 @@ class _MetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.grey800 : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
+      decoration: coachCardSurface(isDark),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
