@@ -7,11 +7,11 @@ class TermsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.white,
         leading: IconButton(
           icon: const Icon(Icons.close, color: AppColors.grey900),
           onPressed: () => Navigator.of(context).pop(),
