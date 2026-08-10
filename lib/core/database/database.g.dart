@@ -1753,6 +1753,32 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _dataVerifiedMeta = const VerificationMeta(
+    'dataVerified',
+  );
+  @override
+  late final GeneratedColumn<bool> dataVerified = GeneratedColumn<bool>(
+    'data_verified',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("data_verified" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _dataSourceMeta = const VerificationMeta(
+    'dataSource',
+  );
+  @override
+  late final GeneratedColumn<String> dataSource = GeneratedColumn<String>(
+    'data_source',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
   @override
   late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
@@ -1837,6 +1863,8 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
     holePars,
     teeData,
     isUserEdited,
+    dataVerified,
+    dataSource,
     syncId,
     caddieFee,
     latitude,
@@ -1946,6 +1974,21 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
           data['is_user_edited']!,
           _isUserEditedMeta,
         ),
+      );
+    }
+    if (data.containsKey('data_verified')) {
+      context.handle(
+        _dataVerifiedMeta,
+        dataVerified.isAcceptableOrUnknown(
+          data['data_verified']!,
+          _dataVerifiedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('data_source')) {
+      context.handle(
+        _dataSourceMeta,
+        dataSource.isAcceptableOrUnknown(data['data_source']!, _dataSourceMeta),
       );
     }
     if (data.containsKey('sync_id')) {
@@ -2058,6 +2101,14 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_user_edited'],
       )!,
+      dataVerified: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}data_verified'],
+      )!,
+      dataSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}data_source'],
+      ),
       syncId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}sync_id'],
@@ -2107,6 +2158,17 @@ class Course extends DataClass implements Insertable<Course> {
   final String holePars;
   final String teeData;
   final bool isUserEdited;
+
+  /// False until a course's scorecard (pars, stroke indices, yardages) has been
+  /// checked against the official card. The original seeded data was synthetic
+  /// — stroke index was just the hole number and the yardages were admitted
+  /// estimates — so it must not be presented as authoritative or used for
+  /// official handicap posting. Set true only via the validated importer.
+  final bool dataVerified;
+
+  /// Where the scorecard came from, e.g. 'official-card', 'scraped:18birdies',
+  /// 'estimated'. Kept so bad rows can be traced back and re-sourced.
+  final String? dataSource;
   final String? syncId;
   final double? caddieFee;
   final double? latitude;
@@ -2129,6 +2191,8 @@ class Course extends DataClass implements Insertable<Course> {
     required this.holePars,
     required this.teeData,
     required this.isUserEdited,
+    required this.dataVerified,
+    this.dataSource,
     this.syncId,
     this.caddieFee,
     this.latitude,
@@ -2170,6 +2234,10 @@ class Course extends DataClass implements Insertable<Course> {
     map['hole_pars'] = Variable<String>(holePars);
     map['tee_data'] = Variable<String>(teeData);
     map['is_user_edited'] = Variable<bool>(isUserEdited);
+    map['data_verified'] = Variable<bool>(dataVerified);
+    if (!nullToAbsent || dataSource != null) {
+      map['data_source'] = Variable<String>(dataSource);
+    }
     if (!nullToAbsent || syncId != null) {
       map['sync_id'] = Variable<String>(syncId);
     }
@@ -2216,6 +2284,10 @@ class Course extends DataClass implements Insertable<Course> {
       holePars: Value(holePars),
       teeData: Value(teeData),
       isUserEdited: Value(isUserEdited),
+      dataVerified: Value(dataVerified),
+      dataSource: dataSource == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dataSource),
       syncId: syncId == null && nullToAbsent
           ? const Value.absent()
           : Value(syncId),
@@ -2254,6 +2326,8 @@ class Course extends DataClass implements Insertable<Course> {
       holePars: serializer.fromJson<String>(json['holePars']),
       teeData: serializer.fromJson<String>(json['teeData']),
       isUserEdited: serializer.fromJson<bool>(json['isUserEdited']),
+      dataVerified: serializer.fromJson<bool>(json['dataVerified']),
+      dataSource: serializer.fromJson<String?>(json['dataSource']),
       syncId: serializer.fromJson<String?>(json['syncId']),
       caddieFee: serializer.fromJson<double?>(json['caddieFee']),
       latitude: serializer.fromJson<double?>(json['latitude']),
@@ -2281,6 +2355,8 @@ class Course extends DataClass implements Insertable<Course> {
       'holePars': serializer.toJson<String>(holePars),
       'teeData': serializer.toJson<String>(teeData),
       'isUserEdited': serializer.toJson<bool>(isUserEdited),
+      'dataVerified': serializer.toJson<bool>(dataVerified),
+      'dataSource': serializer.toJson<String?>(dataSource),
       'syncId': serializer.toJson<String?>(syncId),
       'caddieFee': serializer.toJson<double?>(caddieFee),
       'latitude': serializer.toJson<double?>(latitude),
@@ -2306,6 +2382,8 @@ class Course extends DataClass implements Insertable<Course> {
     String? holePars,
     String? teeData,
     bool? isUserEdited,
+    bool? dataVerified,
+    Value<String?> dataSource = const Value.absent(),
     Value<String?> syncId = const Value.absent(),
     Value<double?> caddieFee = const Value.absent(),
     Value<double?> latitude = const Value.absent(),
@@ -2328,6 +2406,8 @@ class Course extends DataClass implements Insertable<Course> {
     holePars: holePars ?? this.holePars,
     teeData: teeData ?? this.teeData,
     isUserEdited: isUserEdited ?? this.isUserEdited,
+    dataVerified: dataVerified ?? this.dataVerified,
+    dataSource: dataSource.present ? dataSource.value : this.dataSource,
     syncId: syncId.present ? syncId.value : this.syncId,
     caddieFee: caddieFee.present ? caddieFee.value : this.caddieFee,
     latitude: latitude.present ? latitude.value : this.latitude,
@@ -2358,6 +2438,12 @@ class Course extends DataClass implements Insertable<Course> {
       isUserEdited: data.isUserEdited.present
           ? data.isUserEdited.value
           : this.isUserEdited,
+      dataVerified: data.dataVerified.present
+          ? data.dataVerified.value
+          : this.dataVerified,
+      dataSource: data.dataSource.present
+          ? data.dataSource.value
+          : this.dataSource,
       syncId: data.syncId.present ? data.syncId.value : this.syncId,
       caddieFee: data.caddieFee.present ? data.caddieFee.value : this.caddieFee,
       latitude: data.latitude.present ? data.latitude.value : this.latitude,
@@ -2385,6 +2471,8 @@ class Course extends DataClass implements Insertable<Course> {
           ..write('holePars: $holePars, ')
           ..write('teeData: $teeData, ')
           ..write('isUserEdited: $isUserEdited, ')
+          ..write('dataVerified: $dataVerified, ')
+          ..write('dataSource: $dataSource, ')
           ..write('syncId: $syncId, ')
           ..write('caddieFee: $caddieFee, ')
           ..write('latitude: $latitude, ')
@@ -2412,6 +2500,8 @@ class Course extends DataClass implements Insertable<Course> {
     holePars,
     teeData,
     isUserEdited,
+    dataVerified,
+    dataSource,
     syncId,
     caddieFee,
     latitude,
@@ -2438,6 +2528,8 @@ class Course extends DataClass implements Insertable<Course> {
           other.holePars == this.holePars &&
           other.teeData == this.teeData &&
           other.isUserEdited == this.isUserEdited &&
+          other.dataVerified == this.dataVerified &&
+          other.dataSource == this.dataSource &&
           other.syncId == this.syncId &&
           other.caddieFee == this.caddieFee &&
           other.latitude == this.latitude &&
@@ -2462,6 +2554,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
   final Value<String> holePars;
   final Value<String> teeData;
   final Value<bool> isUserEdited;
+  final Value<bool> dataVerified;
+  final Value<String?> dataSource;
   final Value<String?> syncId;
   final Value<double?> caddieFee;
   final Value<double?> latitude;
@@ -2484,6 +2578,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     this.holePars = const Value.absent(),
     this.teeData = const Value.absent(),
     this.isUserEdited = const Value.absent(),
+    this.dataVerified = const Value.absent(),
+    this.dataSource = const Value.absent(),
     this.syncId = const Value.absent(),
     this.caddieFee = const Value.absent(),
     this.latitude = const Value.absent(),
@@ -2507,6 +2603,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     this.holePars = const Value.absent(),
     this.teeData = const Value.absent(),
     this.isUserEdited = const Value.absent(),
+    this.dataVerified = const Value.absent(),
+    this.dataSource = const Value.absent(),
     this.syncId = const Value.absent(),
     this.caddieFee = const Value.absent(),
     this.latitude = const Value.absent(),
@@ -2530,6 +2628,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     Expression<String>? holePars,
     Expression<String>? teeData,
     Expression<bool>? isUserEdited,
+    Expression<bool>? dataVerified,
+    Expression<String>? dataSource,
     Expression<String>? syncId,
     Expression<double>? caddieFee,
     Expression<double>? latitude,
@@ -2553,6 +2653,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
       if (holePars != null) 'hole_pars': holePars,
       if (teeData != null) 'tee_data': teeData,
       if (isUserEdited != null) 'is_user_edited': isUserEdited,
+      if (dataVerified != null) 'data_verified': dataVerified,
+      if (dataSource != null) 'data_source': dataSource,
       if (syncId != null) 'sync_id': syncId,
       if (caddieFee != null) 'caddie_fee': caddieFee,
       if (latitude != null) 'latitude': latitude,
@@ -2578,6 +2680,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     Value<String>? holePars,
     Value<String>? teeData,
     Value<bool>? isUserEdited,
+    Value<bool>? dataVerified,
+    Value<String?>? dataSource,
     Value<String?>? syncId,
     Value<double?>? caddieFee,
     Value<double?>? latitude,
@@ -2601,6 +2705,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
       holePars: holePars ?? this.holePars,
       teeData: teeData ?? this.teeData,
       isUserEdited: isUserEdited ?? this.isUserEdited,
+      dataVerified: dataVerified ?? this.dataVerified,
+      dataSource: dataSource ?? this.dataSource,
       syncId: syncId ?? this.syncId,
       caddieFee: caddieFee ?? this.caddieFee,
       latitude: latitude ?? this.latitude,
@@ -2658,6 +2764,12 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     if (isUserEdited.present) {
       map['is_user_edited'] = Variable<bool>(isUserEdited.value);
     }
+    if (dataVerified.present) {
+      map['data_verified'] = Variable<bool>(dataVerified.value);
+    }
+    if (dataSource.present) {
+      map['data_source'] = Variable<String>(dataSource.value);
+    }
     if (syncId.present) {
       map['sync_id'] = Variable<String>(syncId.value);
     }
@@ -2697,6 +2809,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
           ..write('holePars: $holePars, ')
           ..write('teeData: $teeData, ')
           ..write('isUserEdited: $isUserEdited, ')
+          ..write('dataVerified: $dataVerified, ')
+          ..write('dataSource: $dataSource, ')
           ..write('syncId: $syncId, ')
           ..write('caddieFee: $caddieFee, ')
           ..write('latitude: $latitude, ')
@@ -16597,6 +16711,8 @@ typedef $$CoursesTableCreateCompanionBuilder =
       Value<String> holePars,
       Value<String> teeData,
       Value<bool> isUserEdited,
+      Value<bool> dataVerified,
+      Value<String?> dataSource,
       Value<String?> syncId,
       Value<double?> caddieFee,
       Value<double?> latitude,
@@ -16621,6 +16737,8 @@ typedef $$CoursesTableUpdateCompanionBuilder =
       Value<String> holePars,
       Value<String> teeData,
       Value<bool> isUserEdited,
+      Value<bool> dataVerified,
+      Value<String?> dataSource,
       Value<String?> syncId,
       Value<double?> caddieFee,
       Value<double?> latitude,
@@ -16789,6 +16907,16 @@ class $$CoursesTableFilterComposer
 
   ColumnFilters<bool> get isUserEdited => $composableBuilder(
     column: $table.isUserEdited,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get dataVerified => $composableBuilder(
+    column: $table.dataVerified,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dataSource => $composableBuilder(
+    column: $table.dataSource,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17007,6 +17135,16 @@ class $$CoursesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get dataVerified => $composableBuilder(
+    column: $table.dataVerified,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dataSource => $composableBuilder(
+    column: $table.dataSource,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get syncId => $composableBuilder(
     column: $table.syncId,
     builder: (column) => ColumnOrderings(column),
@@ -17095,6 +17233,16 @@ class $$CoursesTableAnnotationComposer
 
   GeneratedColumn<bool> get isUserEdited => $composableBuilder(
     column: $table.isUserEdited,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get dataVerified => $composableBuilder(
+    column: $table.dataVerified,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get dataSource => $composableBuilder(
+    column: $table.dataSource,
     builder: (column) => column,
   );
 
@@ -17265,6 +17413,8 @@ class $$CoursesTableTableManager
                 Value<String> holePars = const Value.absent(),
                 Value<String> teeData = const Value.absent(),
                 Value<bool> isUserEdited = const Value.absent(),
+                Value<bool> dataVerified = const Value.absent(),
+                Value<String?> dataSource = const Value.absent(),
                 Value<String?> syncId = const Value.absent(),
                 Value<double?> caddieFee = const Value.absent(),
                 Value<double?> latitude = const Value.absent(),
@@ -17287,6 +17437,8 @@ class $$CoursesTableTableManager
                 holePars: holePars,
                 teeData: teeData,
                 isUserEdited: isUserEdited,
+                dataVerified: dataVerified,
+                dataSource: dataSource,
                 syncId: syncId,
                 caddieFee: caddieFee,
                 latitude: latitude,
@@ -17311,6 +17463,8 @@ class $$CoursesTableTableManager
                 Value<String> holePars = const Value.absent(),
                 Value<String> teeData = const Value.absent(),
                 Value<bool> isUserEdited = const Value.absent(),
+                Value<bool> dataVerified = const Value.absent(),
+                Value<String?> dataSource = const Value.absent(),
                 Value<String?> syncId = const Value.absent(),
                 Value<double?> caddieFee = const Value.absent(),
                 Value<double?> latitude = const Value.absent(),
@@ -17333,6 +17487,8 @@ class $$CoursesTableTableManager
                 holePars: holePars,
                 teeData: teeData,
                 isUserEdited: isUserEdited,
+                dataVerified: dataVerified,
+                dataSource: dataSource,
                 syncId: syncId,
                 caddieFee: caddieFee,
                 latitude: latitude,

@@ -455,7 +455,15 @@ Future<void> _seedTeesAndHolesForCourse(
               teeId: Value(teeId),
               holeNumber: holeNumber,
               par: par,
-              handicapIndex: Value(holeNumber),
+              // Previously this wrote `Value(holeNumber)`, which made every
+              // course read SI 1,2,3...18 in play order. A real stroke index
+              // is allocated by hole difficulty (conventionally odds on one
+              // nine, evens on the other), so that value was wrong for every
+              // course and silently skewed any shot-allocation maths built on
+              // it. Leave it null until a verified card supplies the real
+              // allocation — an honest "unknown" beats a plausible-looking
+              // wrong number.
+              handicapIndex: const Value(null),
               distance: Value(distance),
             ),
           );

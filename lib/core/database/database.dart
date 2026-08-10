@@ -149,7 +149,16 @@ class Courses extends Table {
   TextColumn get holePars => text().withDefault(const Constant('[]'))();  
   TextColumn get teeData => text().withDefault(const Constant('[]'))();   
   BoolColumn get isUserEdited => boolean().withDefault(const Constant(false))();
-  TextColumn get syncId => text().nullable()();  
+  /// False until a course's scorecard (pars, stroke indices, yardages) has been
+  /// checked against the official card. The original seeded data was synthetic
+  /// — stroke index was just the hole number and the yardages were admitted
+  /// estimates — so it must not be presented as authoritative or used for
+  /// official handicap posting. Set true only via the validated importer.
+  BoolColumn get dataVerified => boolean().withDefault(const Constant(false))();
+  /// Where the scorecard came from, e.g. 'official-card', 'scraped:18birdies',
+  /// 'estimated'. Kept so bad rows can be traced back and re-sourced.
+  TextColumn get dataSource => text().nullable()();
+  TextColumn get syncId => text().nullable()();
   RealColumn get caddieFee => real().nullable().withDefault(const Constant(1000.0))(); 
   RealColumn get latitude => real().nullable()(); // Added for location-based sorting
   RealColumn get longitude => real().nullable()(); // Added for location-based sorting
@@ -390,7 +399,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 55;
+  int get schemaVersion => 56;
 
   @override
   MigrationStrategy get migration {
@@ -452,6 +461,15 @@ class AppDatabase extends _$AppDatabase {
           // v55: Cleanup marker — removes the beforeOpen band-aid.
           // All columns from v53/v54 are already present on devices via
           // the onUpgrade guards above. No schema changes needed.
+        }
+
+        if (from < 56) {
+          // v56: Track scorecard provenance. Existing rows keep the defaults
+          // (dataVerified = false, dataSource = null), which is correct —
+          // everything seeded before this point came from the synthetic
+          // seed data and has not been verified against an official card.
+          try { await m.addColumn(courses, courses.dataVerified); } catch (_) {}
+          try { await m.addColumn(courses, courses.dataSource); } catch (_) {}
         }
       },
     );
