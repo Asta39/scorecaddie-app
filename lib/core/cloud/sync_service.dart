@@ -728,6 +728,11 @@ class SyncService {
                 region: drift.Value(c['region'] as String?),
                 totalHoles: drift.Value(c['holesCount'] as int? ?? 18),
                 par18: drift.Value(c['par18'] as int?),
+                // Set by the club-admin scorecard editor once a club has
+                // entered its official card. Drives the Verified/Estimated
+                // badge and stops seedCourses overwriting the card on launch.
+                dataVerified: drift.Value(c['dataVerified'] as bool? ?? false),
+                dataSource: drift.Value(c['dataSource'] as String?),
               ));
               // Update cache with the confirmed local ID
               fidToLocalId[fid] = localId;
@@ -757,18 +762,55 @@ class SyncService {
           for (final t in teeData) {
             try {
               final fid = t['courseId'] as String;
-              final localId = fidToLocalId[fid];
-              if (localId != null) {
-                final insertedId = await _database.into(_database.tees).insert(db.TeesCompanion.insert(
-                  courseId: localId,
-                  name: t['name'] as String,
-                  gender: drift.Value(t['gender'] as String),
-                  courseRating: (t['courseRating'] as num).toDouble(),
-                  slopeRating: t['slopeRating'] as int,
-                  par: drift.Value(t['par'] as int?),
-                  yardage: drift.Value(t['yardage'] as int?),
-                ), mode: drift.InsertMode.insertOrReplace);
-                supabaseTeeIdToLocalId[t['id'].toString()] = insertedId;
+              final localCourseId = fidToLocalId[fid];
+              if (localCourseId != null) {
+                final name = t['name'] as String;
+
+                // Local seed tees use 'male'/'female'; the club-admin editor
+                // writes 'men'/'women'. Normalise so the name lookup below
+                // lands on the same tee instead of creating a second one.
+                final rawGender = (t['gender'] as String? ?? '').toLowerCase();
+                final gender = (rawGender == 'women' || rawGender == 'female' || rawGender == 'ladies')
+                    ? 'female'
+                    : 'male';
+
+                // Previously hard casts — `(courseRating as num)` and
+                // `slopeRating as int` — threw on null or on a double slope,
+                // silently skipping the tee and orphaning its holes. The
+                // local columns are non-null, so fall back to the WHS
+                // neutral values and say so, rather than drop the tee.
+                final rating = (t['courseRating'] as num?)?.toDouble();
+                final slope = (t['slopeRating'] as num?)?.toInt();
+                if (rating == null || slope == null) {
+                  debugPrint('SYNC: Tee "$name" on course $fid has no rating/slope; using neutral fallback');
+                }
+
+                final companion = db.TeesCompanion(
+                  courseId: drift.Value(localCourseId),
+                  name: drift.Value(name),
+                  gender: drift.Value(gender),
+                  courseRating: drift.Value(rating ?? ((t['par'] as num?)?.toDouble() ?? 72.0)),
+                  slopeRating: drift.Value(slope ?? 113),
+                  par: drift.Value((t['par'] as num?)?.toInt()),
+                  yardage: drift.Value((t['yardage'] as num?)?.toInt()),
+                );
+
+                // Tees has no unique key, so the old
+                // insert(..., insertOrReplace) added a brand-new tee on every
+                // sync. Match on course + name and update in place instead.
+                final existing = await (_database.select(_database.tees)
+                      ..where((x) => x.courseId.equals(localCourseId) & x.name.equals(name)))
+                    .get();
+
+                final int localTeeId;
+                if (existing.isNotEmpty) {
+                  localTeeId = existing.first.id;
+                  await (_database.update(_database.tees)..where((x) => x.id.equals(localTeeId)))
+                      .write(companion);
+                } else {
+                  localTeeId = await _database.into(_database.tees).insert(companion);
+                }
+                supabaseTeeIdToLocalId[t['id'].toString()] = localTeeId;
               }
             } catch (e) {
               debugPrint('SYNC: Error upserting tee ${t['name']}: $e');
@@ -787,9 +829,13 @@ class SyncService {
       while (hasMoreHoles) {
         final List<dynamic> holeData = await supabase
             .from('CourseHole')
-            .select('courseId, holeNumber, par, handicapIndex, distance') 
+            // teeId matters now: the club-admin scorecard editor writes one
+            // row per hole per tee. Dropping it collapsed every tee onto the
+            // same (courseId, null, holeNumber) unique key, so the last tee
+            // synced overwrote the others' yardages.
+            .select('courseId, teeId, holeNumber, par, handicapIndex, distance')
             .range(holeOffset, holeOffset + 999);
-            
+
         if (holeData.isEmpty) {
           hasMoreHoles = false;
         } else {
@@ -799,9 +845,15 @@ class SyncService {
               final fid = h['courseId'] as String;
               final localId = fidToLocalId[fid];
               if (localId != null) {
+                final remoteTeeId = h['teeId']?.toString();
+                final localTeeId = remoteTeeId == null ? null : supabaseTeeIdToLocalId[remoteTeeId];
+                // A hole naming a tee we couldn't map would otherwise land
+                // as a tee-less row and pollute the general fallback set.
+                if (remoteTeeId != null && localTeeId == null) continue;
+
                 holeCompanions.add(db.CourseHolesCompanion.insert(
                   courseId: localId,
-                  teeId: const drift.Value(null), 
+                  teeId: drift.Value(localTeeId),
                   holeNumber: h['holeNumber'] as int,
                   par: h['par'] as int? ?? 4,
                   handicapIndex: drift.Value(h['handicapIndex'] as int?),
@@ -823,6 +875,27 @@ class SyncService {
         }
       }
       
+      // 4. Drop stale estimated holes from verified courses.
+      // A verified course's holes now come from the club's official card, but
+      // the seeded estimate rows (placeholder SI, estimated yardages) are
+      // still on disk under the seed tees, and getHolesForCourse's fallbacks
+      // can pick them up. Only holes are removed — tees stay, because rounds
+      // reference Tees and deleting one would orphan past round history.
+      final pulledTeeIds = supabaseTeeIdToLocalId.values.toSet();
+      final verifiedCourses = await (_database.select(_database.courses)
+            ..where((c) => c.dataVerified.equals(true)))
+          .get();
+      for (final vc in verifiedCourses) {
+        final localTees = await _database.getTeesForCourse(vc.id);
+        final keep = localTees.where((t) => pulledTeeIds.contains(t.id)).map((t) => t.id).toList();
+        // Nothing mapped means the tee pull failed or hasn't landed yet —
+        // don't wipe a course's only holes on a bad sync.
+        if (keep.isEmpty) continue;
+        await (_database.delete(_database.courseHoles)
+              ..where((h) => h.courseId.equals(vc.id) & (h.teeId.isNull() | h.teeId.isNotIn(keep))))
+            .go();
+      }
+
       debugPrint('SYNC: KGU pull complete. Courses: $totalCourses, Tees: $totalTees, Holes: $totalHoles');
     } catch (e) {
       debugPrint('SYNC ERROR: Official KGU pull failed: $e');

@@ -282,6 +282,16 @@ Future<void> seedCourses(AppDatabase db) async {
 
     // Upsert all courses and populate tees/holes locally
     for (var c in courses) {
+      // seedCourses runs on every launch (main.dart). Once a club has entered
+      // its official card through the club-admin portal and it has synced
+      // down as verified, this estimated seed data must never touch that
+      // course again — upsertCourse would reset par18/holePars and
+      // _seedTeesAndHolesForCourse rewrites par and yardage on existing holes.
+      final existingByName = await (db.select(db.courses)
+            ..where((x) => x.name.equals(c.name.value)))
+          .get();
+      if (existingByName.any((x) => x.dataVerified)) continue;
+
       final courseId = await db.upsertCourse(c);
       final teeDataJson = c.teeData.present ? c.teeData.value : null;
       final holeParsJson = c.holePars.present ? c.holePars.value : null;

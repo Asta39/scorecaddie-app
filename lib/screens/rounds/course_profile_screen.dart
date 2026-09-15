@@ -131,6 +131,8 @@ class CourseProfileScreen extends ConsumerWidget {
                     Text(course.location, style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
+                const SizedBox(height: 12),
+                _buildDataQualityChip(),
               ],
             ),
           ),
@@ -144,6 +146,40 @@ class CourseProfileScreen extends ConsumerWidget {
                 decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(16)),
                 child: const Icon(LucideIcons.chevronLeft, color: Colors.white, size: 20),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tells the player whether this scorecard is the club's official card or
+  /// the original estimated seed data (placeholder stroke indices, estimated
+  /// yardages). Estimated cards shouldn't be trusted for stroke allocation.
+  Widget _buildDataQualityChip() {
+    final verified = course.dataVerified;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: verified ? AppColors.golfLime : Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            verified ? LucideIcons.badgeCheck : LucideIcons.info,
+            size: 12,
+            color: verified ? AppColors.grey900 : Colors.white,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            verified ? 'OFFICIAL SCORECARD' : 'ESTIMATED SCORECARD',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+              color: verified ? AppColors.grey900 : Colors.white,
             ),
           ),
         ],
