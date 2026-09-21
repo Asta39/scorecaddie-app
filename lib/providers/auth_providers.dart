@@ -35,11 +35,14 @@ final authStateProvider = StreamProvider<AuthUser?>((ref) {
 });
 
 final userProfileProvider = StreamProvider<db.UserProfile?>((ref) {
-  final user = ref.watch(authStateProvider).valueOrNull;
-  if (user == null) {
+  // Select just the id: authStateChanges also fires on token refresh, and
+  // watching the whole AuthUser rebuilt this stream roughly every hour,
+  // pushing a loading state through the router.
+  final uid = ref.watch(authStateProvider.select((a) => a.valueOrNull?.id));
+  if (uid == null) {
     return Stream.value(null);
   }
-  return ref.watch(databaseProvider).watchProfile(user.id);
+  return ref.watch(databaseProvider).watchProfile(uid);
 });
 
 final specificUserProfileProvider = StreamProvider.family<db.UserProfile?, String>((ref, userId) {

@@ -6,6 +6,7 @@ import '../database/database.dart' as db;
 import '../../providers/app_providers.dart';
 import '../cloud/sync_service.dart';
 import 'package:flutter/foundation.dart';
+import 'profile_completeness.dart';
 
 
 class ProfileService {
@@ -51,19 +52,22 @@ class ProfileService {
       }
     }
 
-    // 4. Check if they have any rounds (legacy players) if profile not marked complete
-    if (profileData == null || profileData['profileComplete'] != true) {
+    // 4. Decide completeness from the server row plus evidence only an
+    // onboarded account has. The flag alone can't be trusted: provider syncs
+    // used to wipe it (see isServerProfileComplete).
+    if (!isServerProfileComplete(profileData)) {
       final roundsSnapshot = await Supabase.instance.client
           .from('Round')
           .select('id')
-          .or('userId.eq.$uid') // Assume userId could be the fetched user ID
+          .eq('userId', uid)
           .limit(1);
-          
-      if ((roundsSnapshot as List).isNotEmpty) {
+      if (isServerProfileComplete(profileData, hasRounds: (roundsSnapshot as List).isNotEmpty)) {
         profileData ??= {};
         profileData['role'] ??= 'player';
         profileData['profileComplete'] = true;
       }
+    } else {
+      profileData!['profileComplete'] = true;
     }
 
     if (profileData != null) {
@@ -72,7 +76,7 @@ class ProfileService {
         email: drift.Value(email ?? profileData['email'] as String?),
         name: drift.Value(profileData['name'] ?? displayName ?? 'Golfer'),
         avatarUrl: drift.Value(profileData['avatarUrl'] ?? photoUrl), // Use existing or provided (Google) photo
-        handicap: drift.Value(profileData['handicap']?.toDouble()),
+        handicap: drift.Value((profileData['handicapIndex'] ?? profileData['handicap'])?.toDouble()),
         role: drift.Value(profileData['role']?.toString().toLowerCase()),
         profileComplete: drift.Value(profileData['profileComplete'] ?? false),
         updatedAt: drift.Value(DateTime.now()),

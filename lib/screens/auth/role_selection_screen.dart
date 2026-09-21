@@ -38,7 +38,10 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
         // After ensureProfile, check if profile is now complete
         // (user already completed onboarding before — e.g. returning user)
         if (mounted) {
-          final profile = ref.read(userProfileProvider).valueOrNull;
+          // Read the DB directly: the profile stream may not have re-emitted
+          // yet, so its cached value can still say "incomplete".
+          final profile = await ref.read(databaseProvider).getProfile(user.uid);
+          if (!mounted) return;
           if (profile != null && profile.profileComplete) {
             context.go('/');
             return;

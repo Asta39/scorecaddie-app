@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/profile_completeness.dart';
 
 final apiServiceProvider = Provider((ref) => ApiService());
 
@@ -42,9 +43,14 @@ class ApiService {
     try {
       final cleanRole = role.trim().toLowerCase();
       final dbRole = (cleanRole == 'club_admin' || cleanRole == 'super_admin') ? cleanRole : cleanRole.toUpperCase();
-      await _client.from('User').upsert({
+      // withoutNulls: an upsert writes every key it's given, so passing null
+      // for a field the caller didn't supply erased real server data. The
+      // provider sync never passed profileComplete, which wiped it and sent
+      // returning users back to role selection on their next fresh login.
+      await _client.from('User').upsert(withoutNulls({
         'id': id,
-        'email': email,
+        // Never overwrite a real email with the '' callers use as a fallback.
+        'email': email.isEmpty ? null : email,
         'name': name,
         'role': dbRole,
         'avatarUrl': avatarUrl,
@@ -68,9 +74,12 @@ class ApiService {
         'certificationName': certificationName,
         'specializations': specializations,
         'targetAudience': targetAudience,
-        'profileComplete': profileComplete,
+        // Completion is one-way. A device on a fresh install holds a local
+        // profile that hasn't synced down yet (profileComplete false); it
+        // must never downgrade a completed account on the server.
+        'profileComplete': profileComplete == true ? true : null,
         'updatedAt': DateTime.now().toIso8601String(),
-      }, onConflict: 'id');
+      }), onConflict: 'id');
     } catch (e) {
       debugPrint('API_SYNC_PROFILE ERROR: $e');
     }

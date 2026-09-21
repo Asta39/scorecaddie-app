@@ -63,31 +63,66 @@ import '../../screens/competitions/competition_detail_screen.dart';
 import '../../screens/competitions/competition_scan_submit_screen.dart';
 
 import '../../core/models/coaching_model.dart';
+import 'route_guard.dart';
+import '../database/database.dart' as db;
 
 class RouterNotifier extends ChangeNotifier {
-  final Ref _ref;
-  bool? _lastIsLoggedIn;
-  bool? _lastProfileComplete;
-
-  RouterNotifier(this._ref) {
-    _ref.listen(authStateProvider, (prev, next) {
-      final isLoggedIn = next.valueOrNull != null;
-      if (isLoggedIn != _lastIsLoggedIn) {
-        _lastIsLoggedIn = isLoggedIn;
-        notifyListeners();
-      }
-    });
-    
-    _ref.listen(userProfileProvider, (previous, next) {
-      if (next.isLoading) return; // Don't notify while loading initial data
-      
-      final isComplete = next.valueOrNull?.profileComplete ?? false;
-      if (isComplete != _lastProfileComplete) {
-        _lastProfileComplete = isComplete;
-        notifyListeners();
-      }
-    });
+  RouterNotifier(Ref ref) {
+    // Re-evaluate redirect whenever any input to resolveRedirect changes.
+    // resolveRedirect is cheap and returns null when nothing needs to move.
+    ref.listen(authStateProvider, (_, _) => notifyListeners());
+    ref.listen(profileBootstrapProvider, (_, _) => notifyListeners());
+    ref.listen(userProfileProvider, (_, _) => notifyListeners());
   }
+}
+
+/// Runs once per signed-in user, before the router picks home vs onboarding.
+///
+/// On a fresh install the local profile doesn't exist until it's pulled from
+/// Supabase. The router used to read that empty local state as "incomplete"
+/// and send returning users to role selection. This makes sure the local
+/// profile exists and reflects the server first.
+/// Resolves to the uid it bootstrapped, so the router can tell a finished
+/// bootstrap for the current user from a stale one for the previous user.
+final profileBootstrapProvider = FutureProvider<String?>((ref) async {
+  // Key on the user id only: authStateChanges also fires on token refresh,
+  // and re-running this every hour would flash the holding screen.
+  final uid = ref.watch(authStateProvider.select((a) => a.valueOrNull?.uid));
+  if (uid == null) return null;
+
+  final user = ref.read(authStateProvider).valueOrNull;
+  try {
+    await ref.read(profileServiceProvider).ensureProfile(
+          uid,
+          displayName: user?.displayName,
+          photoUrl: user?.photoUrl,
+          email: user?.email,
+        );
+  } catch (e) {
+    // Offline or Supabase unreachable: carry on with whatever is on disk
+    // rather than trapping the user on the holding screen.
+    debugPrint('ROUTER: profile bootstrap failed, using local profile: $e');
+  }
+  return uid;
+});
+
+/// Maps live provider state onto the router's view of the profile. The
+/// rules themselves live in deriveProfileState (tested in route_guard_test).
+ProfileState _profileState(
+  String? uid,
+  AsyncValue<String?> bootstrap,
+  AsyncValue<db.UserProfile?> profile,
+) {
+  return deriveProfileState(
+    currentUid: uid,
+    bootstrapFinished: bootstrap.hasValue || bootstrap.hasError,
+    // The provider catches its own failures; an error here still belongs to
+    // the current user, so don't hold them on the holding screen forever.
+    bootstrapUid: bootstrap.hasError ? uid : bootstrap.valueOrNull,
+    profileLoaded: profile.hasValue,
+    profileUid: profile.valueOrNull?.uid,
+    profileComplete: profile.valueOrNull?.profileComplete ?? false,
+  );
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -96,67 +131,22 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/splash',
     refreshListenable: notifier,
+    // All routing rules live in route_guard.dart as a pure, unit-tested
+    // function (test/route_guard_test.dart). This only gathers live state.
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
-      final isLoggedIn = authState.valueOrNull != null;
-      final isSplashRoute = state.matchedLocation == '/splash';
-
-      // 0. If we are on the splash screen, let it finish its animation
-      if (isSplashRoute) return null;
-
-      final isAuthRoute = state.matchedLocation == '/auth';
-      final isLoginCallback = state.matchedLocation == '/login-callback';
-      final isOnboardingRoute = state.matchedLocation == '/select-role' ||
-          state.matchedLocation == '/player-onboarding' ||
-          state.matchedLocation == '/provider-onboarding';
-
-      // 1. If we are still determining auth state, don't redirect yet
-      if (authState.isLoading) return null;
-
-      // 2. Not logged in -> go to /auth (unless it's the auth route or the OAuth callback)
-      if (!isLoggedIn) {
-        return (isAuthRoute || isLoginCallback) ? null : '/auth';
-      }
-      
-      // 3. User is logged in — explicitly wait for profile data before deciding next step
-      final profileState = ref.read(userProfileProvider);
-      if (profileState.isLoading) {
-        // Stay on current page while profile is loading
-        return null; 
-      }
-
-      final profile = profileState.valueOrNull;
-      final isProfileComplete = profile?.profileComplete ?? false;
-
-      // 4. Authenticated user on /auth route
-      if (isAuthRoute) {
-        // Even if profile is null, go to /select-role which will call ensureProfile
-        // and handle the redirect back to home if profile is already complete
-        return isProfileComplete ? '/' : '/select-role';
-      }
-
-      // 5. Profile is complete — if on onboarding route, go home
-      if (isProfileComplete) {
-        if (isOnboardingRoute) {
-          return '/';
-        }
-        return null;
-      }
-
-      // 6. Profile is NOT complete
-      if (!isOnboardingRoute) {
-        // RESILIENCY GUARD: Only force selection if we are at root or just logged in.
-        // If the user has navigated to a deep page (like /create-session), they probably 
-        // had a complete profile that just transiently went null during a sync.
-        final isAtRootOrAuth = state.matchedLocation == '/' || state.matchedLocation == '/auth';
-        if (isAtRootOrAuth) {
-          return '/select-role';
-        }
-        
-        // Otherwise, do NOT redirect. Stay on current page to avoid flickering/looping.
-        return null;
-      }
-      return null; // Stay on the current onboarding route
+      final profileAsync = ref.read(userProfileProvider);
+      return resolveRedirect(
+        location: state.matchedLocation,
+        authLoading: authState.isLoading,
+        isLoggedIn: authState.valueOrNull != null,
+        profile: _profileState(
+          authState.valueOrNull?.uid,
+          ref.read(profileBootstrapProvider),
+          profileAsync,
+        ),
+        role: profileAsync.valueOrNull?.role,
+      );
     },
     routes: [
       GoRoute(
