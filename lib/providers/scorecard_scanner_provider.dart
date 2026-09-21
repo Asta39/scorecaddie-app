@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/config/app_config.dart';
 import '../core/database/database.dart' as db;
 import '../core/models/scanned_round_result.dart';
 import '../core/services/scorecard_scanner_service.dart';
@@ -69,7 +68,7 @@ class ScorecardScannerState {
 }
 
 final scorecardScannerServiceProvider = Provider<ScorecardScannerService>((ref) {
-  return ScorecardScannerService(AppConfig.geminiApiKey);
+  return const ScorecardScannerService();
 });
 
 class ScorecardScannerNotifier extends StateNotifier<ScorecardScannerState> {

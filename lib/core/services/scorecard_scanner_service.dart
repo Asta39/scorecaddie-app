@@ -1,77 +1,30 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/scanned_round_result.dart';
 
 class ScorecardScannerService {
-  final String _apiKey;
-
-  ScorecardScannerService(this._apiKey);
+  const ScorecardScannerService();
 
   Future<ScannedRoundResult> scanScorecard({
     required Uint8List imageBytes,
     required String playerName,
     required String clubName,
   }) async {
-    final model = GenerativeModel(
-      model: 'gemini-2.5-flash',
-      apiKey: _apiKey,
-      generationConfig: GenerationConfig(
-        responseMimeType: 'application/json',
-      ),
-    );
-
-    final prompt = '''
-You are an expert golf scorecard reader. Your task is to analyze the scorecard image, find the scores for the specified player, and extract them.
-
-PLAYER NAME TO FIND: $playerName
-CLUB/COURSE: $clubName
-
-INSTRUCTIONS:
-1. Identify which row or column belongs to "$playerName" using fuzzy string matching. If there are multiple player columns (e.g., Column A, B, C, D) or rows, look for the name written in the header/label.
-2. If the name is not explicitly written but there's a player slot (e.g. "Player 1", "A"), match the most likely golfer row/column.
-3. Determine the type of round based on the holes filled: 'full_18', 'front_9', or 'back_9'.
-   - If scores are only written/filled for holes 1-9, round_type must be 'front_9', and you should only return holes 1-9 in the 'holes' list.
-   - If scores are only written/filled for holes 10-18, round_type must be 'back_9', and you should only return holes 10-18 in the 'holes' list.
-   - If scores are filled for both, round_type must be 'full_18', and you should return all 18 holes.
-4. Extract the hole number (1-18), the par for each hole, and the score.
-5. If a score is unreadable, blurred, or blank, return null for that hole's score. Do not guess.
-6. Check for totals on the scorecard (Front 9 Total, Back 9 Total, Gross Total) and return them if present.
-7. Assess your confidence (0.0 to 1.0) in the extraction accuracy. If the scorecard is very blurry, low contrast, or does not contain scores for the specified player, confidence should be below 0.4.
-8. Add warnings if you find suspicious numbers, double strokes, or markings that might be hard to read.
-
-Return a JSON object conforming exactly to this schema:
-{
-  "player_slot": "String representing player slot identified on card (e.g. 'Player A', 'Row 2')",
-  "matched_name": "String representing the name matched on the card",
-  "confidence": double (0.0 to 1.0),
-  "round_type": "full_18" | "front_9" | "back_9",
-  "holes": [
-    {
-      "hole": integer (1-18),
-      "par": integer,
-      "score": integer or null
-    }
-  ],
-  "front_9_total": integer or null,
-  "back_9_total": integer or null,
-  "gross_total": integer or null,
-  "warnings": ["String of warnings if any"]
-}
-
-Output must be raw JSON conforming to this schema.
-''';
-
     try {
-      final content = [
-        Content.multi([
-          TextPart(prompt),
-          DataPart('image/jpeg', imageBytes),
-        ])
-      ];
-
-      final response = await model.generateContent(content);
-      final jsonText = response.text;
+      // Runs server-side (supabase/functions/ai-generate). The Gemini key no
+      // longer ships inside the app, and the prompt lives with it.
+      final res = await Supabase.instance.client.functions.invoke(
+        'ai-generate',
+        body: {
+          'task': 'scan_scorecard',
+          'image_base64': base64Encode(imageBytes),
+          'player_name': playerName,
+          'club_name': clubName,
+        },
+      );
+      final data = res.data;
+      final jsonText = data is Map ? data['text'] as String? : null;
       
       if (jsonText == null || jsonText.isEmpty) {
         throw 'The scanner received an empty response. Please try again.';
