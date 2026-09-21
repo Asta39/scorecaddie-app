@@ -46,7 +46,7 @@ final coachingCoachProfileProvider = FutureProvider.family<Map<String, dynamic>?
 });
 
 final detailedSessionEnrollmentsProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, sessionId) {
-  return ref.watch(coachingServiceProvider).getSessionEnrollmentsWithDetails(sessionId);
+  return ref.watch(coachingServiceProvider).getSessionRoster(sessionId);
 });
 
 final playerCoachingSummaryProvider = FutureProvider<PlayerCoachingSummary>((ref) async {

@@ -125,6 +125,20 @@ class CoachingService {
     }
   }
 
+  /// Who has joined a session, for the player-facing booking screen.
+  ///
+  /// Goes through get_session_roster, which returns names and avatars only.
+  /// Players can no longer read raw enrollment rows for sessions they aren't
+  /// in (those carry amount_paid / payment_method). Shaped like the old
+  /// enrollment rows ({'User': {...}}) so the screen is unchanged.
+  Future<List<Map<String, dynamic>>> getSessionRoster(String sessionId) async {
+    final rows = await _supabase.rpc('get_session_roster', params: {'p_session_id': sessionId});
+    return List<Map<String, dynamic>>.from(rows as List).map((r) => {
+          'player_id': r['player_id'],
+          'User': {'id': r['player_id'], 'name': r['name'], 'avatarUrl': r['avatarUrl']},
+        }).toList();
+  }
+
   Future<List<Map<String, dynamic>>> getSessionEnrollmentsWithDetails(String sessionId) async {
     try {
       final response = await _supabase
