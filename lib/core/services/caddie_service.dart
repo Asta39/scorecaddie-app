@@ -33,9 +33,10 @@ class CaddieService {
 
       // 2. Update provider status
       debugPrint('CREATE: Updating provider status to BOOKED');
-      await _client.from('User').update({
-        'providerStatus': 'BOOKED',
-      }).eq('id', providerId);
+      // Via RPC: a player can't write the provider's User row directly. The
+      // function only flips providerStatus, and only for a provider the
+      // caller holds a booking with.
+      await _client.rpc('mark_provider_booked', params: {'p_provider_id': providerId});
       
       debugPrint('CREATE: Provider status updated successfully');
 

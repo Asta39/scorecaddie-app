@@ -111,12 +111,11 @@ class ApiService {
         return;
       }
 
-      // Fallback to User table (for coaches)
-      final profile = await _client.from('User').select('views').eq('id', id).maybeSingle();
-      if (profile != null) {
-        final currentViews = profile['views'] as int? ?? 0;
-        await _client.from('User').update({'views': currentViews + 1}).eq('id', id);
-      }
+      // Fallback to User table (for coaches). Goes through a narrow RPC:
+      // writing another user's row directly only worked while the User
+      // table had a wide-open policy, which also let anyone edit anyone.
+      // The RPC increments views only, and never on your own profile.
+      await _client.rpc('increment_profile_views', params: {'p_user_id': id});
     } catch (e) {
       debugPrint('API_INCREMENT_VIEWS ERROR: $e');
     }
