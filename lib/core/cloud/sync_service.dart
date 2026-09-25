@@ -226,6 +226,7 @@ class SyncService {
               'holeNumber': h.holeNumber,
               'par': h.par,
               'handicapIndex': h.handicapIndex,
+              'nineHoleIndex': h.nineHoleIndex,
               'distance': h.distance,
               'updatedAt': DateTime.now().toIso8601String(),
             });
@@ -486,6 +487,10 @@ class SyncService {
       courseHandicap = ((hIndex * (tee.slopeRating / 113)) + (tee.courseRating - coursePar)).round();
     }
 
+    // Real stroke indexes for ESC; the hole number is only a last resort.
+    final courseHoles = await _database.getHolesForCourse(courseId, teeId: teeId);
+    final siByHole = {for (final h in courseHoles) h.holeNumber: h.handicapIndex};
+
     for (int i = 0; i < holePars.length; i++) {
       final hVal = (myScoresData['hole${i + 1}'] as Map<String, dynamic>? ?? {})['score'] as int? ?? holePars[i];
       totalScore += hVal;
@@ -497,7 +502,7 @@ class SyncService {
       }
 
       // ESC: Net Double Bogey check
-      final escCap = WHSEngine.calculateESCCap(holePars[i], courseHandicap, i + 1);
+      final escCap = WHSEngine.calculateESCCap(holePars[i], courseHandicap, siByHole[i + 1] ?? (i + 1));
       adjustedGrossScore += (hVal > escCap) ? escCap : hVal;
     }
 
@@ -833,7 +838,7 @@ class SyncService {
             // row per hole per tee. Dropping it collapsed every tee onto the
             // same (courseId, null, holeNumber) unique key, so the last tee
             // synced overwrote the others' yardages.
-            .select('courseId, teeId, holeNumber, par, handicapIndex, distance')
+            .select('courseId, teeId, holeNumber, par, handicapIndex, nineHoleIndex, distance')
             .range(holeOffset, holeOffset + 999);
 
         if (holeData.isEmpty) {
@@ -857,6 +862,7 @@ class SyncService {
                   holeNumber: h['holeNumber'] as int,
                   par: h['par'] as int? ?? 4,
                   handicapIndex: drift.Value(h['handicapIndex'] as int?),
+                  nineHoleIndex: drift.Value(h['nineHoleIndex'] as int?),
                   distance: drift.Value(h['distance'] as int?),
                 ));
               }

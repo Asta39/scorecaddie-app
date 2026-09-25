@@ -249,6 +249,8 @@ class CourseHoles extends Table {
   IntColumn get holeNumber => integer()();
   IntColumn get par => integer()();
   IntColumn get handicapIndex => integer().nullable()();
+  /// Stroke index (1-9) used when only the front or back nine is played.
+  IntColumn get nineHoleIndex => integer().nullable()();
   IntColumn get distance => integer().nullable()();
   
   @override
@@ -399,7 +401,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 56;
+  int get schemaVersion => 57;
 
   @override
   MigrationStrategy get migration {
@@ -470,6 +472,11 @@ class AppDatabase extends _$AppDatabase {
           // seed data and has not been verified against an official card.
           try { await m.addColumn(courses, courses.dataVerified); } catch (_) {}
           try { await m.addColumn(courses, courses.dataSource); } catch (_) {}
+        }
+
+        if (from < 57) {
+          // v57: Nine-hole stroke index, entered by clubs on the portal.
+          try { await m.addColumn(courseHoles, courseHoles.nineHoleIndex); } catch (_) {}
         }
       },
     );

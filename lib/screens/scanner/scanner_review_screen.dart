@@ -80,6 +80,24 @@ class _ScannerReviewScreenState extends ConsumerState<ScannerReviewScreen> {
       ),
     );
 
+    final roundType = state.scanResult?.roundType;
+    if (roundType == 'front_9' || roundType == 'back_9') {
+      // Nine-hole round: strokes follow the nine-hole stroke index.
+      final start = roundType == 'front_9' ? 1 : 10;
+      final nine = List.generate(9, (i) => _officialHoles
+          .where((h) => h.holeNumber == start + i)
+          .cast<db.CourseHole?>()
+          .firstWhere((_) => true, orElse: () => null));
+      final nineSI = WHSEngine.nineHoleStrokeIndexes(
+        nine.map((h) => h?.nineHoleIndex).toList(),
+        nine.map((h) => h?.handicapIndex).toList(),
+      );
+      final pos = holeNumber - start;
+      if (pos >= 0 && pos < 9) {
+        return WHSEngine.calculateESCCapNine(par, courseHandicap, nineSI[pos]);
+      }
+    }
+
     return WHSEngine.calculateESCCap(
       par,
       courseHandicap,

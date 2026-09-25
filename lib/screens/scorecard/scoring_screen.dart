@@ -45,6 +45,10 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
   // State for the round
   Course? _course;
   List<CourseHole> _masterHoles = [];
+  /// Nine-hole stroke index per active hole; null for 18-hole rounds.
+  List<int>? _nineHoleSI;
+
+  bool get _isNineHoleRound => widget.holesPlayed.abs() == 9;
   List<int> _holeScores = [];
   
   // Advanced Stats
@@ -94,6 +98,12 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
     setState(() {
       _course = course;
       _masterHoles = activeHoles;
+      _nineHoleSI = _isNineHoleRound
+          ? WHSEngine.nineHoleStrokeIndexes(
+              activeHoles.map((h) => h.nineHoleIndex).toList(),
+              activeHoles.map((h) => h.handicapIndex).toList(),
+            )
+          : null;
       _holeScores = List.filled(activeHoles.length, 0); // Initialize with 0 for unplayed
       _holePutts = List.filled(activeHoles.length, null);
       _holeFairways = List.filled(activeHoles.length, null);
@@ -112,6 +122,10 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
 
   int _calculateESCCap(int holeIndex) {
     final hole = _masterHoles[holeIndex];
+    final nineSI = _nineHoleSI;
+    if (nineSI != null) {
+      return WHSEngine.calculateESCCapNine(hole.par, widget.courseHandicap, nineSI[holeIndex]);
+    }
     return WHSEngine.calculateESCCap(
       hole.par, 
       widget.courseHandicap, 
@@ -435,7 +449,7 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('HOLE ${hole.holeNumber}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: AppColors.grey400, letterSpacing: 1.5)),
-                  Text('PAR ${hole.par} • SI ${hole.handicapIndex}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.grey900)),
+                  Text('PAR ${hole.par} • SI ${_nineHoleSI != null && index < _nineHoleSI!.length ? _nineHoleSI![index] : hole.handicapIndex}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.grey900)),
                 ],
               ),
               Container(

@@ -20,6 +20,44 @@ class WHSEngine {
     return holePar + 2 + strokesOnHole; 
   }
 
+  /// Net Double Bogey for a hole in a nine-hole round (front or back nine).
+  ///
+  /// Strokes are spread over nine holes using the nine-hole stroke index
+  /// (1-9, the small number printed on Kenyan cards). The nine-hole course
+  /// handicap is half the 18-hole one.
+  static int calculateESCCapNine(int holePar, int playerCourseHandicap, int nineHoleStrokeIndex) {
+    final effectiveCH = playerCourseHandicap > 0 ? playerCourseHandicap : 36;
+    final nineCH = (effectiveCH / 2).round();
+    final baseStrokes = (nineCH / 9).floor();
+    final extraStroke = (nineHoleStrokeIndex <= (nineCH % 9)) ? 1 : 0;
+    return holePar + 2 + baseStrokes + extraStroke;
+  }
+
+  /// Nine-hole stroke indexes for the holes of one nine, in play order.
+  ///
+  /// Uses the card's nine-hole index where the club entered it. Otherwise
+  /// ranks the holes by their 18-hole index (hardest = 1), which is how the
+  /// nine-hole allocation is normally derived. Holes with no index at all
+  /// fall back to play order.
+  static List<int> nineHoleStrokeIndexes(List<int?> nineHoleIndexes, List<int?> strokeIndexes) {
+    final n = nineHoleIndexes.length;
+    final complete = nineHoleIndexes.every((v) => v != null) &&
+        (nineHoleIndexes.cast<int>().toSet().length == n);
+    if (complete) return nineHoleIndexes.cast<int>();
+
+    final order = List<int>.generate(n, (i) => i)
+      ..sort((a, b) {
+        final sa = strokeIndexes[a] ?? 99 + a;
+        final sb = strokeIndexes[b] ?? 99 + b;
+        return sa.compareTo(sb);
+      });
+    final result = List<int>.filled(n, 0);
+    for (var rank = 0; rank < n; rank++) {
+      result[order[rank]] = rank + 1;
+    }
+    return result;
+  }
+
   // ── Step 2: Score Differential ───────────────────────────
   /// Standard 18-hole Score Differential formula.
   static double calculateScoreDifferential({

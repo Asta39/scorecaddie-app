@@ -3635,6 +3635,17 @@ class $CourseHolesTable extends CourseHoles
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _nineHoleIndexMeta = const VerificationMeta(
+    'nineHoleIndex',
+  );
+  @override
+  late final GeneratedColumn<int> nineHoleIndex = GeneratedColumn<int>(
+    'nine_hole_index',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _distanceMeta = const VerificationMeta(
     'distance',
   );
@@ -3654,6 +3665,7 @@ class $CourseHolesTable extends CourseHoles
     holeNumber,
     par,
     handicapIndex,
+    nineHoleIndex,
     distance,
   ];
   @override
@@ -3710,6 +3722,15 @@ class $CourseHolesTable extends CourseHoles
         ),
       );
     }
+    if (data.containsKey('nine_hole_index')) {
+      context.handle(
+        _nineHoleIndexMeta,
+        nineHoleIndex.isAcceptableOrUnknown(
+          data['nine_hole_index']!,
+          _nineHoleIndexMeta,
+        ),
+      );
+    }
     if (data.containsKey('distance')) {
       context.handle(
         _distanceMeta,
@@ -3753,6 +3774,10 @@ class $CourseHolesTable extends CourseHoles
         DriftSqlType.int,
         data['${effectivePrefix}handicap_index'],
       ),
+      nineHoleIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}nine_hole_index'],
+      ),
       distance: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}distance'],
@@ -3773,6 +3798,9 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
   final int holeNumber;
   final int par;
   final int? handicapIndex;
+
+  /// Stroke index (1-9) used when only the front or back nine is played.
+  final int? nineHoleIndex;
   final int? distance;
   const CourseHole({
     required this.id,
@@ -3781,6 +3809,7 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
     required this.holeNumber,
     required this.par,
     this.handicapIndex,
+    this.nineHoleIndex,
     this.distance,
   });
   @override
@@ -3795,6 +3824,9 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
     map['par'] = Variable<int>(par);
     if (!nullToAbsent || handicapIndex != null) {
       map['handicap_index'] = Variable<int>(handicapIndex);
+    }
+    if (!nullToAbsent || nineHoleIndex != null) {
+      map['nine_hole_index'] = Variable<int>(nineHoleIndex);
     }
     if (!nullToAbsent || distance != null) {
       map['distance'] = Variable<int>(distance);
@@ -3814,6 +3846,9 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
       handicapIndex: handicapIndex == null && nullToAbsent
           ? const Value.absent()
           : Value(handicapIndex),
+      nineHoleIndex: nineHoleIndex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nineHoleIndex),
       distance: distance == null && nullToAbsent
           ? const Value.absent()
           : Value(distance),
@@ -3832,6 +3867,7 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
       holeNumber: serializer.fromJson<int>(json['holeNumber']),
       par: serializer.fromJson<int>(json['par']),
       handicapIndex: serializer.fromJson<int?>(json['handicapIndex']),
+      nineHoleIndex: serializer.fromJson<int?>(json['nineHoleIndex']),
       distance: serializer.fromJson<int?>(json['distance']),
     );
   }
@@ -3845,6 +3881,7 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
       'holeNumber': serializer.toJson<int>(holeNumber),
       'par': serializer.toJson<int>(par),
       'handicapIndex': serializer.toJson<int?>(handicapIndex),
+      'nineHoleIndex': serializer.toJson<int?>(nineHoleIndex),
       'distance': serializer.toJson<int?>(distance),
     };
   }
@@ -3856,6 +3893,7 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
     int? holeNumber,
     int? par,
     Value<int?> handicapIndex = const Value.absent(),
+    Value<int?> nineHoleIndex = const Value.absent(),
     Value<int?> distance = const Value.absent(),
   }) => CourseHole(
     id: id ?? this.id,
@@ -3866,6 +3904,9 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
     handicapIndex: handicapIndex.present
         ? handicapIndex.value
         : this.handicapIndex,
+    nineHoleIndex: nineHoleIndex.present
+        ? nineHoleIndex.value
+        : this.nineHoleIndex,
     distance: distance.present ? distance.value : this.distance,
   );
   CourseHole copyWithCompanion(CourseHolesCompanion data) {
@@ -3880,6 +3921,9 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
       handicapIndex: data.handicapIndex.present
           ? data.handicapIndex.value
           : this.handicapIndex,
+      nineHoleIndex: data.nineHoleIndex.present
+          ? data.nineHoleIndex.value
+          : this.nineHoleIndex,
       distance: data.distance.present ? data.distance.value : this.distance,
     );
   }
@@ -3893,6 +3937,7 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
           ..write('holeNumber: $holeNumber, ')
           ..write('par: $par, ')
           ..write('handicapIndex: $handicapIndex, ')
+          ..write('nineHoleIndex: $nineHoleIndex, ')
           ..write('distance: $distance')
           ..write(')'))
         .toString();
@@ -3906,6 +3951,7 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
     holeNumber,
     par,
     handicapIndex,
+    nineHoleIndex,
     distance,
   );
   @override
@@ -3918,6 +3964,7 @@ class CourseHole extends DataClass implements Insertable<CourseHole> {
           other.holeNumber == this.holeNumber &&
           other.par == this.par &&
           other.handicapIndex == this.handicapIndex &&
+          other.nineHoleIndex == this.nineHoleIndex &&
           other.distance == this.distance);
 }
 
@@ -3928,6 +3975,7 @@ class CourseHolesCompanion extends UpdateCompanion<CourseHole> {
   final Value<int> holeNumber;
   final Value<int> par;
   final Value<int?> handicapIndex;
+  final Value<int?> nineHoleIndex;
   final Value<int?> distance;
   const CourseHolesCompanion({
     this.id = const Value.absent(),
@@ -3936,6 +3984,7 @@ class CourseHolesCompanion extends UpdateCompanion<CourseHole> {
     this.holeNumber = const Value.absent(),
     this.par = const Value.absent(),
     this.handicapIndex = const Value.absent(),
+    this.nineHoleIndex = const Value.absent(),
     this.distance = const Value.absent(),
   });
   CourseHolesCompanion.insert({
@@ -3945,6 +3994,7 @@ class CourseHolesCompanion extends UpdateCompanion<CourseHole> {
     required int holeNumber,
     required int par,
     this.handicapIndex = const Value.absent(),
+    this.nineHoleIndex = const Value.absent(),
     this.distance = const Value.absent(),
   }) : courseId = Value(courseId),
        holeNumber = Value(holeNumber),
@@ -3956,6 +4006,7 @@ class CourseHolesCompanion extends UpdateCompanion<CourseHole> {
     Expression<int>? holeNumber,
     Expression<int>? par,
     Expression<int>? handicapIndex,
+    Expression<int>? nineHoleIndex,
     Expression<int>? distance,
   }) {
     return RawValuesInsertable({
@@ -3965,6 +4016,7 @@ class CourseHolesCompanion extends UpdateCompanion<CourseHole> {
       if (holeNumber != null) 'hole_number': holeNumber,
       if (par != null) 'par': par,
       if (handicapIndex != null) 'handicap_index': handicapIndex,
+      if (nineHoleIndex != null) 'nine_hole_index': nineHoleIndex,
       if (distance != null) 'distance': distance,
     });
   }
@@ -3976,6 +4028,7 @@ class CourseHolesCompanion extends UpdateCompanion<CourseHole> {
     Value<int>? holeNumber,
     Value<int>? par,
     Value<int?>? handicapIndex,
+    Value<int?>? nineHoleIndex,
     Value<int?>? distance,
   }) {
     return CourseHolesCompanion(
@@ -3985,6 +4038,7 @@ class CourseHolesCompanion extends UpdateCompanion<CourseHole> {
       holeNumber: holeNumber ?? this.holeNumber,
       par: par ?? this.par,
       handicapIndex: handicapIndex ?? this.handicapIndex,
+      nineHoleIndex: nineHoleIndex ?? this.nineHoleIndex,
       distance: distance ?? this.distance,
     );
   }
@@ -4010,6 +4064,9 @@ class CourseHolesCompanion extends UpdateCompanion<CourseHole> {
     if (handicapIndex.present) {
       map['handicap_index'] = Variable<int>(handicapIndex.value);
     }
+    if (nineHoleIndex.present) {
+      map['nine_hole_index'] = Variable<int>(nineHoleIndex.value);
+    }
     if (distance.present) {
       map['distance'] = Variable<int>(distance.value);
     }
@@ -4025,6 +4082,7 @@ class CourseHolesCompanion extends UpdateCompanion<CourseHole> {
           ..write('holeNumber: $holeNumber, ')
           ..write('par: $par, ')
           ..write('handicapIndex: $handicapIndex, ')
+          ..write('nineHoleIndex: $nineHoleIndex, ')
           ..write('distance: $distance')
           ..write(')'))
         .toString();
@@ -18264,6 +18322,7 @@ typedef $$CourseHolesTableCreateCompanionBuilder =
       required int holeNumber,
       required int par,
       Value<int?> handicapIndex,
+      Value<int?> nineHoleIndex,
       Value<int?> distance,
     });
 typedef $$CourseHolesTableUpdateCompanionBuilder =
@@ -18274,6 +18333,7 @@ typedef $$CourseHolesTableUpdateCompanionBuilder =
       Value<int> holeNumber,
       Value<int> par,
       Value<int?> handicapIndex,
+      Value<int?> nineHoleIndex,
       Value<int?> distance,
     });
 
@@ -18345,6 +18405,11 @@ class $$CourseHolesTableFilterComposer
 
   ColumnFilters<int> get handicapIndex => $composableBuilder(
     column: $table.handicapIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nineHoleIndex => $composableBuilder(
+    column: $table.nineHoleIndex,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18429,6 +18494,11 @@ class $$CourseHolesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get nineHoleIndex => $composableBuilder(
+    column: $table.nineHoleIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get distance => $composableBuilder(
     column: $table.distance,
     builder: (column) => ColumnOrderings(column),
@@ -18503,6 +18573,11 @@ class $$CourseHolesTableAnnotationComposer
 
   GeneratedColumn<int> get handicapIndex => $composableBuilder(
     column: $table.handicapIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nineHoleIndex => $composableBuilder(
+    column: $table.nineHoleIndex,
     builder: (column) => column,
   );
 
@@ -18590,6 +18665,7 @@ class $$CourseHolesTableTableManager
                 Value<int> holeNumber = const Value.absent(),
                 Value<int> par = const Value.absent(),
                 Value<int?> handicapIndex = const Value.absent(),
+                Value<int?> nineHoleIndex = const Value.absent(),
                 Value<int?> distance = const Value.absent(),
               }) => CourseHolesCompanion(
                 id: id,
@@ -18598,6 +18674,7 @@ class $$CourseHolesTableTableManager
                 holeNumber: holeNumber,
                 par: par,
                 handicapIndex: handicapIndex,
+                nineHoleIndex: nineHoleIndex,
                 distance: distance,
               ),
           createCompanionCallback:
@@ -18608,6 +18685,7 @@ class $$CourseHolesTableTableManager
                 required int holeNumber,
                 required int par,
                 Value<int?> handicapIndex = const Value.absent(),
+                Value<int?> nineHoleIndex = const Value.absent(),
                 Value<int?> distance = const Value.absent(),
               }) => CourseHolesCompanion.insert(
                 id: id,
@@ -18616,6 +18694,7 @@ class $$CourseHolesTableTableManager
                 holeNumber: holeNumber,
                 par: par,
                 handicapIndex: handicapIndex,
+                nineHoleIndex: nineHoleIndex,
                 distance: distance,
               ),
           withReferenceMapper: (p0) => p0
