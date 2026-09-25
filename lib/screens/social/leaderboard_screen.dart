@@ -204,10 +204,12 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     final myUid = user?.id;
     
     final myEntryIndex = entries.indexWhere((e) => e.userId == myUid);
-    final myRank = myEntryIndex != -1 ? myEntryIndex + 1 : 0;
     final myEntry = myEntryIndex != -1 ? entries[myEntryIndex] : null;
+    // The server returns the top 50 plus the caller's own row, which may sit
+    // far below them, so use its real rank rather than the list position.
+    final myRank = myEntry == null ? 0 : (myEntry.rank ?? myEntryIndex + 1);
 
-    final top50 = entries.take(50).toList();
+    final top50 = entries.where((e) => (e.rank ?? 0) <= 50).take(50).toList();
     final podium = top50.take(3).toList();
     final rest = top50.skip(3).toList();
 

@@ -47,6 +47,8 @@ class LeaderboardEntry {
   final DateTime roundDate;
   final String? handicapOrigin;
   final bool isProvisional;
+  /// Position from the server; ties share a rank.
+  final int? rank;
 
   LeaderboardEntry({
     required this.userId,
@@ -59,6 +61,7 @@ class LeaderboardEntry {
     required this.roundDate,
     this.handicapOrigin,
     required this.isProvisional,
+    this.rank,
   });
 
   factory LeaderboardEntry.fromJson(Map<String, dynamic> json) {
@@ -82,6 +85,7 @@ class LeaderboardEntry {
       roundDate: DateTime.tryParse(json['playedAt'] as String? ?? json['played_at'] as String? ?? '') ?? DateTime.now(),
       handicapOrigin: user['handicapOrigin'] as String? ?? user['handicap_origin'] as String?,
       isProvisional: user['isProvisional'] as bool? ?? user['is_provisional'] as bool? ?? true,
+      rank: (json['rank'] as num?)?.toInt(),
     );
   }
 }
@@ -105,7 +109,9 @@ class LeaderboardService {
 
     void update() async {
       if (debounceTimer?.isActive ?? false) debounceTimer!.cancel();
-      debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      // Every client refetches on any round change platform-wide, so batch
+      // bursts of changes into one refetch.
+      debounceTimer = Timer(const Duration(seconds: 5), () async {
         try {
           final entries = await fetchLeaderboard(
             tab: tab,
@@ -129,11 +135,6 @@ class LeaderboardService {
       schema: 'public',
       table: 'Round',
       callback: (payload) => update(),
-    ).onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'User',
-      callback: (payload) => update(),
     ).subscribe();
 
     controller.onCancel = () {
@@ -155,62 +156,41 @@ class LeaderboardService {
     try {
       debugPrint('LEADERBOARD: Fetching for tab=$tab, period=$period, scoring=$scoring, specificCourseId=$specificCourseId');
 
-      final String scoreColumn = scoring == ScoringType.net ? 'totalNet' : 'totalScore';
-      
-      var query = _supabase.from('Round').select('''
-        userId, courseId, courseName, playedAt, $scoreColumn,
-        User(id, name, avatarUrl, handicapIndex, isProvisional, handicapOrigin)
-      ''');
-
-      if (tab == LeaderboardTab.friends) {
-        final friendsRes = await _supabase.from('Friend').select('friendId').eq('userId', currentUserId!);
-        final ids = (friendsRes as List).map((f) => f['friendId'] as String).toList();
-        ids.add(currentUserId);
-        query = query.inFilter('userId', ids);
-      }
-
-      if (period == TimePeriod.thisWeek) {
-        final start = DateTime.now().subtract(const Duration(days: 7)).toIso8601String();
-        query = query.gte('playedAt', start);
-      } else if (period == TimePeriod.thisMonth) {
-        final start = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
-        query = query.gte('playedAt', start);
-      }
-
-if (tab == LeaderboardTab.course && specificCourseId != null) {
-        debugPrint('LEADERBOARD: Merging rankings for Course ID: $specificCourseId');
-        
+      // Ranking happens in the database (get_leaderboard): each golfer's
+      // best round, top 50 plus the caller's own row. This used to download
+      // every matching round with a User join and pick the best in Dart,
+      // which grew with every round ever played.
+      String? courseName;
+      if (tab == LeaderboardTab.course && specificCourseId != null) {
         try {
+          // Older rounds may only carry the course name, so match on both.
           final localCourse = await _database.getCourseBySupabaseId(specificCourseId);
-          
-          if (localCourse != null) {
-            final String cName = localCourse.name.trim().replaceAll('"', '""');
-            debugPrint('LEADERBOARD: Fetching ALL rounds matching name: $cName');
-            query = query.or('courseName.eq."$cName",courseId.eq.$specificCourseId');
-          } else {
-             query = query.eq('courseId', specificCourseId);
-           }
-        } catch (e) {
-          query = query.eq('courseId', specificCourseId);
-        }
+          courseName = localCourse?.name.trim();
+        } catch (_) {}
       }
 
-      final response = await query.order(scoreColumn, ascending: true);
-      final List<dynamic> rows = response as List<dynamic>;
-      debugPrint('LEADERBOARD: Fetched ${rows.length} rows from Supabase.');
-      
-      final Map<String, LeaderboardEntry> bestRounds = {};
-      for (var row in rows) {
-        final entry = LeaderboardEntry.fromJson(row as Map<String, dynamic>);
-        if (entry.score <= 0) continue; 
-        if (!bestRounds.containsKey(entry.userId)) {
-          bestRounds[entry.userId] = entry;
-        }
-      }
+      final response = await _supabase.rpc('get_leaderboard', params: {
+        'p_scope': switch (tab) {
+          LeaderboardTab.global => 'global',
+          LeaderboardTab.friends => 'friends',
+          LeaderboardTab.course => 'course',
+        },
+        'p_period': switch (period) {
+          TimePeriod.allTime => 'all',
+          TimePeriod.thisMonth => 'month',
+          TimePeriod.thisWeek => 'week',
+        },
+        'p_scoring': scoring == ScoringType.net ? 'net' : 'gross',
+        'p_course_id': tab == LeaderboardTab.course ? specificCourseId : null,
+        'p_course_name': courseName,
+        'p_limit': 50,
+      });
 
-      final sorted = bestRounds.values.toList();
-      sorted.sort((a, b) => a.score.compareTo(b.score));
-      return sorted;
+      final rows = (response as List<dynamic>? ?? const []);
+      debugPrint('LEADERBOARD: ${rows.length} ranked rows');
+      return rows
+          .map((row) => LeaderboardEntry.fromJson(row as Map<String, dynamic>))
+          .toList();
 
     } catch (e) {
       debugPrint('LEADERBOARD_ERROR: $e');
