@@ -37,9 +37,7 @@ import '../../screens/social/group_round_lobby.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../screens/profile/help_screen.dart';
 import '../../core/cloud/group_sync_service.dart';
-import '../../screens/auth/role_selection_screen.dart';
-import '../../screens/auth/provider_onboarding_screen.dart';
-import '../../screens/auth/player_onboarding_screen.dart';
+import '../../screens/onboarding/onboarding_flow_screen.dart';
 import '../../screens/marketplace/coach_public_sessions_screen.dart';
 import '../../screens/marketplace/session_booking_screen.dart';
 import '../../screens/marketplace/caddie_marketplace_screen.dart';
@@ -169,15 +167,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/select-role',
-        builder: (context, state) => const RoleSelectionScreen(),
+        builder: (context, state) => const OnboardingFlowScreen(),
       ),
       GoRoute(
         path: '/provider-onboarding',
-        builder: (context, state) => const ProviderOnboardingScreen(),
+        builder: (context, state) => const OnboardingFlowScreen(entry: ObEntry.provider),
       ),
       GoRoute(
         path: '/player-onboarding',
-        builder: (context, state) => const PlayerOnboardingScreen(),
+        builder: (context, state) => const OnboardingFlowScreen(entry: ObEntry.player),
       ),
       GoRoute(
         path: '/marketplace/provider/:id',

@@ -93,7 +93,19 @@ flutter:
   assets:
     - assets/images/
     - assets/animations/
+    - assets/bots/
     - .env
+
+  # Onboarding type: Sour Gummy (display) and Manrope (body), both SIL Open
+  # Font License; licence texts in assets/fonts/. Variable fonts: weights are
+  # set with FontVariation('wght', …).
+  fonts:
+    - family: SourGummy
+      fonts:
+        - asset: assets/fonts/SourGummy-Variable.ttf
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Variable.ttf
 
 flutter_launcher_icons:
   android: "launcher_icon"
