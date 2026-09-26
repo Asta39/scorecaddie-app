@@ -7,16 +7,37 @@ library;
 ///
 /// The `profileComplete` flag alone isn't trustworthy: until the fix that
 /// shipped with this helper, every coach/caddie sync upserted
-/// `profileComplete: null`, wiping it. So also accept evidence only an
-/// onboarded account can have:
+/// `profileComplete: null`, wiping it, and accounts from before onboarding
+/// existed never had it set at all. So also accept evidence only an
+/// established account can have:
 /// - role coach or caddie, which is only ever set by provider onboarding
 /// - at least one recorded round
-bool isServerProfileComplete(Map<String, dynamic>? row, {bool hasRounds = false}) {
+/// - the account is older than [returningAfter]. Role selection is for
+///   brand-new sign-ups; someone signing back into an account that has
+///   existed for weeks goes home, even if they skipped onboarding back then.
+bool isServerProfileComplete(
+  Map<String, dynamic>? row, {
+  bool hasRounds = false,
+  DateTime? now,
+  Duration returningAfter = const Duration(days: 1),
+}) {
   if (hasRounds) return true;
   if (row == null) return false;
   if (row['profileComplete'] == true) return true;
   final role = (row['role'] as String?)?.toLowerCase();
-  return role == 'coach' || role == 'caddie';
+  if (role == 'coach' || role == 'caddie') return true;
+
+  final created = _parseUtc(row['createdAt']);
+  if (created == null) return false;
+  return (now ?? DateTime.now().toUtc()).difference(created) >= returningAfter;
+}
+
+/// `User.createdAt` is `timestamp without time zone` holding UTC, so it
+/// arrives without an offset; read it as UTC rather than local time.
+DateTime? _parseUtc(Object? value) {
+  if (value is! String || value.isEmpty) return null;
+  final hasZone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(value);
+  return DateTime.tryParse(hasZone ? value : '${value}Z')?.toUtc();
 }
 
 /// Drops null values so an upsert only writes fields we actually have.

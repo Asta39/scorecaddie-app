@@ -34,6 +34,32 @@ void main() {
     test('admin roles alone do not mark a player profile complete', () {
       expect(isServerProfileComplete({'role': 'club_admin'}), isFalse);
     });
+
+    final now = DateTime.utc(2026, 9, 26, 17, 20);
+
+    test('regression: an account from months ago that never set the flag goes home', () {
+      // The real case: created 4 July, PLAYER, profileComplete false, no rounds.
+      final row = {'role': 'PLAYER', 'profileComplete': false, 'createdAt': '2026-07-04T08:56:37.879'};
+      expect(isServerProfileComplete(row, now: now), isTrue);
+    });
+
+    test('a brand-new sign-up still goes to role selection', () {
+      final row = {'role': 'PLAYER', 'profileComplete': false, 'createdAt': '2026-09-26T17:18:00'};
+      expect(isServerProfileComplete(row, now: now), isFalse);
+    });
+
+    test('createdAt without an offset is read as UTC, not local time', () {
+      // 23h59m old in UTC: still new.
+      final row = {'role': 'PLAYER', 'createdAt': '2026-09-25T17:21:00'};
+      expect(isServerProfileComplete(row, now: now), isFalse);
+      final older = {'role': 'PLAYER', 'createdAt': '2026-09-25T17:19:00+00:00'};
+      expect(isServerProfileComplete(older, now: now), isTrue);
+    });
+
+    test('missing or malformed createdAt is not treated as old', () {
+      expect(isServerProfileComplete({'role': 'PLAYER'}, now: now), isFalse);
+      expect(isServerProfileComplete({'role': 'PLAYER', 'createdAt': 'nope'}, now: now), isFalse);
+    });
   });
 
   group('withoutNulls', () {
