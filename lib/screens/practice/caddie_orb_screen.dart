@@ -12,6 +12,8 @@ import '../../core/utils/audio_source_utils.dart';
 import '../../core/cloud/groq_service.dart';
 import '../../core/services/ai_caddie_service.dart';
 import '../../widgets/voice_orb_visualizer.dart';
+import '../../widgets/voice_beam.dart';
+import '../../widgets/voice_mic_button.dart';
 import '../../providers/app_providers.dart';
 import '../../widgets/top_notification.dart';
 
@@ -71,7 +73,8 @@ class _CaddieOrbScreenState extends ConsumerState<CaddieOrbScreen> {
       
       _amplitudeSub = _recorder.onAmplitudeChanged(const Duration(milliseconds: 40)).listen((amp) {
         setState(() {
-          _audioLevel = (amp.current + 60).clamp(0, 60) / 60;
+          // Speech sits roughly between -50 and -10 dBFS; below that is room noise.
+          _audioLevel = ((amp.current + 50) / 40).clamp(0.0, 1.0);
         });
       });
 
@@ -179,6 +182,17 @@ class _CaddieOrbScreenState extends ConsumerState<CaddieOrbScreen> {
               ),
             ),
 
+            // Voice glow along the bottom edge, for both the player and Daniel.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 360,
+              child: IgnorePointer(
+                child: VoiceBeam(state: _orbState, level: _audioLevel),
+              ),
+            ),
+
             SafeArea(
               child: Column(
                 children: [
@@ -194,11 +208,7 @@ class _CaddieOrbScreenState extends ConsumerState<CaddieOrbScreen> {
                         _stopAndProcess();
                       }
                     },
-                    child: CaddieOrbWidget(
-                      state: _orbState,
-                      size: 260,
-                      audioLevel: _audioLevel,
-                    ),
+                    child: VoiceMicButton(state: _orbState),
                   ),
 
                   const SizedBox(height: 32),
