@@ -89,17 +89,28 @@ final profileBootstrapProvider = FutureProvider<String?>((ref) async {
   if (uid == null) return null;
 
   final user = ref.read(authStateProvider).valueOrNull;
-  try {
-    await ref.read(profileServiceProvider).ensureProfile(
-          uid,
-          displayName: user?.displayName,
-          photoUrl: user?.photoUrl,
-          email: user?.email,
-        );
-  } catch (e) {
-    // Offline or Supabase unreachable: carry on with whatever is on disk
-    // rather than trapping the user on the holding screen.
-    debugPrint('ROUTER: profile bootstrap failed, using local profile: $e');
+  // Retry before giving up: straight after sign-in on a fresh install there
+  // is no local profile yet, so a single dropped request would make a
+  // returning account look brand new and send it to setup.
+  const retryDelays = [Duration(seconds: 1), Duration(seconds: 2), Duration(seconds: 4)];
+  for (var attempt = 0;; attempt++) {
+    try {
+      await ref.read(profileServiceProvider).ensureProfile(
+            uid,
+            displayName: user?.displayName,
+            photoUrl: user?.photoUrl,
+            email: user?.email,
+          );
+      break;
+    } catch (e) {
+      if (attempt == retryDelays.length) {
+        // Still offline or Supabase unreachable: carry on with whatever is
+        // on disk rather than trapping the user on the holding screen.
+        debugPrint('ROUTER: profile bootstrap failed, using local profile: $e');
+        break;
+      }
+      await Future<void>.delayed(retryDelays[attempt]);
+    }
   }
   return uid;
 });

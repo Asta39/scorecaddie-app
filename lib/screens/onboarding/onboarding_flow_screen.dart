@@ -116,12 +116,17 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
   Future<void> _bootstrap() async {
     final user = ref.read(authStateProvider).valueOrNull;
     if (user != null) {
-      await ref.read(profileServiceProvider).ensureProfile(
-            user.uid,
-            displayName: user.displayName,
-            photoUrl: user.photoUrl,
-            email: user.email,
-          );
+      try {
+        await ref.read(profileServiceProvider).ensureProfile(
+              user.uid,
+              displayName: user.displayName,
+              photoUrl: user.photoUrl,
+              email: user.email,
+            );
+      } catch (e) {
+        // Offline: fall through to the local profile rather than hanging here.
+        debugPrint('ONBOARDING: ensureProfile failed $e');
+      }
       // Read the database directly: the profile stream may not have re-emitted.
       final profile = await ref.read(databaseProvider).getProfile(user.uid);
       if (!mounted) return;
@@ -250,9 +255,11 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
   Future<void> _next() async {
     if (!_canContinue || _saving) return;
     FocusScope.of(context).unfocus();
-    if (_step == _Step.role) {
-      await _saveRole();
-    } else if (_step == _Step.club) {
+    // The role is saved with everything else at "Finish setup", not here: a
+    // coach or caddie role on the server counts as a finished setup (see
+    // isServerProfileComplete), so saving it early let someone who quit
+    // halfway skip the rest of setup on their next launch.
+    if (_step == _Step.club) {
       final ok = _role == 'player' ? await _savePlayer() : await _saveProvider();
       if (!ok) return;
     }
@@ -289,26 +296,6 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
 
   // ── saving ──────────────────────────────────────────────────────────────
 
-  Future<void> _saveRole() async {
-    final user = ref.read(authStateProvider).valueOrNull;
-    if (user == null) return;
-    setState(() => _saving = true);
-    try {
-      await ref.read(profileServiceProvider).updateProfile(
-            user.id,
-            db.UserProfilesCompanion(
-              uid: drift.Value(user.id),
-              role: drift.Value(_role),
-              updatedAt: drift.Value(DateTime.now()),
-            ),
-          );
-    } catch (e) {
-      if (mounted) TopNotification.showError(context, 'Error: $e');
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
   Future<bool> _savePlayer() async {
     final user = ref.read(authStateProvider).valueOrNull;
     if (user == null) return false;
@@ -319,6 +306,7 @@ class _OnboardingFlowScreenState extends ConsumerState<OnboardingFlowScreen> {
             db.UserProfilesCompanion(
               uid: drift.Value(user.id),
               name: drift.Value(_name.text.trim()),
+              role: const drift.Value('player'),
               handicap: drift.Value(_hcpUnknown ? null : _hcp),
               updatedAt: drift.Value(DateTime.now()),
             ),
