@@ -9,12 +9,10 @@ import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/audio_source_utils.dart';
-import '../../core/cloud/groq_service.dart';
 import '../../core/services/ai_caddie_service.dart';
 import '../../widgets/voice_orb_visualizer.dart';
 import '../../widgets/voice_beam.dart';
 import '../../widgets/voice_mic_button.dart';
-import '../../providers/app_providers.dart';
 import '../../widgets/top_notification.dart';
 
 class VoiceLoggerScreen extends ConsumerStatefulWidget {
@@ -99,30 +97,21 @@ class _VoiceLoggerScreenState extends ConsumerState<VoiceLoggerScreen> {
 
     try {
       // 1. Transcribe & Extract
-      final transcript = await GroqShotService.transcribe(File(path));
-      final shotData = await GroqShotService.extractShot(transcript);
-      
-      // 2. Get Caddie Feedback (Daniel)
-      final profile = ref.read(userProfileProvider).valueOrNull;
-      if (profile != null) {
-        final feedback = await AICaddieService.getCoachingFeedback(
-          shot: shotData,
-          player: profile,
-          recentShots: [], 
-        );
-        
-        setState(() {
-          _extractedShot = shotData;
-          _caddieFeedback = feedback;
-          _isProcessing = false;
-        });
+      // Transcribe, extract and coach in one server call.
+      final result = await AICaddieService.logShot(File(path));
+      final shotData = result.shot;
+      final feedback = result.feedback;
 
-        // 3. Speak if enabled
-        if (_voiceEnabled) {
-          await _speakFeedback(feedback);
-        } else {
-          setState(() => _orbState = OrbState.idle);
-        }
+      setState(() {
+        _extractedShot = shotData;
+        _caddieFeedback = feedback;
+        _isProcessing = false;
+      });
+
+      if (_voiceEnabled) {
+        await _speakFeedback(feedback);
+      } else {
+        setState(() => _orbState = OrbState.idle);
       }
     } catch (e) {
       debugPrint('Caddie Error: $e');
