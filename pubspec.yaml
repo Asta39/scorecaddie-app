@@ -94,6 +94,7 @@ flutter:
     - assets/images/
     - assets/animations/
     - assets/bots/
+    - assets/achievements/
     - .env
 
   # Onboarding type: Sour Gummy (display) and Manrope (body), both SIL Open

@@ -223,6 +223,7 @@ class AchievementsGalleryScreen extends ConsumerWidget {
       case AchievementCategory.activity: icon = LucideIcons.calendar; break;
       case AchievementCategory.explorer: icon = LucideIcons.map; break;
       case AchievementCategory.social: icon = LucideIcons.users; break;
+      case AchievementCategory.practice: icon = LucideIcons.dumbbell; break;
     }
     return Icon(icon, size: 16, color: AppColors.grey400);
   }
