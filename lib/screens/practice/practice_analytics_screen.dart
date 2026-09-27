@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:fl_chart/fl_chart.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:screenshot/screenshot.dart';
 import '../../providers/app_providers.dart';
 import '../../core/models/analytics_models.dart';
 import '../../widgets/highlights/practice_analytics_highlight_card_widget.dart';
 import '../../core/services/highlight_card_service.dart';
-import 'package:screenshot/screenshot.dart';
-import '../../widgets/loading_spinner.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
+
+enum _Measure { accuracy, volume }
 
 class PracticeAnalyticsScreen extends ConsumerStatefulWidget {
   const PracticeAnalyticsScreen({super.key});
@@ -19,67 +23,44 @@ class PracticeAnalyticsScreen extends ConsumerStatefulWidget {
 }
 
 class _PracticeAnalyticsScreenState extends ConsumerState<PracticeAnalyticsScreen> {
-  bool _showBallsTrend = false;
+  _Measure _measure = _Measure.accuracy;
+
+  String _hm(Duration d) => d.inHours > 0 ? '${d.inHours} h ${d.inMinutes.remainder(60)} min' : '${d.inMinutes} min';
 
   @override
   Widget build(BuildContext context) {
-    final analyticsAsync = ref.watch(practiceAnalyticsProvider);
+    final async = ref.watch(practiceAnalyticsProvider);
     final formatter = ref.watch(unitFormatterProvider);
+    final stats = async.valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Analytics', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: AppColors.grey900, letterSpacing: -0.5)),
-        centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.share2, color: AppColors.grey900),
-            onPressed: () => analyticsAsync.whenData((stats) => _shareHighlight(context, ref, stats, formatter)),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: analyticsAsync.when(
-        loading: () => const LoadingSpinner(),
-        error: (err, stack) => Center(child: Text('Error: $err')),
-        data: (stats) => SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
             children: [
-              _buildModernSummaryCard(stats),
-              const SizedBox(height: 40),
-              
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildSectionTitle(_showBallsTrend ? 'VOLUME TREND' : 'ACCURACY TREND'),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => setState(() => _showBallsTrend = !_showBallsTrend),
-                    child: Text(_showBallsTrend ? 'Show Accuracy' : 'Show Volume', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.emerald700)),
-                  ),
-                ],
-              ),
+              ObTopBar('Practice stats', onBack: () => context.pop(), actions: [
+                if (stats != null && stats.totalSessions > 0)
+                  ObIconButton(icon: LucideIcons.share2, label: 'Share', onPressed: () => _shareHighlight(context, stats, formatter)),
+              ]),
               const SizedBox(height: 16),
-              _buildTrendChart(stats),
-              
-              const SizedBox(height: 40),
-              _buildSectionTitle('CLUB BREAKDOWN'),
-              const SizedBox(height: 16),
-              _buildClubBreakdownList(stats.clubBreakdown, formatter),
-              
-              const SizedBox(height: 40),
-              _buildSectionTitle('PERFORMANCE INSIGHTS'),
-              const SizedBox(height: 16),
-              _buildInsightsGrid(stats),
-              const SizedBox(height: 40),
+              if (async.isLoading && stats == null)
+                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+              else if (stats == null || stats.totalSessions == 0)
+                ObCard(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    ObGuideRow(botAsset: ObBot.clover.idle, botLabel: 'Daniel the clover', text: 'Hit a practice session and I\'ll start charting it.', size: 76, fontSize: 16),
+                    const SizedBox(height: 14),
+                    ObButton(onPressed: () => context.go('/practice'), child: Text('Go practise', style: Ob.label(15, weight: FontWeight.w800))),
+                  ]),
+                )
+              else
+                ..._body(stats, formatter),
             ],
           ),
         ),
@@ -87,318 +68,143 @@ class _PracticeAnalyticsScreenState extends ConsumerState<PracticeAnalyticsScree
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 1.5,
-        color: AppColors.grey400,
+  List<Widget> _body(PracticeStats s, UnitFormatter formatter) {
+    final trend = _measure == _Measure.accuracy ? s.accuracyTrend : s.ballsHitTrend.map((e) => e.toDouble()).toList();
+    final clubs = [...s.clubBreakdown]..sort((a, b) => b.ballsHit.compareTo(a.ballsHit));
+    final best = clubs.where((c) => c.ballsHit >= 10).fold<ClubPracticeStat?>(null, (a, c) => a == null || c.accuracy > a.accuracy ? c : a);
+
+    return [
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+        decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(28), border: Border.all(color: Ob.lime.withValues(alpha: .2))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('BALLS THIS MONTH', style: Ob.eyebrow()),
+          const SizedBox(height: 4),
+          Text('${s.totalBallsThisMonth}', style: Ob.display(64, height: 1)),
+          const SizedBox(height: 10),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            ObChip('${s.totalSessions} sessions'),
+            ObChip(_hm(s.totalTime)),
+            ObChip('${s.totalBalls} balls in all'),
+          ]),
+        ]),
+      ).rise(),
+      const SizedBox(height: 16),
+      ObGooSegmented<_Measure>(
+        options: const [(_Measure.accuracy, 'On target'), (_Measure.volume, 'Balls hit')],
+        selected: _measure,
+        onChanged: (v) => setState(() => _measure = v),
       ),
-    );
-  }
-
-  Widget _buildModernSummaryCard(PracticeStats stats) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 20, offset: const Offset(0, 10)),
-        ],
+      const SizedBox(height: 12),
+      ObCard(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ObEyebrow(_measure == _Measure.accuracy ? 'On target, by session' : 'Balls, by session', trailing: Text('Last ${trend.length}', style: Ob.body(12, color: Ob.creamA(.55)))),
+          const SizedBox(height: 12),
+          SizedBox(height: 130, child: trend.isEmpty ? Center(child: Text('Not enough sessions yet.', style: Ob.body(13, color: Ob.creamA(.55)))) : _Bars(values: trend, percent: _measure == _Measure.accuracy)),
+        ]),
       ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildSummaryItem('SESSIONS', '${stats.totalSessions}', LucideIcons.calendar, AppColors.emerald700),
-              _buildVerticalDivider(),
-              _buildSummaryItem('TOTAL BALLS', '${stats.totalBalls}', LucideIcons.target, AppColors.blue700),
-              _buildVerticalDivider(),
-              _buildSummaryItem('TOTAL TIME', '${stats.totalTime.inHours}h', LucideIcons.clock, AppColors.purple700),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Divider(height: 1, color: Color(0xFFF2F2F7)),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Balls hit this month', style: TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w600, fontSize: 14)),
-              Text('${stats.totalBallsThisMonth}', style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w900, fontSize: 18)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryItem(String label, String value, IconData icon, Color color) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(height: 8),
-        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.grey900, letterSpacing: -0.5)),
-        Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.grey400, letterSpacing: 0.5)),
-      ],
-    );
-  }
-
-  Widget _buildVerticalDivider() {
-    return Container(height: 30, width: 1, color: const Color(0xFFF2F2F7));
-  }
-
-  Widget _buildTrendChart(PracticeStats stats) {
-    final trendData = _showBallsTrend ? stats.ballsHitTrend.map((e) => e.toDouble()).toList() : stats.accuracyTrend;
-    
-    if (trendData.length < 2) {
-      return Container(
-        height: 220,
-        width: double.infinity,
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32), border: Border.all(color: AppColors.grey100)),
-        child: const Center(child: Text('More sessions needed for trend data', style: TextStyle(color: AppColors.grey400, fontWeight: FontWeight.w600))),
-      );
-    }
-
-    final maxY = trendData.reduce((a, b) => a > b ? a : b) * 1.2;
-
-    return Container(
-      height: 240,
-      padding: const EdgeInsets.fromLTRB(12, 32, 24, 16),
-      decoration: BoxDecoration(
-        color: AppColors.grey900,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(color: AppColors.grey900.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10)),
-        ],
-      ),
-      child: LineChart(
-        LineChartData(
-          gridData: const FlGridData(show: false),
-          titlesData: const FlTitlesData(show: false),
-          borderData: FlBorderData(show: false),
-          minY: 0,
-          maxY: maxY,
-          lineBarsData: [
-            LineChartBarData(
-              spots: trendData.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
-              isCurved: true,
-              curveSmoothness: 0.4,
-              color: _showBallsTrend ? AppColors.blue600 : AppColors.golfLime,
-              barWidth: 4,
-              isStrokeCapRound: true,
-              dotData: FlDotData(
-                show: true,
-                getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                  radius: 4,
-                  color: Colors.white,
-                  strokeWidth: 2,
-                  strokeColor: _showBallsTrend ? AppColors.blue600 : AppColors.golfLime,
-                ),
-              ),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  colors: [
-                    (_showBallsTrend ? AppColors.blue600 : AppColors.golfLime).withValues(alpha: 0.2),
-                    (_showBallsTrend ? AppColors.blue600 : AppColors.golfLime).withValues(alpha: 0.0),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildClubBreakdownList(List<ClubPracticeStat> clubBreakdown, UnitFormatter formatter) {
-    if (clubBreakdown.isEmpty) return const SizedBox();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: Column(
-        children: clubBreakdown.asMap().entries.map((entry) {
-          final i = entry.key;
-          final stat = entry.value;
-          final isLast = i == clubBreakdown.length - 1;
-          final progress = (stat.ballsHit / clubBreakdown.first.ballsHit).clamp(0.0, 1.0);
-
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(10)),
-                          child: const Icon(LucideIcons.hammer, size: 16, color: AppColors.grey400),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(stat.clubName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.grey900)),
-                              Text('${stat.ballsHit} balls hit', style: const TextStyle(color: AppColors.grey500, fontSize: 12, fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(formatter.formatDistance(stat.avgDistance), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.grey900)),
-                            Text('ACC: ${stat.accuracy.toInt()}%', style: TextStyle(color: stat.accuracy > 70 ? AppColors.emerald700 : AppColors.grey400, fontSize: 10, fontWeight: FontWeight.w800)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        backgroundColor: const Color(0xFFF2F2F7),
-                        valueColor: AlwaysStoppedAnimation<Color>(stat.accuracy > 70 ? AppColors.emerald500 : AppColors.grey300),
-                        minHeight: 6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (!isLast)
-                const Padding(
-                  padding: EdgeInsets.only(left: 72),
-                  child: Divider(height: 1, color: Color(0xFFF2F2F7)),
-                ),
-            ],
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildInsightsGrid(PracticeStats stats) {
-    return Column(
-      children: [
-        _buildModernInsightRow('Strongest Club', stats.bestAccuracyClub, LucideIcons.award, AppColors.golfLime),
-        const SizedBox(height: 12),
-        _buildModernInsightRow('Most Practiced', stats.mostPracticedClub, LucideIcons.hammer, AppColors.blue700),
-        const SizedBox(height: 12),
-        _buildModernInsightRow('Average Session', '${stats.avgSessionMinutes.toInt()} min', LucideIcons.activity, AppColors.emerald700),
-      ],
-    );
-  }
-
-  Widget _buildModernInsightRow(String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.grey100),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(child: Text(label, style: const TextStyle(color: AppColors.grey500, fontSize: 14, fontWeight: FontWeight.w600))),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.grey900)),
-        ],
-      ),
-    );
-  }
-
-  void _shareHighlight(BuildContext context, WidgetRef ref, PracticeStats stats, UnitFormatter formatter) {
-    final userProfile = ref.read(userProfileProvider).valueOrNull;
-    final service = ref.read(highlightCardServiceProvider);
-    
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(32),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      if (clubs.isNotEmpty) ...[
+        const SizedBox(height: 22),
+        const ObEyebrow('Club by club'),
+        const SizedBox(height: 10),
+        GridView.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.45,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 24),
-            const Text('Share Progress', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, letterSpacing: -0.5)),
-            const SizedBox(height: 32),
-            
-            ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: SizedBox(
-                width: 260,
-                height: 462, 
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: Screenshot(
-                    controller: service.controller,
-                    child: PracticeAnalyticsHighlightCardWidget(
-                      stats: stats,
-                      userName: userProfile?.name,
-                      formatter: formatter,
-                    ),
-                  ),
-                ),
+            for (final c in clubs.take(8))
+              ObCard(
+                radius: 20,
+                padding: const EdgeInsets.all(14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(c.clubName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(12, weight: FontWeight.w700, color: Ob.creamA(.6))),
+                  const Spacer(),
+                  Text('${c.accuracy.round()}%', style: Ob.display(26, height: 1, color: c.accuracy >= 60 ? Ob.lime : (c.accuracy >= 40 ? Ob.cream : Ob.warn))),
+                  Text('${c.ballsHit} balls · ${c.avgDistance > 0 ? formatter.formatDistance(c.avgDistance) : '—'}', style: Ob.body(11, color: Ob.creamA(.55))),
+                ]),
               ),
-            ),
-            const SizedBox(height: 40),
-            
-            SizedBox(
-              width: double.infinity,
-              height: 64,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  service.shareHighlight(
-                    cardWidget: PracticeAnalyticsHighlightCardWidget(
-                      stats: stats,
-                      userName: userProfile?.name,
-                      formatter: formatter,
-                    ),
-                    context: context,
-                    text: 'Grinding on ScoreCaddie! 🏌️‍♂️⛳ #GolfStats #PracticeMastery',
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.grey900,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  elevation: 0,
-                ),
-                child: const Text('Share to Social Media', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Maybe Later', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))),
-            const SizedBox(height: 24),
           ],
         ),
+      ],
+      const SizedBox(height: 18),
+      ObGuideRow(
+        botAsset: ObBot.clover.happy,
+        botLabel: 'Daniel the clover',
+        text: best != null
+            ? 'Your ${best.clubName} is your most reliable at ${best.accuracy.round()}%. ${s.mostPracticedClub.isNotEmpty && s.mostPracticedClub != best.clubName ? 'Maybe give the ${s.mostPracticedClub} a rest?' : 'Keep it going.'}'
+            : 'Hit 10 balls with a club and I\'ll tell you how it\'s going.',
+        size: 80,
+        fontSize: 16,
+      ),
+    ];
+  }
+
+  void _shareHighlight(BuildContext context, PracticeStats stats, UnitFormatter formatter) {
+    final name = ref.read(userProfileProvider).valueOrNull?.name;
+    final service = ref.read(highlightCardServiceProvider);
+    Widget card() => PracticeAnalyticsHighlightCardWidget(stats: stats, userName: name, formatter: formatter);
+    showObSheet(
+      context,
+      (ctx) => ObSheet(
+        title: 'Share your progress',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: SizedBox(width: 200, height: 356, child: FittedBox(fit: BoxFit.contain, child: Screenshot(controller: service.controller, child: card()))),
+            ),
+          ),
+          const SizedBox(height: 18),
+          ObButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              service.shareHighlight(cardWidget: card(), context: context, text: 'Grinding on ScoreCaddie! 🏌️‍♂️⛳ #GolfStats');
+            },
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(LucideIcons.share2, size: 18, color: Ob.ink),
+              const SizedBox(width: 8),
+              Text('Share', style: Ob.label(16, weight: FontWeight.w800)),
+            ]),
+          ),
+        ]),
       ),
     );
+  }
+}
+
+/// Rounded bars that spring up; the latest one is lime.
+class _Bars extends StatelessWidget {
+  const _Bars({required this.values, required this.percent});
+  final List<double> values;
+  final bool percent;
+
+  @override
+  Widget build(BuildContext context) {
+    final max = values.fold<double>(percent ? 100 : 1, (a, b) => b > a ? b : a);
+    return LayoutBuilder(builder: (context, c) {
+      final n = values.length;
+      final w = ((c.maxWidth - (n - 1) * 8) / n).clamp(8.0, 30.0);
+      return Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        for (final (i, v) in values.indexed)
+          Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+            Text(percent ? '${v.round()}' : '${v.round()}', style: Ob.body(10, weight: FontWeight.w700, color: Ob.creamA(.5))),
+            const SizedBox(height: 4),
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: (v / max).clamp(.04, 1)),
+              duration: Duration(milliseconds: 500 + i * 40),
+              curve: Curves.easeOutBack,
+              builder: (_, t, _) => Container(
+                width: w,
+                height: 96 * t,
+                decoration: BoxDecoration(color: i == n - 1 ? Ob.lime : Ob.lime.withValues(alpha: .35), borderRadius: BorderRadius.circular(9)),
+              ),
+            ),
+          ]),
+      ]);
+    });
   }
 }
