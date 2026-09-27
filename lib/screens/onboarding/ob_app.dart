@@ -282,3 +282,115 @@ class _WeekPainter extends GooPainter {
   @override
   bool shouldRepaint(covariant _WeekPainter old) => old.today != today || old.played.join() != played.join();
 }
+
+/// A pill switch whose lime selection flows between options like liquid: the
+/// pill springs across and a droplet trails it, pinching off as it settles.
+class ObGooSegmented<T> extends StatefulWidget {
+  const ObGooSegmented({super.key, required this.options, required this.selected, required this.onChanged, this.height = 44, this.fontSize = 14, this.accent = Ob.lime});
+  final List<(T, String)> options;
+  final T selected;
+  final ValueChanged<T> onChanged;
+  final double height, fontSize;
+  final Color accent;
+
+  @override
+  State<ObGooSegmented<T>> createState() => _ObGooSegmentedState<T>();
+}
+
+class _ObGooSegmentedState<T> extends State<ObGooSegmented<T>> with SingleTickerProviderStateMixin {
+  late final ObSpring _pill = ObSpring(_index.toDouble(), w: 18, z: .62);
+  late final ObSpring _drop = ObSpring(_index.toDouble(), w: 9, z: .8);
+  late final AnimationController _loop = AnimationController.unbounded(vsync: this)..addListener(_tick);
+  Duration _last = Duration.zero;
+
+  int get _index => widget.options.indexWhere((o) => o.$1 == widget.selected).clamp(0, widget.options.length - 1);
+
+  @override
+  void didUpdateWidget(ObGooSegmented<T> old) {
+    super.didUpdateWidget(old);
+    final i = _index.toDouble();
+    if (_pill.target != i) {
+      _pill.target = i;
+      _drop.target = i;
+      if (MediaQuery.of(context).disableAnimations) {
+        _pill.x = i;
+        _drop.x = i;
+      } else {
+        _last = Duration.zero;
+        _loop.repeat(min: 0, max: 1, period: const Duration(seconds: 1));
+      }
+    }
+  }
+
+  void _tick() {
+    final now = _loop.lastElapsedDuration ?? Duration.zero;
+    final dt = _last == Duration.zero ? 1 / 60 : ((now - _last).inMicroseconds / 1e6).clamp(0.0, 0.05);
+    _last = now;
+    final a = _pill.step(dt), b = _drop.step(dt);
+    setState(() {});
+    if (!a && !b) _loop.stop();
+  }
+
+  @override
+  void dispose() {
+    _loop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.options.length;
+    return Container(
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .05),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
+      ),
+      child: LayoutBuilder(builder: (context, box) {
+        final step = box.maxWidth / n;
+        return Stack(children: [
+          Positioned.fill(child: CustomPaint(painter: _SegPainter(_pill.x, _drop.x, step, widget.height - 2, widget.accent))),
+          Row(children: [
+            for (var i = 0; i < n; i++)
+              Expanded(
+                child: Semantics(
+                  button: true,
+                  selected: i == _index,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => widget.onChanged(widget.options[i].$1),
+                    child: Center(
+                      child: Text(widget.options[i].$2,
+                          maxLines: 1,
+                          style: Ob.label(widget.fontSize, weight: FontWeight.w800).copyWith(color: i == _index ? Ob.ink : Ob.creamA(.72))),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+        ]);
+      }),
+    );
+  }
+}
+
+class _SegPainter extends GooPainter {
+  _SegPainter(this.pill, this.drop, this.step, this.h, this.color) : super(sigma: 6);
+  final double pill, drop, step, h;
+  final Color color;
+
+  @override
+  EdgeInsets get overflow => const EdgeInsets.all(16);
+
+  @override
+  void paintShapes(Canvas c, Size s) {
+    final p = Paint()..color = color;
+    final bw = step - 8, bh = h - 8;
+    c.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(pill * step + 4, 4, bw, bh), Radius.circular(bh / 2)), p);
+    c.drawCircle(Offset(drop * step + step / 2, h / 2), bh / 2 - 3, p);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SegPainter old) => old.pill != pill || old.drop != drop || old.step != step || old.color != color;
+}

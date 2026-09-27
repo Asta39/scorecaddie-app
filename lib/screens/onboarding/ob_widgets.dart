@@ -545,11 +545,15 @@ class ObLiquidSlider extends StatefulWidget {
     this.min = 0,
     this.max = 54,
     this.onDragChanged,
+    this.labels = const ['0', '18', '36', '54'],
   });
 
   final double value;
   final ValueChanged<double> onChanged;
   final double min, max;
+
+  /// Tick labels spread evenly under the track.
+  final List<String> labels;
   final ValueChanged<bool>? onDragChanged;
 
   @override
@@ -651,6 +655,7 @@ class _ObLiquidSliderState extends State<ObLiquidSlider> with SingleTickerProvid
           child: CustomPaint(
             size: Size(_width, 64),
             painter: _SliderPainter(
+              labels: widget.labels,
               blobX: _blob.x,
               blobV: _blob.v,
               dropX: _drop.x,
@@ -665,8 +670,9 @@ class _ObLiquidSliderState extends State<ObLiquidSlider> with SingleTickerProvid
 }
 
 class _SliderPainter extends GooPainter {
-  _SliderPainter({required this.blobX, required this.blobV, required this.dropX, required this.thumbX, required this.span}) : super(sigma: 6);
+  _SliderPainter({required this.blobX, required this.blobV, required this.dropX, required this.thumbX, required this.span, required this.labels}) : super(sigma: 6);
   final double blobX, blobV, dropX, thumbX, span;
+  final List<String> labels;
 
   @override
   EdgeInsets get overflow => const EdgeInsets.all(30);
@@ -691,12 +697,12 @@ class _SliderPainter extends GooPainter {
   @override
   void paintCrisp(Canvas c, Size s) {
     c.drawCircle(Offset(thumbX, 28), 11, Paint()..color = Ob.cream);
-    for (final (i, label) in const ['0', '18', '36', '54'].indexed) {
+    for (final (i, label) in labels.indexed) {
       final tp = TextPainter(
         text: TextSpan(text: label, style: Ob.body(11, weight: FontWeight.w700, color: Ob.creamA(.45))),
         textDirection: TextDirection.ltr,
       )..layout();
-      final x = 17 + span * i / 3;
+      final x = 17 + span * i / (labels.length - 1);
       tp.paint(c, Offset(x - tp.width / 2, 60 - tp.height * .8));
     }
   }
