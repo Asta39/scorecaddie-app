@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart' as db;
 import '../../core/cloud/group_sync_service.dart';
@@ -39,6 +40,15 @@ class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
     super.dispose();
   }
 
+  Future<void> _joinRound() async {
+    final status = await Permission.camera.request();
+    if (status.isGranted) {
+      _showJoinRoundDialog();
+    } else if (mounted) {
+      TopNotification.showError(context, 'Camera permission is required to scan QR codes');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,105 +64,59 @@ class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                   sliver: SliverList.list(children: [
-                    ObTopBar('Start a round', onBack: () => context.pop()),
+                    ObTopBar('Where are you playing?', onBack: () => context.pop()),
                     const SizedBox(height: 16),
-                    Container(
-                      height: 50,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(18)),
-                      child: Row(children: [
-                        Icon(LucideIcons.search, size: 18, color: Ob.creamA(.5)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            onChanged: (v) => setState(() => _search = v),
-                            cursorColor: Ob.lime,
-                            style: Ob.body(15, weight: FontWeight.w600),
-                            decoration: InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Search courses', hintStyle: Ob.body(14, color: Ob.creamA(.4))),
-                          ),
-                        ),
-                      ]),
-                    ),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (v) => setState(() => _search = v),
+                      cursorColor: Ob.lime,
+                      style: Ob.body(15, weight: FontWeight.w600),
+                      decoration: obInput(null, hint: 'Search Kenyan courses', prefix: Icon(LucideIcons.search, size: 18, color: Ob.creamA(.5))).copyWith(
+                        fillColor: Ob.creamA(.05),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Ob.creamA(.14), width: 2)),
+                      ),
+                    ).rise(),
                     const SizedBox(height: 14),
-                    _optionRow(
-                      icon: LucideIcons.scanLine,
-                      title: 'Scan a scorecard',
-                      sub: 'Played already? Snap the card and we\'ll read it.',
-                      hero: true,
-                      onTap: _showScanScorecardWorkflow,
-                    ),
-                    const SizedBox(height: 10),
-                    _optionRow(
-                      icon: LucideIcons.users,
-                      title: 'Group round',
-                      sub: 'Everyone scores on their own phone',
-                      trailing: Switch.adaptive(
-                        value: isGroupRound,
-                        activeTrackColor: Ob.lime,
-                        activeThumbColor: Ob.ink,
-                        onChanged: (val) => setState(() => isGroupRound = val),
-                      ),
-                      onTap: () => setState(() => isGroupRound = !isGroupRound),
-                      on: isGroupRound,
-                    ),
-                    if (!isGroupRound) ...[
-                      const SizedBox(height: 10),
-                      _optionRow(
-                        icon: LucideIcons.qrCode,
-                        title: 'Join a friend\'s round',
-                        sub: 'Scan their QR or type the code',
-                        onTap: () async {
-                          final status = await Permission.camera.request();
-                          if (status.isGranted) {
-                            _showJoinRoundDialog();
-                          } else if (context.mounted) {
-                            TopNotification.showError(context, 'Camera permission is required to scan QR codes');
-                          }
-                        },
-                      ),
-                    ],
-                    if (isGroupRound) ...[
-                      const SizedBox(height: 10),
-                      Text('Pick the course and you\'ll get a lobby code to share.', style: Ob.body(13, color: Ob.creamA(.6))),
-                    ],
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(child: _quick(LucideIcons.scanLine, 'Scan a card', 'Photo to scores in seconds', false, _showScanScorecardWorkflow)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _quick(LucideIcons.users, 'Group round', isGroupRound ? 'On · pick a course' : 'Score together, live', isGroupRound, () => setState(() => isGroupRound = !isGroupRound))),
+                      const SizedBox(width: 10),
+                      Expanded(child: _quick(LucideIcons.qrCode, 'Join a round', 'Scan or enter a code', false, _joinRound)),
+                    ]).rise(1),
                   ]),
                 ),
                 ..._buildCourseSections(ref),
               ],
             ),
           ),
-          if (isLoading)
-            Container(color: Colors.black.withValues(alpha: 0.5), child: const LoadingSpinner(size: 80)),
+          if (isLoading) Container(color: Colors.black.withValues(alpha: 0.5), child: const LoadingSpinner(size: 80)),
         ]),
       ),
     );
   }
 
-  Widget _optionRow({required IconData icon, required String title, required String sub, required VoidCallback onTap, Widget? trailing, bool hero = false, bool on = false}) {
-    final child = Row(children: [
-      Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(color: hero ? Ob.ink.withValues(alpha: .12) : Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)),
-        child: Icon(icon, size: 20, color: hero ? Ob.ink : Ob.lime),
-      ),
-      const SizedBox(width: 14),
-      Expanded(
+  Widget _quick(IconData icon, String title, String sub, bool on, VoidCallback onTap) {
+    return ObSelectTile(
+      selected: on,
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+      child: SizedBox(
+        height: 104,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: Ob.body(16, weight: FontWeight.w800, color: hero ? Ob.ink : Ob.cream)),
-          Text(sub, style: Ob.body(12, color: hero ? Ob.ink.withValues(alpha: .7) : Ob.creamA(.6))),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(color: on ? Ob.lime : Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, size: 18, color: on ? Ob.ink : Ob.lime),
+          ),
+          const Spacer(),
+          Text(title, style: Ob.body(14, weight: FontWeight.w800, height: 1.2)),
+          const SizedBox(height: 2),
+          Text(sub, maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.body(11, height: 1.35, color: Ob.creamA(.55))),
         ]),
       ),
-      trailing ?? Icon(LucideIcons.chevronRight, size: 18, color: hero ? Ob.ink : Ob.creamA(.4)),
-    ]);
-    if (hero) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Ob.lime, borderRadius: BorderRadius.circular(24)), child: child),
-      );
-    }
-    return ObSelectTile(selected: on, onTap: onTap, padding: const EdgeInsets.all(16), child: child);
+    );
   }
 
   void _onCourseSelected(dynamic course) async {
@@ -222,143 +186,130 @@ class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
 
   List<Widget> _buildCourseSections(WidgetRef ref) {
     final coursesAsync = ref.watch(coursesProvider);
-    final nearbyCoursesAsync = ref.watch(nearbyCoursesProvider);
-    final recentCoursesAsync = ref.watch(recentlyPlayedCoursesProvider);
+    final nearby = ref.watch(nearbyCoursesProvider).valueOrNull ?? const <CourseWithDistance>[];
+    final recent = ref.watch(recentlyPlayedCoursesProvider).valueOrNull ?? const [];
+    final homeId = ref.watch(userProfileProvider).valueOrNull?.homeCourseId;
 
     return coursesAsync.when(
-      data: (allCourses) {
-        // If searching, just show filtered list
+      loading: () => [const SliverFillRemaining(child: LoadingSpinner())],
+      error: (e, _) => [SliverFillRemaining(child: Center(child: Text('Couldn\'t load courses.', style: Ob.body(14, color: Ob.creamA(.7)))))],
+      data: (all) {
         if (_search.isNotEmpty) {
-          final filtered = allCourses.where((c) {
-            final query = _search.toLowerCase();
-            return c.name.toLowerCase().contains(query) ||
-                   c.location.toLowerCase().contains(query);
-          }).toList();
-
+          final q = _search.toLowerCase();
+          final hits = all.where((c) => c.name.toLowerCase().contains(q) || c.location.toLowerCase().contains(q)).toList();
           return [
-            if (filtered.isEmpty)
-              _buildEmptyState()
-            else
-              _buildCourseListSliver(filtered, showAddCTA: true)
+            if (hits.isEmpty) _buildEmptyState() else ...[_buildSectionHeader('${hits.length} ${hits.length == 1 ? 'course' : 'courses'}', LucideIcons.search), _list([for (final c in hits) (c, null)])],
           ];
         }
-
-        // Identify if there is a Current Course (within 500m)
-        final List<dynamic> currentCourse = [];
-        final List<dynamic> restNearby = [];
-        
-        nearbyCoursesAsync.whenData((nearby) {
-          for (var item in nearby) {
-            final double dist = item.distance;
-            if (dist < 500 && currentCourse.isEmpty) {
-              currentCourse.add(item);
-            } else {
-              restNearby.add(item);
-            }
-          }
-        });
+        final here = nearby.where((n) => n.distance < 500).firstOrNull;
+        final km = {for (final n in nearby) n.course.id: n.distance};
+        final recentIds = [for (final r in recent.take(3)) (r as dynamic).id as int].where((id) => id != here?.course.id).toList();
+        final recents = [for (final id in recentIds) all.where((c) => c.id == id).firstOrNull].whereType<db.Course>().toList();
+        final near = nearby.where((n) => n != here && !recentIds.contains(n.course.id)).take(5).map((n) => n.course).toList();
+        final rest = all.where((c) => c.id != here?.course.id && !recentIds.contains(c.id) && !near.any((n) => n.id == c.id)).toList();
 
         return [
-          // 1. CURRENT COURSE (If at course)
-          if (currentCourse.isNotEmpty)
-            SliverMainAxisGroup(
-              slivers: [
-                _buildSectionHeader('Current Course', LucideIcons.mapPin),
-                _buildCourseListSliver(currentCourse),
-              ],
+          if (here != null)
+            SliverPadding(padding: const EdgeInsets.fromLTRB(20, 18, 20, 0), sliver: SliverToBoxAdapter(child: _hereCard(here.course, homeId == here.course.id).rise(2))),
+          if (recents.isNotEmpty) ...[_buildSectionHeader('Played lately', LucideIcons.history), _list([for (final c in recents) (c, km[c.id])])],
+          if (near.isNotEmpty) ...[_buildSectionHeader('Nearby courses', LucideIcons.navigation), _list([for (final c in near) (c, km[c.id])])],
+          _buildSectionHeader(here == null && recents.isEmpty && near.isEmpty ? 'All courses' : 'Everywhere else', LucideIcons.list),
+          _list([for (final c in rest) (c, km[c.id])]),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 60),
+              child: Center(
+                child: TextButton(
+                  onPressed: () => context.push('/courses/add'),
+                  child: Text('Can\'t find your course? Add it', style: Ob.body(14, weight: FontWeight.w700, color: Ob.lime)),
+                ),
+              ),
             ),
-
-          // 2. RECENTLY PLAYED
-          recentCoursesAsync.when(
-            data: (recent) {
-              if (recent.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-              final top3 = recent.take(3).toList();
-              // Filter out current course if it exists in recent
-              final filteredRecent = currentCourse.isEmpty 
-                  ? top3 
-                  : top3.where((r) => (r.id) != (currentCourse.first is CourseWithDistance ? (currentCourse.first as CourseWithDistance).course.id : (currentCourse.first as db.Course).id)).toList();
-              
-              if (filteredRecent.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-              
-              return SliverMainAxisGroup(
-                slivers: [
-                  _buildSectionHeader('Recently Played', LucideIcons.history),
-                  _buildCourseListSliver(filteredRecent),
-                ],
-              );
-            },
-            loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-            error: (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
-          ),
-
-          // 3. NEARBY COURSES
-          if (restNearby.isNotEmpty)
-            SliverMainAxisGroup(
-              slivers: [
-                _buildSectionHeader('Nearby Courses', LucideIcons.navigation),
-                _buildCourseListSliver(restNearby.take(3).toList()),
-              ],
-            ),
-
-          // 4. ALL COURSES
-          SliverMainAxisGroup(
-            slivers: [
-              _buildSectionHeader('All Courses', LucideIcons.list),
-              _buildCourseListSliver(allCourses, showAddCTA: true),
-            ],
           ),
         ];
       },
-      loading: () => [
-        const SliverFillRemaining(
-          child: LoadingSpinner(),
-        )
-      ],
-      error: (e, _) => [
-        SliverFillRemaining(
-          child: Center(child: Text('Error loading courses: $e')),
-        )
-      ],
+    );
+  }
+
+  Widget _hereCard(db.Course c, bool home) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(28), border: Border.all(color: Ob.lime.withValues(alpha: .22))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Container(width: 8, height: 8, decoration: const BoxDecoration(color: Ob.lime, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Text('YOU\'RE HERE', style: Ob.eyebrow()),
+          const Spacer(),
+          Text('GPS', style: Ob.body(12, color: Ob.creamA(.6))),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          ObCrest(c.name, size: 64, radius: 18),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(c.name, style: Ob.display(24, height: 1.05)),
+              const SizedBox(height: 3),
+              Text(['Par ${c.par18 ?? '—'}', if (home) 'your home club'].join(' · '), style: Ob.body(13, color: Ob.creamA(.62))),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(
+            flex: 7,
+            child: ObButton(
+              onPressed: () => _onCourseSelected(c),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(LucideIcons.flag, size: 18, color: Ob.ink),
+                const SizedBox(width: 8),
+                Text('Play here', style: Ob.label(16, weight: FontWeight.w800)),
+              ]),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 5,
+            child: ObButton(tone: ObButtonTone.dark, onPressed: () => context.push('/scorecard/intel/${c.id}'), child: Text('Course info', style: Ob.label(15, weight: FontWeight.w800))),
+          ),
+        ]),
+      ]),
     );
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
-        child: ObEyebrow(title),
-      ),
-    );
+    return SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(20, 22, 20, 10), child: ObEyebrow(title)));
   }
 
-  Widget _buildCourseListSliver(List<dynamic> items, {bool showAddCTA = false}) {
+  Widget _list(List<(db.Course, double?)> rows) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final item = items[index];
-            final db.Course course = item is CourseWithDistance ? item.course : item;
-            final double? distance = item is CourseWithDistance ? item.distance : null;
-
-            return Column(
-              children: [
-                _CourseCard(
-                  course: course,
-                  distance: distance,
-                  onTap: () => _onCourseSelected(course),
+      sliver: SliverToBoxAdapter(
+        child: ObCard(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(children: [
+            for (final (i, (c, d)) in rows.indexed) ...[
+              if (i > 0) const ObHair(),
+              InkWell(
+                onTap: () => _onCourseSelected(c),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                  child: Row(children: [
+                    ObCrest(c.name, size: 44, radius: 13),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700)),
+                        Text('${c.location} · Par ${c.par18 ?? '—'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(12, color: Ob.creamA(.55))),
+                      ]),
+                    ),
+                    if (d != null) Text(d < 1000 ? '${d.round()} m' : '${(d / 1000).toStringAsFixed(d < 10000 ? 1 : 0)} km', style: Ob.body(13, weight: FontWeight.w800, color: Ob.creamA(.72))),
+                  ]),
                 ),
-                if (showAddCTA && index == items.length - 1) ...[
-                  const SizedBox(height: 8),
-                  _AddCustomCourseCTA(
-                    onTap: () => context.push('/courses/add'),
-                  ),
-                  const SizedBox(height: 100),
-                ],
-              ],
-            );
-          },
-          childCount: items.length,
+              ),
+            ],
+          ]),
         ),
       ),
     );
@@ -493,44 +444,28 @@ class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
 
 class _CourseCard extends StatelessWidget {
   final db.Course course;
-  final double? distance;
   final VoidCallback onTap;
 
-  const _CourseCard({required this.course, required this.onTap, this.distance});
+  const _CourseCard({required this.course, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final here = distance != null && distance! < 500;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: GestureDetector(
+      child: ObCard(
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: here ? Ob.roleFill : Ob.cardFill,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: here ? Ob.lime : Colors.transparent, width: 1.5),
+        padding: const EdgeInsets.all(14),
+        child: Row(children: [
+          ObCrest(course.name, size: 48),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(course.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(16, weight: FontWeight.w800)),
+              Text(course.location, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(12, color: Ob.creamA(.55))),
+            ]),
           ),
-          child: Row(children: [
-            ObCrest(course.name, size: 48),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(course.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(16, weight: FontWeight.w800)),
-                const SizedBox(height: 2),
-                Text(
-                  distance != null ? '${(distance! / 1000).toStringAsFixed(1)} km · ${course.location}' : course.location,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Ob.body(12, color: Ob.creamA(.55)),
-                ),
-              ]),
-            ),
-            const SizedBox(width: 8),
-            if (here) const ObChip('You\'re here', on: true) else ObChip('Par ${course.par18 ?? '?'}'),
-          ]),
-        ),
+          ObChip('Par ${course.par18 ?? '?'}'),
+        ]),
       ),
     );
   }
@@ -664,27 +599,6 @@ class _CourseSetupModalState extends ConsumerState<_CourseSetupModal> {
           child: Text(_isCreating ? 'Setting up…' : (widget.isGroup ? 'Open the lobby' : 'Tee off'), style: Ob.label(17, weight: FontWeight.w800)),
         ),
       ]),
-    );
-  }
-}
-
-class _AddCustomCourseCTA extends StatelessWidget {
-  final VoidCallback onTap;
-  const _AddCustomCourseCTA({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), border: Border.all(color: Ob.lime.withValues(alpha: .4))),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(LucideIcons.plus, color: Ob.lime, size: 18),
-          const SizedBox(width: 8),
-          Text('Course not listed? Add it', style: Ob.body(14, weight: FontWeight.w800, color: Ob.lime)),
-        ]),
-      ),
     );
   }
 }

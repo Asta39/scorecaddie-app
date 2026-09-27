@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
@@ -119,12 +120,24 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
     if (_loading) return const ObSheet(child: SizedBox(height: 260, child: Center(child: CupertinoActivityIndicator(color: Ob.lime))));
     final friends = ref.watch(friendsProvider).valueOrNull ?? const <db.Friend>[];
 
+    final courseName = ref.watch(coursesProvider).valueOrNull?.where((c) => c.id == widget.courseId).firstOrNull?.name ?? 'Your course';
     return ObSheet(
-      title: 'Round setup',
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .72),
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .78),
         child: SingleChildScrollView(
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              ObCrest(courseName, size: 44, radius: 13),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('ROUND SETUP', style: Ob.eyebrow()),
+                  Text(courseName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.display(22, height: 1.1)),
+                ]),
+              ),
+              ObIconButton(icon: LucideIcons.x, label: 'Close', onPressed: () => Navigator.pop(context)),
+            ]),
+            const SizedBox(height: 16),
             const ObEyebrow('Holes'),
             const SizedBox(height: 10),
             ObGooSegmented<String>(
@@ -138,47 +151,47 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
             if (_tees.isEmpty)
               Text('No tees set up for this course yet.', style: Ob.body(14, color: Ob.creamA(.6)))
             else
-              SizedBox(
-                height: 66,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _tees.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) {
-                    final t = _tees[i];
-                    return ObSelectTile(
-                      selected: _selectedTee?.id == t.id,
-                      onTap: () => setState(() => _selectedTee = t),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          Container(width: 10, height: 10, decoration: BoxDecoration(color: teeColor(t.name), shape: BoxShape.circle)),
-                          const SizedBox(width: 6),
-                          Text(t.name, style: Ob.body(14, weight: FontWeight.w800)),
+              for (final t in _tees)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: ObSelectTile(
+                    selected: _selectedTee?.id == t.id,
+                    onTap: () => setState(() => _selectedTee = t),
+                    child: Row(children: [
+                      Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(color: teeColor(t.name), shape: BoxShape.circle, border: Border.all(color: Ob.creamA(.3), width: 2)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(t.name, style: Ob.body(15, weight: FontWeight.w800)),
+                          Text('Rating ${t.courseRating} · slope ${t.slopeRating}', style: Ob.body(12, color: Ob.creamA(.58))),
                         ]),
-                        Text(t.yardage == null ? 'Slope ${t.slopeRating}' : '${t.yardage}y · slope ${t.slopeRating}', style: Ob.body(11, color: Ob.creamA(.55))),
-                      ]),
-                    );
-                  },
+                      ),
+                      if (t.yardage != null) Text('${t.yardage}y', style: Ob.display(20)),
+                    ]),
+                  ),
                 ),
-              ),
             const SizedBox(height: 16),
-            ObHeroCard(
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(22), border: Border.all(color: Ob.lime.withValues(alpha: .2))),
               child: Row(children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('YOU GET', style: Ob.eyebrow()),
-                    Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                      Text('${_calculateCH(hIndex)}', style: Ob.display(40, color: Ob.lime, height: 1)),
-                      Text(' strokes', style: Ob.body(15, weight: FontWeight.w700, color: Ob.creamA(.7))),
-                    ]),
+                    Text('COURSE HANDICAP', style: Ob.eyebrow()),
+                    Text('From your ${hIndex.toStringAsFixed(1)} index on these tees', style: Ob.body(12, color: Ob.creamA(.6))),
                   ]),
                 ),
-                Text('Index ${hIndex.toStringAsFixed(1)}', style: Ob.body(13, weight: FontWeight.w700, color: Ob.creamA(.6))),
+                Text('${_calculateCH(hIndex)}', style: Ob.display(44, height: 1)),
+                const SizedBox(width: 6),
+                Text('shots', style: Ob.body(13, weight: FontWeight.w700, color: Ob.creamA(.6))),
               ]),
             ),
             const SizedBox(height: 20),
-            const ObEyebrow('Who\'s marking your card?'),
+            const ObEyebrow('Your marker · needed for a WHS round'),
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               for (final f in friends)
@@ -206,7 +219,7 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
             const SizedBox(height: 20),
             ObButton(
               onPressed: _tees.isEmpty ? null : () => _play(hIndex),
-              child: Text('Let\'s play', style: Ob.label(17, weight: FontWeight.w800)),
+              child: Text('Tee off', style: Ob.label(17, weight: FontWeight.w800)),
             ),
           ]),
         ),
