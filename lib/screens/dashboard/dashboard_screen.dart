@@ -4,14 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import '../../core/database/database.dart' as db;
-import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
-import '../../widgets/profile_image.dart';
-import '../../widgets/streak_widget.dart';
 import '../provider/coach_dashboard_screen.dart';
-import '../../core/utils/course_logo_helper.dart';
-import '../../widgets/top_notification.dart';
 import '../../widgets/loading_spinner.dart';
+import '../../widgets/notifications/notification_bell.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 
 
 class DashboardScreen extends ConsumerWidget {
@@ -36,23 +35,39 @@ class DashboardScreen extends ConsumerWidget {
 // Re-implementing the Player View without circular dependencies or prefix errors
 class PlayerDashboardView extends ConsumerStatefulWidget {
   const PlayerDashboardView({super.key});
+
   @override
   ConsumerState<PlayerDashboardView> createState() => _PlayerDashboardViewState();
 }
 
 class _PlayerDashboardViewState extends ConsumerState<PlayerDashboardView> {
+  /// The index shown in the hero. It starts at last month's value and rolls
+  /// to today's, so a change is something you see happen.
+  double? _shownIndex;
+  bool _rolled = false;
+
+  void _rollIndex(double? last, double? current) {
+    if (_rolled || current == null) return;
+    _rolled = true;
+    if (last == null || last == current || MediaQuery.of(context).disableAnimations) {
+      _shownIndex = current;
+      return;
+    }
+    _shownIndex = last;
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (mounted) setState(() => _shownIndex = current);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final profileAsync = ref.watch(userProfileProvider);
-    final authState = ref.watch(authStateProvider);
-    final user = authState.valueOrNull;
+    final profile = ref.watch(userProfileProvider).valueOrNull;
+    final user = ref.watch(authStateProvider).valueOrNull;
 
     final hour = DateTime.now().hour;
-    final greeting = hour < 12 ? 'Good morning,' : (hour < 17 ? 'Good afternoon,' : 'Good evening,');
-
-    final profile = profileAsync.valueOrNull;
-    final userName = profile?.name ?? user?.displayName?.split(' ').first ?? 'Golfer';
-    final photoUrl = profile?.avatarUrl ?? user?.photoUrl;
+    final greeting = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
+    final first = (profile?.name ?? user?.displayName ?? 'Golfer').trim().split(' ').first;
+    final userName = first.isEmpty ? 'Golfer' : first[0].toUpperCase() + first.substring(1);
 
     ref.listen(userProfileProvider, (prev, next) {
       if (next.hasValue && next.value != null) {
@@ -69,493 +84,294 @@ class _PlayerDashboardViewState extends ConsumerState<PlayerDashboardView> {
       }
     });
 
+    final handicap = ref.watch(handicapProvider).valueOrNull;
+    _rollIndex(handicap?.lastIndex, handicap?.currentIndex);
+    final streak = ref.watch(streakProvider).valueOrNull;
+    final upcoming = _upcomingTeeTimes(ref.watch(casualTeeTimeBookingsProvider).valueOrNull ?? const []);
+
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(syncServiceProvider).syncAllPending(),
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          slivers: [
-            _buildTopHeader(context, ref, greeting, userName, photoUrl),
-            ..._buildPlayerDashboard(context, ref, profile),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopHeader(BuildContext context, WidgetRef ref, String greeting, String userName, String? photoUrl) {
-    return SliverAppBar(
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.white,
-      elevation: 0,
-      scrolledUnderElevation: 4,
-      pinned: true,
-      centerTitle: false,
-      titleSpacing: 24,
-      toolbarHeight: 80,
-      shape: const Border(bottom: BorderSide(color: AppColors.grey100, width: 1)),
-      actions: [
-        IconButton(
-          icon: const Icon(LucideIcons.refreshCw, size: 20, color: AppColors.grey400),
-          onPressed: () async {
-            TopNotification.showSuccess(context, 'Syncing data...');
-            await ref.read(syncServiceProvider).syncAllPending();
-          },
-        ),
-        const SizedBox(width: 8),
-      ],
-      title: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(greeting, style: const TextStyle(color: AppColors.grey500, fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(userName, style: const TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w900, fontSize: 26, letterSpacing: -0.5)),
-              ],
-            ),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: RefreshIndicator(
+          color: Ob.ink,
+          backgroundColor: Ob.lime,
+          onRefresh: () => ref.read(syncServiceProvider).syncAllPending(),
+          child: ListView(
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            children: [
+              ObTabHeader('$greeting, $userName', actions: [_bell()]).rise(),
+              const SizedBox(height: 16),
+              ObGuideRow(botAsset: ObBot.ball.happy, botLabel: 'Your golf-ball avatar, grinning', text: _nudge(streak, upcoming)).rise(1),
+              const SizedBox(height: 18),
+              _indexCard(handicap).rise(2),
+              const SizedBox(height: 18),
+              _actions().rise(3),
+              const SizedBox(height: 18),
+              _streakCard(streak),
+              const SizedBox(height: 18),
+              _numbers(),
+              const SizedBox(height: 24),
+              ObEyebrow('Next tee time', action: 'See all', onAction: () => context.push('/tee-times')),
+              const SizedBox(height: 12),
+              _nextTeeTime(upcoming),
+              const SizedBox(height: 24),
+              ObEyebrow('Recent rounds', action: 'See all', onAction: () => context.push('/rounds-history')),
+              const SizedBox(height: 12),
+              _recentRounds(ref.watch(recentRoundsProvider)),
+            ],
           ),
-          GestureDetector(
-            onTap: () => context.push('/profile'),
-            child: ProfileImage(url: photoUrl, name: userName, size: 48, isCircle: true),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  List<Widget> _buildPlayerDashboard(BuildContext context, WidgetRef ref, db.UserProfile? profile) {
-    final recentRounds = ref.watch(recentRoundsProvider);
-    final totalRounds = ref.watch(totalRoundsProvider);
-    final averageScore = ref.watch(averageScoreProvider);
-    final bestScore = ref.watch(bestScoreProvider);
-
-    return [
-      SliverToBoxAdapter(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
-            _buildCalendar(context),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: _buildStartRoundCTA(context),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: _buildBookTeeTimeCTA(context),
-            ),
-            const SizedBox(height: 8),
-            const StreakWidget(),
-          ],
-        ),
-      ),
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-        sliver: SliverList(
-          delegate: SliverChildListDelegate([
-            _buildSectionHeader('PERFORMANCE OVERVIEW', () => context.push('/analytics')),
-            const SizedBox(height: 16),
-          ]),
-        ),
-      ),
-      _buildStatsGrid(context, ref, profile, totalRounds, averageScore, bestScore),
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 80),
-        sliver: SliverList(
-          delegate: SliverChildListDelegate([
-            _buildSectionHeader('UPCOMING TEE TIMES', () => context.push('/tee-times')),
-            const SizedBox(height: 16),
-            _buildUpcomingTeeTimesList(context, ref),
-            const SizedBox(height: 32),
-            _buildSectionHeader('PAST ACTIVITIES', () => context.push('/rounds-history')),
-            const SizedBox(height: 16),
-            _buildPastActivitiesList(context, recentRounds),
-          ]),
-        ),
-      ),
-    ];
-  }
-
-  Widget _buildStartRoundCTA(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push('/select-course'),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+  Widget _bell() => Container(
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
-          color: AppColors.golfLime,
-          borderRadius: BorderRadius.circular(32),
-          boxShadow: [BoxShadow(color: AppColors.golfLime.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10))],
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xFF0B160F), Color(0xFF1F3326)]),
+          border: Border.all(color: const Color(0xFF2F4A39)),
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(color: Colors.black12, shape: BoxShape.circle),
-              child: const Icon(LucideIcons.play, color: AppColors.grey900, size: 28),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('START ROUND', style: TextStyle(color: AppColors.grey900, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
-                  SizedBox(height: 4),
-                  Text('Ready for the first tee?', style: TextStyle(color: AppColors.grey900.withValues(alpha: 0.7), fontSize: 13, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-            const Icon(LucideIcons.chevronRight, color: AppColors.grey900, size: 24),
-          ],
-        ),
-      ),
-    );
-  }
+        child: const Center(child: NotificationBell(color: Ob.cream)),
+      );
 
-  Widget _buildBookTeeTimeCTA(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push('/book-tee-time'),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
-        decoration: BoxDecoration(
-          color: AppColors.golfLime,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.grey900, width: 2),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(color: Colors.black12, shape: BoxShape.circle),
-              child: const Icon(LucideIcons.calendar, color: AppColors.grey900, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('BOOK TEE TIME', style: TextStyle(color: AppColors.grey900, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-                  SizedBox(height: 4),
-                  Text('Reserve a casual round', style: TextStyle(color: AppColors.grey900.withValues(alpha: 0.7), fontSize: 12, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-            const Icon(LucideIcons.chevronRight, color: AppColors.grey900, size: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCalendar(BuildContext context) {
+  List<CasualTeeTimeBooking> _upcomingTeeTimes(List<CasualTeeTimeBooking> all) {
     final now = DateTime.now();
-    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-    return Container(
-      height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: List.generate(7, (index) {
-          final day = startOfWeek.add(Duration(days: index));
-          final isToday = day.day == now.day && day.month == now.month && day.year == now.year;
-          return Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: isToday ? AppColors.golfLime : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: !isToday ? Border.all(color: AppColors.grey100) : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][index], style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: isToday ? AppColors.grey900.withValues(alpha: 0.7) : AppColors.grey400)),
-                  const SizedBox(height: 4),
-                  Text(day.day.toString(), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isToday ? AppColors.grey900 : AppColors.grey900)),
-                ],
-              ),
-            ),
-          );
-        }),
-      ),
-    );
+    final list = all.where((b) => _teeDateTime(b).isAfter(now)).toList()..sort((a, b) => _teeDateTime(a).compareTo(_teeDateTime(b)));
+    return list;
   }
 
-  Widget _buildStatsGrid(BuildContext context, WidgetRef ref, db.UserProfile? profile, AsyncValue<int> totalRounds, AsyncValue<double?> averageScore, AsyncValue<int?> bestScore) {
-    final handicapStatus = ref.watch(handicapProvider).valueOrNull;
-    final hIndex = handicapStatus?.currentIndex;
-    final trend = handicapStatus?.trend ?? 0.0;
-    
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      sliver: SliverGrid.count(
-        crossAxisCount: 2,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 1.3,
-        children: [
-          _buildStatCard(
-            'Handicap Index', 
-            hIndex != null ? hIndex.toStringAsFixed(1) : 'N/A', 
-            LucideIcons.target, 
-            AppColors.golfLime, 
-            isAccent: true,
-            textColorOverride: AppColors.grey900,
-            trend: trend,
-            subLabel: handicapStatus?.lowIndex != null ? 'LOW: ${handicapStatus!.lowIndex!.toStringAsFixed(1)}' : null,
-          ),
-          averageScore.when(data: (s) => _buildStatCard('Avg Score', s?.toStringAsFixed(1) ?? 'N/A', LucideIcons.trendingUp, Colors.white), loading: () => _buildStatCard('Avg Score', '...', LucideIcons.trendingUp, Colors.white), error: (_, _) => _buildStatCard('Avg Score', 'Err', LucideIcons.trendingUp, Colors.white)),
-          totalRounds.when(data: (c) => _buildStatCard('Total Rounds', c.toString(), LucideIcons.calendar, Colors.white), loading: () => _buildStatCard('Total Rounds', '...', LucideIcons.calendar, Colors.white), error: (_, _) => _buildStatCard('Total Rounds', 'Err', LucideIcons.calendar, Colors.white)),
-          bestScore.when(data: (s) => _buildStatCard('Best Round', s?.toString() ?? 'N/A', LucideIcons.award, AppColors.golfLime, isAccent: true, textColorOverride: AppColors.grey900), loading: () => _buildStatCard('Best Round', '...', LucideIcons.award, AppColors.golfLime, isAccent: true, textColorOverride: AppColors.grey900), error: (_, _) => _buildStatCard('Best Round', 'Err', LucideIcons.award, AppColors.golfLime, isAccent: true, textColorOverride: AppColors.grey900)),
-        ],
-      ),
-    );
+  DateTime _teeDateTime(CasualTeeTimeBooking b) {
+    final parts = b.teeTime.split(':');
+    return DateTime(b.bookingDate.year, b.bookingDate.month, b.bookingDate.day, int.tryParse(parts[0]) ?? 0, parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0);
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color, {bool isAccent = false, Color? textColorOverride, double? trend, String? subLabel}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color, 
-        borderRadius: BorderRadius.circular(28), 
-        border: Border.all(color: AppColors.grey100),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 15, offset: const Offset(0, 8))]
-      ),
-      padding: const EdgeInsets.all(20),
+  /// What your golf ball says: the most useful thing right now.
+  String _nudge(StreakInfo? streak, List<CasualTeeTimeBooking> upcoming) {
+    if (upcoming.isNotEmpty) {
+      final t = _teeDateTime(upcoming.first);
+      final days = DateUtils.dateOnly(t).difference(DateUtils.dateOnly(DateTime.now())).inDays;
+      final when = days == 0 ? 'today' : days == 1 ? 'tomorrow' : DateFormat('EEEE').format(t);
+      return 'Tee time $when at ${DateFormat('HH:mm').format(t)}. Let’s go!';
+    }
+    return switch (streak?.status) {
+      StreakStatus.noRounds || null => 'Play a round and I’ll start keeping score.',
+      StreakStatus.atRisk => 'No round yet this week. Keep the streak alive?',
+      StreakStatus.broken => 'New week, new streak. Tee one up?',
+      _ => 'Nice week. Fancy a range session?',
+    };
+  }
+
+  Widget _indexCard(HandicapStatus? h) {
+    final current = h?.currentIndex;
+    final last = h?.lastIndex;
+    final delta = (current != null && last != null) ? current - last : null;
+    return ObHeroCard(
+      onTap: () => context.push('/analytics'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const ObEyebrow('Handicap index', trailing: ObChip('Official WHS', on: true)),
+          const SizedBox(height: 6),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Icon(icon, color: textColorOverride ?? AppColors.grey900, size: 20),
-              if (trend != null && trend != 0)
-                Row(
-                  children: [
-                    Icon(trend < 0 ? LucideIcons.arrowDown : LucideIcons.arrowUp, color: trend < 0 ? AppColors.golfLime : AppColors.doubleBogey, size: 12),
-                    const SizedBox(width: 2),
-                    Text(trend.abs().toStringAsFixed(1), style: TextStyle(color: trend < 0 ? AppColors.golfLime : AppColors.doubleBogey, fontSize: 10, fontWeight: FontWeight.w900)),
-                  ],
+              if (current == null)
+                Text('—', style: Ob.display(72, height: 1.1, color: Ob.creamA(.35)))
+              else
+                ObRollingNumber(value: _shownIndex ?? current, fontSize: 72),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (delta != null && delta.abs() >= 0.05)
+                        Row(children: [
+                          Icon(delta < 0 ? LucideIcons.arrowDown : LucideIcons.arrowUp, size: 14, color: delta < 0 ? Ob.lime : Ob.warn),
+                          const SizedBox(width: 2),
+                          Text(delta.abs().toStringAsFixed(1), style: Ob.label(14, weight: FontWeight.w800).copyWith(color: delta < 0 ? Ob.lime : Ob.warn)),
+                          Text('  this month', style: Ob.body(12, color: Ob.creamA(.6))),
+                        ]),
+                      Text(
+                        current == null
+                            ? 'Appears after ${h?.roundsNeededForUpdate ?? 3} more rounds'
+                            : (h?.lowIndex != null ? 'Low ${h!.lowIndex!.toStringAsFixed(1)}' : 'Tap for your stats'),
+                        style: Ob.body(12, color: Ob.creamA(.6)),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(label.toUpperCase(), style: TextStyle(color: textColorOverride?.withValues(alpha: 0.7) ?? AppColors.grey500, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.0)),
-          Text(value, style: TextStyle(color: textColorOverride ?? AppColors.grey900, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-          if (subLabel != null)
-            Text(subLabel, style: TextStyle(color: textColorOverride?.withValues(alpha: 0.5) ?? AppColors.grey400, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
         ],
       ),
     );
   }
 
-  Widget _buildUpcomingTeeTimesList(BuildContext context, WidgetRef ref) {
-    final teeTimesAsync = ref.watch(casualTeeTimeBookingsProvider);
-    
-    return teeTimesAsync.when(
-      data: (bookings) {
-        final upcoming = bookings.where((b) {
-          final bDate = b.bookingDate;
-          final timeParts = b.teeTime.split(':');
-          final dt = DateTime(bDate.year, bDate.month, bDate.day, int.parse(timeParts[0]), int.parse(timeParts[1]));
-          return dt.isAfter(DateTime.now());
-        }).toList();
-        
-        if (upcoming.isEmpty) return const Center(child: Text('No upcoming tee times'));
-        
-        return Column(
-          children: upcoming.take(2).map((b) => _buildTeeTimeTile(context, b)).toList(),
+  Widget _actions() => Row(
+        children: [
+          Expanded(
+            flex: 5,
+            child: ObButton(
+              onPressed: () => context.push('/select-course'),
+              height: 56,
+              padding: EdgeInsets.zero,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(LucideIcons.flag, size: 18), const SizedBox(width: 8), Text('Start round', style: Ob.label(16, weight: FontWeight.w800))]),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 4,
+            child: ObButton(
+              tone: ObButtonTone.dark,
+              onPressed: () => context.push('/book-tee-time'),
+              height: 56,
+              padding: EdgeInsets.zero,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(LucideIcons.calendar, size: 18), const SizedBox(width: 8), Text('Tee time', style: Ob.label(16, weight: FontWeight.w800))]),
+            ),
+          ),
+        ],
+      );
+
+  Widget _streakCard(StreakInfo? info) {
+    final now = DateTime.now();
+    final monday = DateUtils.dateOnly(now.subtract(Duration(days: now.weekday - 1)));
+    final played = List<bool>.generate(7, (i) {
+      final d = monday.add(Duration(days: i));
+      return (info?.playedDatesThisWeek ?? const []).any((p) => DateUtils.isSameDay(p, d));
+    });
+    final count = info?.count ?? 0;
+    final line = switch (info?.status) {
+      StreakStatus.atRisk => 'Play once before Sunday to keep it going.',
+      StreakStatus.broken => 'Your streak ended. One round this week starts a new one.',
+      StreakStatus.noRounds || null => 'Play a round every week to build a streak.',
+      _ => 'You’ve played this week. See you next week!',
+    };
+    return ObCard(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ObEyebrow('Weekly streak',
+              trailing: Row(children: [
+                Icon(LucideIcons.flame, size: 16, color: count > 0 ? Ob.warn : Ob.creamA(.4)),
+                const SizedBox(width: 6),
+                Text('$count ${count == 1 ? 'week' : 'weeks'}', style: Ob.display(20, color: count > 0 ? Ob.warn : Ob.creamA(.5))),
+              ])),
+          const SizedBox(height: 14),
+          ObWeekDots(played: played, today: now.weekday - 1),
+          const SizedBox(height: 10),
+          Text(line, style: Ob.body(13, height: 1.45, color: Ob.creamA(.62))),
+        ],
+      ),
+    );
+  }
+
+  Widget _numbers() {
+    final avg = ref.watch(averageScoreProvider).valueOrNull;
+    final total = ref.watch(totalRoundsProvider).valueOrNull;
+    return ObSplitCards(
+      left: ObStat('Average score', avg == null ? '—' : avg.toStringAsFixed(1)),
+      right: ObStat('Rounds played', total?.toString() ?? '—'),
+    );
+  }
+
+  Widget _nextTeeTime(List<CasualTeeTimeBooking> upcoming) {
+    if (upcoming.isEmpty) {
+      return ObCard(
+        onTap: () => context.push('/book-tee-time'),
+        child: Row(children: [
+          Container(width: 44, height: 44, decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)), child: const Icon(LucideIcons.calendar, color: Ob.lime, size: 20)),
+          const SizedBox(width: 14),
+          Expanded(child: Text('Nothing booked yet. Grab a tee time?', style: Ob.body(14, weight: FontWeight.w700))),
+          Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
+        ]),
+      );
+    }
+    final b = upcoming.first;
+    final t = _teeDateTime(b);
+    return ObCard(
+      onTap: () => context.push('/tee-times'),
+      child: Row(
+        children: [
+          ObCrest(b.courseName),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(b.courseName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text(DateFormat('EEEE d MMMM').format(t), style: Ob.body(13, color: Ob.creamA(.6))),
+            ]),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)),
+            child: Column(children: [
+              Text(DateFormat('EEE').format(t).toUpperCase(), style: Ob.label(11, weight: FontWeight.w800).copyWith(color: Ob.lime, letterSpacing: .8)),
+              Text(DateFormat('HH:mm').format(t), style: Ob.display(22, height: 1, color: Ob.lime)),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recentRounds(AsyncValue<List<db.Round>> rounds) {
+    return rounds.when(
+      loading: () => const SizedBox(height: 80, child: LoadingSpinner(size: 60)),
+      error: (e, _) => Text('Couldn’t load your rounds.', style: Ob.body(14, color: Ob.creamA(.6))),
+      data: (list) {
+        if (list.isEmpty) {
+          return ObCard(child: Text('Your rounds will show up here after your first one.', style: Ob.body(14, color: Ob.creamA(.62))));
+        }
+        final shown = list.take(3).toList();
+        return ObCard(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(children: [
+            for (var i = 0; i < shown.length; i++) ...[
+              if (i > 0) const ObHair(),
+              _roundRow(shown[i], first: i == 0),
+            ],
+          ]),
         );
       },
-      loading: () => const LoadingSpinner(size: 60),
-      error: (e, _) => Text('Error: $e'),
     );
   }
 
-  Widget _buildTeeTimeTile(BuildContext context, CasualTeeTimeBooking booking) {
-    final logoPath = CourseLogoHelper.getLogoAssetPath(booking.courseName);
-    final timeParts = booking.teeTime.split(':');
-    final dt = DateTime(booking.bookingDate.year, booking.bookingDate.month, booking.bookingDate.day, int.parse(timeParts[0]), int.parse(timeParts[1]));
-
-    return GestureDetector(
-      onTap: () => context.push('/tee-times'),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white, 
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.grey100),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: logoPath != null ? Colors.white : AppColors.emerald50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.grey100),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))
-                ],
-              ),
-              child: logoPath != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
-                      child: Image.asset(
-                        logoPath,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, _, _) => _fallbackIcon(),
-                      ),
-                    )
-                  : _fallbackIcon(),
-            ),
-            const SizedBox(width: 16),
+  Widget _roundRow(db.Round r, {bool first = false}) {
+    final vsPar = r.scoreVsPar;
+    return Semantics(
+      button: true,
+      label: '${r.courseName}, ${r.totalScore}',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.push('/round/${r.id}'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(children: [
+            ObCrest(r.courseName, size: 40, radius: 12),
+            const SizedBox(width: 14),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    booking.courseId.replaceAll('-', ' ').toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: -0.3),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${DateFormat('EEEE, MMM d').format(dt)} • ${DateFormat('h:mm a').format(dt)}',
-                    style: const TextStyle(fontSize: 12, color: AppColors.grey500, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(r.courseName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text('${DateFormat('EEE d MMM').format(r.playedAt)} · ${r.holesPlayed} holes', style: Ob.body(12, color: Ob.creamA(.55))),
+              ]),
             ),
-            Icon(LucideIcons.chevronRight, color: AppColors.grey400, size: 20),
-          ],
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('${r.totalScore}', style: Ob.display(26, height: 1)),
+              Text(vsPar == 0 ? 'Level' : (vsPar > 0 ? '+$vsPar' : '$vsPar'),
+                  style: Ob.label(12, weight: FontWeight.w800).copyWith(color: vsPar <= 0 || first ? Ob.lime : Ob.creamA(.55))),
+            ]),
+          ]),
         ),
       ),
     );
-  }
-
-  Widget _buildPastActivitiesList(BuildContext context, AsyncValue<List<db.Round>> recentRounds) {
-    return recentRounds.when(
-      data: (rounds) {
-        if (rounds.isEmpty) return const Center(child: Text('No rounds yet'));
-        final list = rounds.take(3).map((r) => _buildActivityTile(context, r)).toList();
-        return Column(children: list);
-      },
-      loading: () => const LoadingSpinner(size: 60),
-      error: (e, _) => Text('Error: $e'),
-    );
-  }
-
-  Widget _buildActivityTile(BuildContext context, db.Round round) {
-    final logoPath = CourseLogoHelper.getLogoAssetPath(round.courseName);
-
-    return GestureDetector(
-      onTap: () => context.push('/round/${round.id}'),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white, 
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.grey100),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: logoPath != null ? Colors.white : AppColors.emerald50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.grey100),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))
-                ],
-              ),
-              child: logoPath != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
-                      child: Image.asset(
-                        logoPath,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, _, _) => _fallbackIcon(),
-                      ),
-                    )
-                  : _fallbackIcon(),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    round.courseName,
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: -0.3),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${DateFormat('MMM d').format(round.playedAt)} • ${round.totalScore} Strokes',
-                    style: const TextStyle(fontSize: 12, color: AppColors.grey500, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: round.scoreVsPar <= 0 ? AppColors.golfLime.withValues(alpha: 0.1) : AppColors.grey50,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                round.scoreVsPar > 0 ? '+${round.scoreVsPar}' : '${round.scoreVsPar}',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: round.scoreVsPar <= 0 ? AppColors.emerald700 : AppColors.grey900,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  Widget _fallbackIcon() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.emerald50,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Center(
-        child: Icon(Icons.golf_course_rounded, color: AppColors.emerald700, size: 24),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, VoidCallback onAction) {
-    return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(title, style: const TextStyle(color: AppColors.grey500, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2)), GestureDetector(onTap: onAction, child: const Text('See All', style: TextStyle(color: AppColors.grey900, fontSize: 13, fontWeight: FontWeight.w700)))]);
   }
 }
