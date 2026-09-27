@@ -33,6 +33,8 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
   db.Tee? _selectedTee;
   List<db.Tee> _tees = [];
   bool _loading = true;
+  int? _frontPar, _backPar;
+  int? get _ninePar => _format == 'Front 9' ? _frontPar : _backPar;
   
   // Marker state
   db.Friend? _selectedMarker;
@@ -48,6 +50,13 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
   Future<void> _loadTees() async {
     final database = ref.read(databaseProvider);
     final tees = await database.getTeesForCourse(widget.courseId);
+    final holes = await database.getHolesForCourse(widget.courseId);
+    int? sumPar(bool front) {
+      final h = holes.where((h) => front ? h.holeNumber <= 9 : h.holeNumber > 9).toList();
+      return h.length == 9 ? h.fold<int>(0, (a, x) => a + x.par) : null;
+    }
+    _frontPar = sumPar(true);
+    _backPar = sumPar(false);
     setState(() {
       _tees = tees;
       if (tees.isNotEmpty) _selectedTee = tees.first;
@@ -62,12 +71,25 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
   }
 
   int _calculateCH(double handicapIndex) {
-    if (_selectedTee == null) return 0;
-    return WHSEngine.calculateCourseHandicap(
+    final t = _selectedTee;
+    if (t == null) return 0;
+    if (_format == '18 Holes') {
+      return WHSEngine.calculateCourseHandicap(
+        handicapIndex: handicapIndex,
+        slopeRating: t.slopeRating,
+        courseRating: t.courseRating,
+        par: t.par ?? 72,
+      );
+    }
+    final front = _format == 'Front 9';
+    return WHSEngine.calculateNineHoleCourseHandicap(
       handicapIndex: handicapIndex,
-      slopeRating: _selectedTee!.slopeRating,
-      courseRating: _selectedTee!.courseRating,
-      par: _selectedTee!.par ?? 72,
+      slopeRating: t.slopeRating,
+      courseRating: t.courseRating,
+      par: t.par ?? 72,
+      nineSlopeRating: front ? t.slopeRatingFront : t.slopeRatingBack,
+      nineCourseRating: front ? t.courseRatingFront : t.courseRatingBack,
+      ninePar: _ninePar,
     );
   }
 

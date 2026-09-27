@@ -183,4 +183,32 @@ void main() {
       expect(WHSEngine.calculateESCCap(4, 40, 3), 9);
     });
   });
+
+  group('calculateNineHoleCourseHandicap', () {
+    test('uses 9-hole ratings when the tee has them', () {
+      // 18.7 / 2 = 9.35; x 120/113 = 9.93; + (36.1 - 36) = 10.03
+      expect(
+        WHSEngine.calculateNineHoleCourseHandicap(
+          handicapIndex: 18.7, slopeRating: 125, courseRating: 72.0, par: 72,
+          nineSlopeRating: 120, nineCourseRating: 36.1, ninePar: 36,
+        ),
+        10,
+      );
+    });
+
+    test('falls back to half the 18-hole rating', () {
+      // 18.7 / 2 x 113/113 = 9.35; + (72.0 / 2 - 36) = 9.35
+      expect(
+        WHSEngine.calculateNineHoleCourseHandicap(handicapIndex: 18.7, slopeRating: 113, courseRating: 72.0, par: 72),
+        9,
+      );
+    });
+
+    test('is about half the 18-hole course handicap', () {
+      final ch18 = WHSEngine.calculateCourseHandicap(handicapIndex: 18.7, slopeRating: 113, courseRating: 72.0, par: 72);
+      final ch9 = WHSEngine.calculateNineHoleCourseHandicap(handicapIndex: 18.7, slopeRating: 113, courseRating: 72.0, par: 72);
+      expect(ch18, 19);
+      expect((ch9 - ch18 / 2).abs() <= 1, isTrue);
+    });
+  });
 }

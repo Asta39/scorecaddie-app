@@ -54,20 +54,35 @@ class _ScannerReviewScreenState extends ConsumerState<ScannerReviewScreen> {
     }
   }
 
+  /// Strokes for this card: 9-hole cards get the 9-hole course handicap.
+  int _courseHandicap(double hIndex) {
+    final state = ref.read(scorecardScannerProvider);
+    final t = state.tee;
+    if (t == null) return 0;
+    final type = state.scanResult?.roundType;
+    if (type == 'front_9' || type == 'back_9') {
+      final front = type == 'front_9';
+      final holes = _officialHoles.where((h) => front ? h.holeNumber <= 9 : h.holeNumber > 9).toList();
+      return WHSEngine.calculateNineHoleCourseHandicap(
+        handicapIndex: hIndex,
+        slopeRating: t.slopeRating,
+        courseRating: t.courseRating,
+        par: t.par ?? 72,
+        nineSlopeRating: front ? t.slopeRatingFront : t.slopeRatingBack,
+        nineCourseRating: front ? t.courseRatingFront : t.courseRatingBack,
+        ninePar: holes.length == 9 ? holes.fold<int>(0, (a, h) => a + h.par) : null,
+      );
+    }
+    return WHSEngine.calculateCourseHandicap(handicapIndex: hIndex, slopeRating: t.slopeRating, courseRating: t.courseRating, par: t.par ?? 72);
+  }
+
   // Calculate ESC Cap for hole
   int _calculateESCCap(int par, int holeNumber) {
     final state = ref.read(scorecardScannerProvider);
     final profile = ref.read(userProfileProvider).valueOrNull;
     final hIndex = profile?.handicap ?? 0.0;
     
-    final int courseHandicap = state.tee != null
-        ? WHSEngine.calculateCourseHandicap(
-            handicapIndex: hIndex,
-            slopeRating: state.tee!.slopeRating,
-            courseRating: state.tee!.courseRating,
-            par: state.tee!.par ?? 72,
-          )
-        : 0;
+    final int courseHandicap = _courseHandicap(hIndex);
 
     final officialHole = _officialHoles.firstWhere(
       (h) => h.holeNumber == holeNumber,
@@ -208,14 +223,7 @@ class _ScannerReviewScreenState extends ConsumerState<ScannerReviewScreen> {
     }
 
     final double playerHI = profile?.handicap ?? 36.0;
-    final int courseHandicap = state.tee != null
-        ? WHSEngine.calculateCourseHandicap(
-            handicapIndex: playerHI,
-            slopeRating: state.tee!.slopeRating,
-            courseRating: state.tee!.courseRating,
-            par: state.tee!.par ?? 72,
-          )
-        : 0;
+    final int courseHandicap = _courseHandicap(playerHI);
 
     double differential;
     if (holesPlayed.abs() == 9) {

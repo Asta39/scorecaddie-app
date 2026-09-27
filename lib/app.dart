@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'providers/app_providers.dart';
+import 'widgets/offline_pill.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class ScoreCaddieApp extends ConsumerWidget {
@@ -41,6 +42,15 @@ class ScoreCaddieApp extends ConsumerWidget {
       themeMode: ThemeMode.light,
       routerConfig: router,
       builder: (context, child) {
+        return Stack(children: [
+          Positioned.fill(child: _scaled(context, child)),
+          const Positioned(top: 0, left: 0, right: 0, child: Material(type: MaterialType.transparency, child: OfflinePill())),
+        ]);
+      },
+    );
+  }
+
+  Widget _scaled(BuildContext context, Widget? child) {
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: const SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
@@ -76,7 +86,5 @@ class ScoreCaddieApp extends ConsumerWidget {
                 )
               : const SizedBox.shrink(),
         );
-      },
-    );
   }
 }

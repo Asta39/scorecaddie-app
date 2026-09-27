@@ -190,6 +190,25 @@ class WHSEngine {
     return ch.round();
   }
 
+  /// 9-hole Course Handicap (WHS 2024, Rule 6.1b)
+  /// CH9 = (Handicap Index / 2) x (9-hole Slope / 113) + (9-hole Course Rating - 9-hole Par)
+  /// Without 9-hole ratings, uses half the 18-hole rating and the 18-hole slope.
+  static int calculateNineHoleCourseHandicap({
+    required double handicapIndex,
+    required int slopeRating,
+    required double courseRating,
+    required int par,
+    int? nineSlopeRating,
+    double? nineCourseRating,
+    int? ninePar,
+  }) {
+    final slope = (nineSlopeRating ?? 0) > 0 ? nineSlopeRating! : slopeRating;
+    final rating = (nineCourseRating ?? 0) > 0 ? nineCourseRating! : courseRating / 2;
+    final p = ninePar ?? (par / 2).round();
+    if (slope == 0) return (handicapIndex / 2).round();
+    return ((handicapIndex / 2) * (slope / 113) + (rating - p)).round();
+  }
+
   /// Playing Handicap
   /// PH = Course Handicap x Handicap Allowance
   /// Common allowance: 0.95 for Individual Stroke Play, 0.85 for 4-ball.
