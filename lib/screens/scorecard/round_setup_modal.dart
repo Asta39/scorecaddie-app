@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
-import '../../core/theme/app_theme.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import 'course_intel_screen.dart' show teeColor;
 import '../../core/database/database.dart' as db;
 import '../../core/utils/whs_engine.dart';
 import '../../providers/app_providers.dart';
+import '../../widgets/top_notification.dart';
 
 class RoundSetupModal extends ConsumerStatefulWidget {
   final int courseId;
@@ -68,276 +71,124 @@ class _RoundSetupModalState extends ConsumerState<RoundSetupModal> {
     );
   }
 
+  void _play(double hIndex) {
+    final markerName = _selectedMarker?.friendName ?? _manualMarkerName.trim();
+    if (markerName.isEmpty) {
+      TopNotification.showError(context, 'Add a marker so the round counts for your handicap.');
+      return;
+    }
+    final ch = _calculateCH(hIndex);
+    Navigator.pop(context);
+    context.push('/scoring', extra: {
+      'courseId': widget.courseId,
+      'holesPlayed': _format == '18 Holes' ? 18 : (_format == 'Front 9' ? 9 : -9),
+      'teeId': _selectedTee?.id,
+      'courseHandicap': ch,
+      'markerName': markerName,
+      'markerId': _selectedMarker?.friendId,
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(userProfileProvider).valueOrNull;
     final hIndex = profile?.handicap ?? 0.0;
 
-    if (_loading) return const SizedBox(height: 300, child: Center(child: CupertinoActivityIndicator()));
+    if (_loading) return const ObSheet(child: SizedBox(height: 260, child: Center(child: CupertinoActivityIndicator(color: Ob.lime))));
+    final friends = ref.watch(friendsProvider).valueOrNull ?? const <db.Friend>[];
 
-    return Container(
-        padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.of(context).padding.bottom + 24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.grey100, borderRadius: BorderRadius.circular(2)))),
-              const SizedBox(height: 32),
-              const Text('ROUND SETUP', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.grey900)),
-              const SizedBox(height: 32),
-
-              // ── Format Selection ─────────────────────────────────────
-              const Text('FORMAT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-              const SizedBox(height: 12),
-              _buildSegmentedControl(['18 Holes', 'Front 9', 'Back 9'], _format, (val) => setState(() => _format = val)),
-              
-              const SizedBox(height: 32),
-
-              // ── Tee Selection ────────────────────────────────────────
-              const Text('SELECT YOUR TEE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-              const SizedBox(height: 12),
+    return ObSheet(
+      title: 'Round setup',
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .72),
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const ObEyebrow('Holes'),
+            const SizedBox(height: 10),
+            ObGooSegmented<String>(
+              options: const [('18 Holes', '18 holes'), ('Front 9', 'Front 9'), ('Back 9', 'Back 9')],
+              selected: _format,
+              onChanged: (v) => setState(() => _format = v),
+            ),
+            const SizedBox(height: 20),
+            const ObEyebrow('Tee'),
+            const SizedBox(height: 10),
+            if (_tees.isEmpty)
+              Text('No tees set up for this course yet.', style: Ob.body(14, color: Ob.creamA(.6)))
+            else
               SizedBox(
-                height: 100,
-                child: ListView.builder(
+                height: 66,
+                child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _tees.length,
-                  itemBuilder: (context, i) {
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
                     final t = _tees[i];
-                    final isSelected = _selectedTee?.id == t.id;
-                    return _buildTeeOption(t, isSelected);
+                    return ObSelectTile(
+                      selected: _selectedTee?.id == t.id,
+                      onTap: () => setState(() => _selectedTee = t),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Container(width: 10, height: 10, decoration: BoxDecoration(color: teeColor(t.name), shape: BoxShape.circle)),
+                          const SizedBox(width: 6),
+                          Text(t.name, style: Ob.body(14, weight: FontWeight.w800)),
+                        ]),
+                        Text(t.yardage == null ? 'Slope ${t.slopeRating}' : '${t.yardage}y · slope ${t.slopeRating}', style: Ob.body(11, color: Ob.creamA(.55))),
+                      ]),
+                    );
                   },
                 ),
               ),
-
-              const SizedBox(height: 32),
-
-              // ── Course Handicap Card ────────────────────────────────
-              _buildCHCard(hIndex),
-
-              const SizedBox(height: 32),
-
-              // ── Marker Selection ────────────────────────────────────
-              const Text('ASSIGN A MARKER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-              const SizedBox(height: 12),
-              ref.watch(friendsProvider).when(
-                data: (friends) {
-                  final showManual = _selectedMarker == null;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: AppColors.grey50,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.grey200),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<db.Friend?>(
-                            value: _selectedMarker,
-                            hint: const Text('Select a Marker (Friend)', style: TextStyle(color: AppColors.grey400, fontSize: 14)),
-                            isExpanded: true,
-                            dropdownColor: Colors.white,
-                            items: [
-                              const DropdownMenuItem<db.Friend?>(
-                                value: null,
-                                child: Text('Enter Marker Manually...', style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w500, fontSize: 14)),
-                              ),
-                              ...friends.map((f) => DropdownMenuItem<db.Friend?>(
-                                value: f,
-                                child: Text(f.friendName ?? 'Unknown Friend', style: const TextStyle(color: AppColors.grey900, fontSize: 14)),
-                              )),
-                            ],
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedMarker = val;
-                                if (val != null) {
-                                  _manualMarkerName = '';
-                                  _markerNameController.text = '';
-                                }
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      if (showManual) ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _markerNameController,
-                          style: const TextStyle(color: AppColors.grey900, fontSize: 14, fontWeight: FontWeight.w600),
-                          decoration: InputDecoration(
-                            hintText: 'Enter Marker\'s Name',
-                            hintStyle: const TextStyle(color: AppColors.grey400, fontSize: 14, fontWeight: FontWeight.normal),
-                            filled: true,
-                            fillColor: AppColors.grey50,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: AppColors.grey200),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: AppColors.golfLime, width: 2),
-                            ),
-                          ),
-                          onChanged: (val) => _manualMarkerName = val,
-                        ),
-                      ],
-                    ],
-                  );
-                },
-                loading: () => const Center(child: CupertinoActivityIndicator()),
-                error: (_, __) => const Text('Error loading friends'),
-              ),
-
-              const SizedBox(height: 40),
-              
-              SizedBox(
-                width: double.infinity,
-                height: 64,
-                child: FilledButton(
-                  onPressed: () {
-                    final markerName = _selectedMarker?.friendName ?? _manualMarkerName.trim();
-                    if (markerName.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please assign a marker for WHS/KGU round certification.')),
-                      );
-                      return;
-                    }
-
-                    final ch = _calculateCH(hIndex);
-                    Navigator.pop(context); // Close Modal
-                    context.push('/scoring', extra: {
-                      'courseId': widget.courseId,
-                      'holesPlayed': _format == '18 Holes' ? 18 : (_format == 'Front 9' ? 9 : -9),
-                      'teeId': _selectedTee?.id,
-                      'courseHandicap': ch,
-                      'markerName': markerName,
-                      'markerId': _selectedMarker?.friendId,
-                    });
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.grey900,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  child: const Text('LET\'S PLAY', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            const SizedBox(height: 16),
+            ObHeroCard(
+              child: Row(children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('YOU GET', style: Ob.eyebrow()),
+                    Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                      Text('${_calculateCH(hIndex)}', style: Ob.display(40, color: Ob.lime, height: 1)),
+                      Text(' strokes', style: Ob.body(15, weight: FontWeight.w700, color: Ob.creamA(.7))),
+                    ]),
+                  ]),
                 ),
+                Text('Index ${hIndex.toStringAsFixed(1)}', style: Ob.body(13, weight: FontWeight.w700, color: Ob.creamA(.6))),
+              ]),
+            ),
+            const SizedBox(height: 20),
+            const ObEyebrow('Who\'s marking your card?'),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final f in friends)
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _selectedMarker = _selectedMarker?.friendId == f.friendId ? null : f;
+                    _manualMarkerName = '';
+                    _markerNameController.clear();
+                  }),
+                  child: ObChip(f.friendName ?? 'Friend', on: _selectedMarker?.friendId == f.friendId),
+                ),
+            ]),
+            if (_selectedMarker == null) ...[
+              if (friends.isNotEmpty) const SizedBox(height: 10),
+              TextField(
+                controller: _markerNameController,
+                cursorColor: Ob.lime,
+                style: Ob.body(15, weight: FontWeight.w700),
+                decoration: obInput(friends.isEmpty ? 'Marker\'s name' : 'Or type their name'),
+                onChanged: (v) => _manualMarkerName = v,
               ),
             ],
+            const SizedBox(height: 8),
+            Text('Your marker signs off the card so it counts for WHS.', style: Ob.body(12, color: Ob.creamA(.5))),
+            const SizedBox(height: 20),
+            ObButton(
+              onPressed: _tees.isEmpty ? null : () => _play(hIndex),
+              child: Text('Let\'s play', style: Ob.label(17, weight: FontWeight.w800)),
+            ),
+          ]),
         ),
       ),
     );
-  }
-
-  Widget _buildSegmentedControl(List<String> options, String selected, Function(String) onChanged) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        children: options.map((opt) {
-          final isSelected = selected == opt;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(opt),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: isSelected ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)] : null,
-                ),
-                child: Text(opt, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600, color: isSelected ? AppColors.grey900 : AppColors.grey400)),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildTeeOption(db.Tee tee, bool isSelected) {
-    final color = _getTeeColor(tee.name);
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTee = tee),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 140,
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.grey900 : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? AppColors.grey900 : AppColors.grey100, width: 2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              children: [
-                Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                const SizedBox(width: 8),
-                Text(tee.name.toUpperCase(), style: TextStyle(color: isSelected ? Colors.white : AppColors.grey900, fontWeight: FontWeight.w900, fontSize: 12)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text('${tee.yardage}y', style: TextStyle(color: isSelected ? Colors.white54 : AppColors.grey400, fontSize: 11, fontWeight: FontWeight.w700)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCHCard(double hIndex) {
-    final ch = _calculateCH(hIndex);
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.golfLime.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.golfLime.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(color: AppColors.golfLime, shape: BoxShape.circle),
-            child: const Icon(LucideIcons.calculator, color: Colors.black, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('COURSE HANDICAP', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey500, letterSpacing: 1)),
-                Text('$ch STROKES', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.grey900, letterSpacing: -0.5)),
-              ],
-            ),
-          ),
-          Text('${hIndex.toStringAsFixed(1)} HI', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.grey400)),
-        ],
-      ),
-    );
-  }
-
-  Color _getTeeColor(String name) {
-    final n = name.toLowerCase();
-    if (n.contains('white')) return Colors.grey[300]!;
-    if (n.contains('yellow')) return Colors.yellow[600]!;
-    if (n.contains('red')) return Colors.red[600]!;
-    if (n.contains('blue')) return Colors.blue[600]!;
-    if (n.contains('green')) return Colors.green[600]!;
-    return Colors.black;
   }
 }
