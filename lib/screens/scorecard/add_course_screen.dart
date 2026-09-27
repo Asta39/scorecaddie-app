@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart' as drift;
-import '../../core/theme/app_theme.dart';
+import 'package:flutter/services.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
 import '../../widgets/top_notification.dart';
@@ -102,197 +105,119 @@ class _AddCourseScreenState extends ConsumerState<AddCourseScreen> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
+    final par = _holePars.fold(0, (a, b) => a + b);
     return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Add Custom Course', style: TextStyle(fontWeight: FontWeight.w800)),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionTitle('General Info'),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _nameController,
-                label: 'Course Name',
-                hint: 'e.g. Windsor Golf Club',
-                validator: (v) => v == null || v.isEmpty ? 'Please enter a name' : null,
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _locationController,
-                label: 'Location',
-                hint: 'e.g. Nairobi, Kenya',
-              ),
-              
-              const SizedBox(height: 32),
-              _buildSectionTitle('Format'),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _SegmentButton(
-                      label: '18 Holes',
-                      isSelected: _totalHoles == 18,
-                      onTap: () => _updateHoleCount(18),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: Form(
+            key: _formKey,
+            child: Column(children: [
+              Expanded(
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                  children: [
+                    ObTopBar('Add a course', onBack: () => context.pop()),
+                    const SizedBox(height: 18),
+                    TextFormField(
+                      controller: _nameController,
+                      cursorColor: Ob.lime,
+                      textCapitalization: TextCapitalization.words,
+                      style: Ob.body(15, weight: FontWeight.w700),
+                      decoration: obInput('Course name', hint: 'Windsor Golf Club'),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Needs a name' : null,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _SegmentButton(
-                      label: '9 Holes',
-                      isSelected: _totalHoles == 9,
-                      onTap: () => _updateHoleCount(9),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _locationController,
+                      cursorColor: Ob.lime,
+                      textCapitalization: TextCapitalization.words,
+                      style: Ob.body(15, weight: FontWeight.w700),
+                      decoration: obInput('Where', hint: 'Nairobi'),
                     ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 32),
-              _buildSectionTitle('Hole Pars'),
-              const SizedBox(height: 12),
-              const Text('Tap a hole to adjust its par value.', style: TextStyle(color: AppColors.grey500)),
-              const SizedBox(height: 16),
-              
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: List.generate(_totalHoles, (index) {
-                  return GestureDetector(
-                    onTap: () => _showParPicker(index),
-                    child: Container(
-                      width: 55,
-                      height: 55,
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.grey200),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('H${index + 1}', style: const TextStyle(fontSize: 10, color: AppColors.grey400, fontWeight: FontWeight.bold)),
-                          Text('${_holePars[index]}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.grey800)),
-                        ],
-                      ),
+                    const SizedBox(height: 20),
+                    const ObEyebrow('Holes'),
+                    const SizedBox(height: 10),
+                    ObGooSegmented<int>(options: const [(18, '18 holes'), (9, '9 holes')], selected: _totalHoles, onChanged: _updateHoleCount),
+                    const SizedBox(height: 20),
+                    ObEyebrow('Par for each hole · $par total'),
+                    const SizedBox(height: 4),
+                    Text('Tap a hole to change it: 3, 4, 5, then back to 3.', style: Ob.body(12, color: Ob.creamA(.55))),
+                    const SizedBox(height: 12),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 6, mainAxisSpacing: 8, crossAxisSpacing: 8),
+                      itemCount: _totalHoles,
+                      itemBuilder: (_, i) {
+                        final p = _holePars[i];
+                        final c = p == 3 ? const Color(0xFF7DD3FC) : (p == 5 ? const Color(0xFFF5C531) : Ob.lime);
+                        return Semantics(
+                          button: true,
+                          label: 'Hole ${i + 1}, par $p',
+                          child: GestureDetector(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _holePars[i] = p >= 5 ? 3 : p + 1);
+                            },
+                            onLongPress: () => _showParPicker(i),
+                            child: Container(
+                              decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.withValues(alpha: .35))),
+                              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                Text('${i + 1}', style: Ob.body(10, color: Ob.creamA(.5))),
+                                Text('$p', style: Ob.display(20, color: c, height: 1.1)),
+                              ]),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                }),
-              ),
-              
-              const SizedBox(height: 48),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton(
-                  onPressed: _isSaving ? null : _saveCourse,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.emerald700,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: _isSaving 
-                      ? const CircularProgressIndicator(color: AppColors.white)
-                      : const Text('Save Course', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                  ],
                 ),
               ),
-            ],
+              Padding(
+                padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ObButton(
+                    onPressed: _isSaving ? null : _saveCourse,
+                    child: Text(_isSaving ? 'Saving…' : 'Save course', style: Ob.label(17, weight: FontWeight.w800)),
+                  ),
+                ),
+              ),
+            ]),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.grey900));
-  }
-
-  Widget _buildTextField({required TextEditingController controller, required String label, String? hint, String? Function(String?)? validator}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.grey600)),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          validator: validator,
-          decoration: InputDecoration(
-            hintText: hint,
-            filled: true,
-            fillColor: AppColors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.grey200)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.grey200)),
-          ),
-        ),
-      ],
     );
   }
 
   void _showParPicker(int index) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Hole ${index + 1} Par', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [3, 4, 5, 6].map((p) => GestureDetector(
-                onTap: () {
-                  setState(() => _holePars[index] = p);
-                  Navigator.pop(ctx);
-                },
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: _holePars[index] == p ? AppColors.emerald700 : AppColors.grey100,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text('$p', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _holePars[index] == p ? AppColors.white : AppColors.grey800)),
-                ),
-              )).toList(),
+    showObSheet(
+      context,
+      (ctx) => ObSheet(
+        title: 'Hole ${index + 1}',
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          for (final p in const [3, 4, 5, 6])
+            GestureDetector(
+              onTap: () {
+                setState(() => _holePars[index] = p);
+                Navigator.pop(ctx);
+              },
+              child: Container(
+                width: 62,
+                height: 62,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: _holePars[index] == p ? Ob.lime : Ob.cardFill, shape: BoxShape.circle),
+                child: Text('$p', style: Ob.display(26, color: _holePars[index] == p ? Ob.ink : Ob.cream)),
+              ),
             ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SegmentButton extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  const _SegmentButton({required this.label, required this.isSelected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.grey900 : AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isSelected ? AppColors.grey900 : AppColors.grey200),
-        ),
-        alignment: Alignment.center,
-        child: Text(label, style: TextStyle(color: isSelected ? AppColors.white : AppColors.grey600, fontWeight: FontWeight.w700)),
+        ]),
       ),
     );
   }
