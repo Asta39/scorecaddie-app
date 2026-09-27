@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:uuid/uuid.dart';
-import '../../core/theme/app_theme.dart';
+import '../../widgets/voice_beam.dart';
+import '../../widgets/voice_orb_visualizer.dart' show OrbState;
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
 import 'package:go_router/go_router.dart';
@@ -15,7 +18,11 @@ class PracticeRangeScreen extends ConsumerWidget {
   const PracticeRangeScreen({super.key});
 
   Future<void> _startSession(BuildContext context, WidgetRef ref, String type, {int? drillId, String? coachDrillId, int? targetDistance}) async {
-    _showLoggingChoice(context, ref, (isVoice) async {
+    _showLoggingChoice(context, ref, (isVoice) => _createSession(context, ref, type, isVoice: isVoice, drillId: drillId, coachDrillId: coachDrillId, targetDistance: targetDistance));
+  }
+
+  Future<void> _createSession(BuildContext context, WidgetRef ref, String type, {required bool isVoice, int? drillId, String? coachDrillId, int? targetDistance}) async {
+    {
       final database = ref.read(databaseProvider);
       final user = ref.read(authStateProvider).valueOrNull;
       final syncService = ref.read(syncServiceProvider);
@@ -46,58 +53,48 @@ class PracticeRangeScreen extends ConsumerWidget {
       if (context.mounted) {
         context.push('/practice/session/$sessionId?isVoice=$isVoice');
       }
-    });
+    }
   }
 
+  /// Voice with Daniel, or typing each shot: asked before a drill starts.
   void _showLoggingChoice(BuildContext context, WidgetRef ref, Function(bool isVoice) onSelected) {
-    showCupertinoDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: true,
-      builder: (context) => Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 40),
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(32),
-          ),
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0D1A12),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          border: Border(top: BorderSide(color: Color(0x40A3E635))),
+        ),
+        child: DefaultTextStyle(
+          style: Ob.textBase,
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: AppColors.golfLime.withValues(alpha: 0.1), shape: BoxShape.circle),
-                child: const Icon(LucideIcons.mic, color: AppColors.emerald700, size: 32),
-              ),
-              const SizedBox(height: 24),
-              const Text('Start Grinding', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.grey900, decoration: TextDecoration.none)),
-              const SizedBox(height: 12),
-              const Text(
-                'Choose your logging style.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: AppColors.grey500, fontWeight: FontWeight.w500, decoration: TextDecoration.none, height: 1.5),
-              ),
-              const SizedBox(height: 32),
-              _buildChoiceBtn(
-                label: 'Voice AI (Daniel)', 
-                sub: 'Premium, hands-free', 
-                icon: LucideIcons.sparkles, 
-                color: AppColors.emerald700,
-                onTap: () {
-                  Navigator.pop(context);
+              Center(child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .18), borderRadius: BorderRadius.circular(3)))),
+              const SizedBox(height: 16),
+              ObGuideRow(botAsset: ObBot.clover.idle, botLabel: 'Daniel the clover', text: 'How do you want to log shots?', size: 80, fontSize: 18),
+              const SizedBox(height: 16),
+              ObButton(
+                onPressed: () {
+                  Navigator.pop(sheet);
                   onSelected(true);
-                }
+                },
+                height: 56,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(LucideIcons.mic, size: 18), const SizedBox(width: 8), Text('Talk to Daniel', style: Ob.label(16, weight: FontWeight.w800))]),
               ),
-              const SizedBox(height: 12),
-              _buildChoiceBtn(
-                label: 'Manual Entry', 
-                sub: 'Classic logging', 
-                icon: LucideIcons.edit3, 
-                color: AppColors.grey400,
-                onTap: () {
-                  Navigator.pop(context);
+              const SizedBox(height: 10),
+              ObButton(
+                tone: ObButtonTone.dark,
+                onPressed: () {
+                  Navigator.pop(sheet);
                   onSelected(false);
-                }
+                },
+                height: 56,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(LucideIcons.penLine, size: 18), const SizedBox(width: 8), Text('Type each shot', style: Ob.label(16, weight: FontWeight.w800))]),
               ),
             ],
           ),
@@ -106,33 +103,9 @@ class PracticeRangeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildChoiceBtn({required String label, required String sub, required IconData icon, required Color color, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.grey100),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.grey900, decoration: TextDecoration.none)),
-                  Text(sub, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.grey400, decoration: TextDecoration.none)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  /// Free practice straight from the Daniel card: no need to ask how.
+  Future<void> _startFree(BuildContext context, WidgetRef ref, {required bool voice}) =>
+      _createSession(context, ref, 'FREE', isVoice: voice);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -140,188 +113,165 @@ class PracticeRangeScreen extends ConsumerWidget {
     final user = ref.watch(authStateProvider).valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Practice', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 26, color: AppColors.grey900, letterSpacing: -0.5)),
-        centerTitle: false,
-      ),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Mode Selectors
-                  Row(
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: ListView(
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+          children: [
+            ObTabHeader('Practice', actions: [
+              ObIconButton(icon: LucideIcons.chartColumn, label: 'Practice stats', onPressed: () => context.push('/practice/analytics')),
+              ObIconButton(icon: LucideIcons.plus, label: 'Build a drill', onPressed: () => context.push('/practice/drills/new')),
+            ]).rise(),
+            const SizedBox(height: 16),
+            _danielCard(context, ref).rise(1),
+            ref.watch(assignedDrillsProvider).when(
+                  data: (assigned) => assigned.isEmpty
+                      ? const SizedBox.shrink()
+                      : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          const SizedBox(height: 24),
+                          const ObEyebrow('From your coach'),
+                          const SizedBox(height: 12),
+                          for (final a in assigned)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _assignedCard(context, ref, a['drill'] as Map<String, dynamic>, (a['coach']?['name'] as String?) ?? 'Your coach'),
+                            ),
+                        ]),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                ),
+            const SizedBox(height: 24),
+            const ObEyebrow('Drills for you'),
+            const SizedBox(height: 12),
+            StreamBuilder<List<Drill>>(
+              stream: (db.select(db.drills)..where((d) => d.userId.isNull() | d.userId.equals(user?.uid ?? ''))).watch(),
+              builder: (context, snapshot) {
+                final drills = snapshot.data ?? const <Drill>[];
+                return SizedBox(
+                  height: 176,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    clipBehavior: Clip.none,
                     children: [
-                      _buildModeCard(
-                        context,
-                        ref,
-                        'Free Practice',
-                        'Casual tracking',
-                        LucideIcons.target,
-                        AppColors.emerald700,
-                        () => _startSession(context, ref, 'FREE'),
-                      ),
-                      const SizedBox(width: 16),
-                      _buildModeCard(
-                        context,
-                        ref,
-                        'Performance',
-                        'Range insights',
-                        LucideIcons.barChart2,
-                        AppColors.golfLime,
-                        () => context.push('/practice/analytics'),
-                        isAccent: true,
-                      ),
+                      for (final d in drills) Padding(padding: const EdgeInsets.only(right: 12), child: _drillCard(context, ref, d)),
+                      _buildOwn(context),
                     ],
                   ),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+            const ObEyebrow('Recent sessions'),
+            const SizedBox(height: 12),
+            _buildRecentSessions(db, user?.uid, context),
+          ],
+        ),
+      ),
+    );
+  }
 
-                  const SizedBox(height: 40),
-
-                  // Phase 3: Assigned Drills Section
-                  ref.watch(assignedDrillsProvider).when(
-                    data: (assigned) {
-                      if (assigned.isEmpty) return const SizedBox.shrink();
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSectionHeader('ASSIGNED BY COACH', null),
-                          const SizedBox(height: 16),
-                          ...assigned.map((a) {
-                            final drill = a['drill'];
-                            final coachName = a['coach']['name'] ?? 'Your Coach';
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildAssignedDrillCard(context, ref, drill, coachName),
-                            );
-                          }),
-                          const SizedBox(height: 28),
-                        ],
-                      );
-                    },
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, _) => const SizedBox.shrink(),
-                  ),
-                  
-                  // Popular Drills Title
-                  _buildSectionHeader('POPULAR DRILLS', () {}),
-                  const SizedBox(height: 16),
-                ],
+  Widget _danielCard(BuildContext context, WidgetRef ref) {
+    return ObHeroCard(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ObGuideRow(botAsset: ObBot.clover.idle, botLabel: 'Daniel the clover', text: 'Tell me every shot. I’ll keep the count.', size: 92, fontSize: 18, maxBubble: 226),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Container(height: 60, color: Ob.bg.withValues(alpha: .55), child: const ExcludeSemantics(child: VoiceBeam(state: OrbState.idle, scale: .6))),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              flex: 13,
+              child: ObButton(
+                onPressed: () => _startFree(context, ref, voice: true),
+                height: 52,
+                padding: EdgeInsets.zero,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(LucideIcons.mic, size: 18), const SizedBox(width: 8), Text('Talk to Daniel', style: Ob.label(16, weight: FontWeight.w800))]),
               ),
             ),
-          ),
-          
-          // Drills Stream
-          StreamBuilder<List<Drill>>(
-            stream: (db.select(db.drills)..where((d) => d.userId.isNull() | d.userId.equals(user?.uid ?? ''))).watch(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const SliverToBoxAdapter(child: Center(child: CupertinoActivityIndicator()));
-              }
-              final drills = snapshot.data!;
-              return SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildDrillCard(context, ref, drills[index]),
-                      );
-                    },
-                    childCount: drills.length,
-                  ),
-                ),
-              );
-            },
-          ),
-
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 12),
-                  // Custom Drill Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton.icon(
-                      onPressed: () => context.push('/practice/drills/new'),
-                      icon: const Icon(LucideIcons.plus, size: 16),
-                      label: const Text('Create Custom Drill', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.grey500,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 48),
-                  
-                  _buildSectionHeader('RECENT SESSIONS', null),
-                  const SizedBox(height: 16),
-                  _buildRecentSessions(db, user?.uid, context),
-                  
-                  const SizedBox(height: 140),
-                ],
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 10,
+              child: ObButton(
+                tone: ObButtonTone.dark,
+                onPressed: () => _startFree(context, ref, voice: false),
+                height: 52,
+                padding: EdgeInsets.zero,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(LucideIcons.penLine, size: 17), const SizedBox(width: 8), Text('Type it', style: Ob.label(16, weight: FontWeight.w800))]),
               ),
             ),
-          ),
+          ]),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title, VoidCallback? onAction) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2)),
-        if (onAction != null)
-          GestureDetector(
-            onTap: onAction,
-            child: const Text('See All', style: TextStyle(color: AppColors.emerald700, fontSize: 13, fontWeight: FontWeight.w700)),
-          ),
-      ],
+  Widget _assignedCard(BuildContext context, WidgetRef ref, Map<String, dynamic> drill, String coachName) {
+    final minutes = drill['duration_minutes'];
+    final difficulty = (drill['difficulty'] as String?) ?? '';
+    return ObCard(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            Transform.translate(offset: const Offset(-8, 0), child: BotImage(ObBot.star.idle, size: 52, semanticLabel: 'Your coach')),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('$coachName set this', style: Ob.body(12, weight: FontWeight.w600, color: Ob.creamA(.6))),
+                Text((drill['name'] as String?) ?? 'Drill', style: Ob.display(23, height: 1.1)),
+              ]),
+            ),
+          ]),
+          if ((drill['description'] as String?)?.isNotEmpty ?? false) ...[
+            const SizedBox(height: 10),
+            Text(drill['description'] as String, style: Ob.body(14, height: 1.45, color: Ob.creamA(.72))),
+          ],
+          const SizedBox(height: 14),
+          Row(children: [
+            if (minutes != null) ObChip('$minutes min'),
+            if (difficulty.isNotEmpty) ...[const SizedBox(width: 6), ObChip(_titleCase(difficulty))],
+            const Spacer(),
+            ObButton(
+              onPressed: () => _startSession(context, ref, 'COACH_DRILL', coachDrillId: drill['id']),
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Text('Start', style: Ob.label(15, weight: FontWeight.w800)),
+            ),
+          ]),
+        ],
+      ),
     );
   }
 
-  Widget _buildModeCard(BuildContext context, WidgetRef ref, String title, String sub, IconData icon, Color color, VoidCallback onTap, {bool isAccent = false}) {
-    return Expanded(
+  Widget _drillCard(BuildContext context, WidgetRef ref, Drill drill) {
+    return Semantics(
+      button: true,
+      label: '${drill.name}, ${drill.durationMinutes} minutes',
       child: GestureDetector(
-        onTap: onTap,
+        onTap: () => _startSession(context, ref, 'DRILL', drillId: drill.id),
         child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: isAccent ? color : Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 15, offset: const Offset(0, 8)),
-            ],
-          ),
+          width: 206,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(24), border: Border.all(color: const Color(0x0FFFFFFF))),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isAccent ? Colors.white.withValues(alpha: 0.2) : color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: isAccent ? Colors.white : color, size: 24),
-              ),
-              const SizedBox(height: 24),
-              Text(title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: isAccent ? AppColors.grey900 : AppColors.grey900, letterSpacing: -0.5)),
-              const SizedBox(height: 4),
-              Text(sub, style: TextStyle(color: isAccent ? AppColors.grey900.withValues(alpha: 0.6) : AppColors.grey500, fontSize: 12, fontWeight: FontWeight.w600)),
+              Row(children: [
+                ObChip(_titleCase(drill.difficulty)),
+                const Spacer(),
+                Container(width: 34, height: 34, decoration: const BoxDecoration(color: Ob.lime, shape: BoxShape.circle), child: const Icon(LucideIcons.play, size: 14, color: Ob.ink)),
+              ]),
+              const SizedBox(height: 10),
+              Text(drill.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.display(21, height: 1.1)),
+              const Spacer(),
+              Text('${drill.durationMinutes} min · ${drill.description}', maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.body(12, color: Ob.creamA(.58))),
             ],
           ),
         ),
@@ -329,141 +279,27 @@ class PracticeRangeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAssignedDrillCard(BuildContext context, WidgetRef ref, Map<String, dynamic> drill, String coachName) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.emerald700,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(color: AppColors.emerald700.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(0, 10)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(LucideIcons.award, color: Colors.white, size: 18),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'ASSIGNED BY ${coachName.toUpperCase()}', 
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)
-                    ),
-                    const SizedBox(height: 2),
-                    Text(drill['name'] ?? 'Assigned Drill', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.white, letterSpacing: -0.3)),
-                  ],
-                ),
-              ),
-            ],
+  Widget _buildOwn(BuildContext context) => Semantics(
+        button: true,
+        label: 'Build your own drill',
+        child: GestureDetector(
+          onTap: () => context.push('/practice/drills/new'),
+          child: Container(
+            width: 150,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withValues(alpha: .16), width: 2)),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(LucideIcons.plus, size: 22, color: Ob.creamA(.72)),
+              const SizedBox(height: 8),
+              Text('Build your own', style: Ob.label(14).copyWith(color: Ob.creamA(.72))),
+            ]),
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              _buildDrillTag(LucideIcons.clock, '${drill['duration_minutes']}m', Colors.white.withValues(alpha: 0.7)),
-              const SizedBox(width: 16),
-              _buildDrillTag(LucideIcons.flame, (drill['difficulty'] as String? ?? 'MED').toUpperCase(), Colors.white.withValues(alpha: 0.7)),
-              const Spacer(),
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                child: const Text('Start Now', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.emerald700)),
-                onPressed: () => _startSession(context, ref, 'COACH_DRILL', coachDrillId: drill['id']),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      );
 
-  Widget _buildDrillCard(BuildContext context, WidgetRef ref, Drill drill) {
-    final diffColor = _getDifficultyColor(drill.difficulty);
-    
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: AppColors.emerald50, borderRadius: BorderRadius.circular(10)),
-                child: const Icon(LucideIcons.target, color: AppColors.emerald700, size: 18),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(drill.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.grey900, letterSpacing: -0.3)),
-                    Text(drill.description, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.grey500, fontSize: 13, fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              _buildDrillTag(LucideIcons.clock, '${drill.durationMinutes}m', AppColors.grey400),
-              const SizedBox(width: 16),
-              _buildDrillTag(LucideIcons.flame, drill.difficulty.toUpperCase(), diffColor),
-              const Spacer(),
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                color: AppColors.grey900,
-                borderRadius: BorderRadius.circular(16),
-                child: const Text('Start', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                onPressed: () => _startSession(context, ref, 'DRILL', drillId: drill.id),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrillTag(IconData icon, String label, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 6),
-        Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-      ],
-    );
-  }
-
-  Color _getDifficultyColor(String diff) {
-    switch (diff.toLowerCase()) {
-      case 'beginner': return AppColors.emerald600;
-      case 'intermediate': return AppColors.blue600;
-      case 'advanced': return AppColors.birdie;
-      case 'expert': return AppColors.doubleBogey;
-      default: return AppColors.grey500;
-    }
-  }
+  String _titleCase(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
 
   Widget _buildRecentSessions(AppDatabase db, String? userId, BuildContext context) {
     if (userId == null) return const SizedBox();
-    
     return StreamBuilder<List<PracticeSession>>(
       stream: (db.select(db.practiceSessions)
             ..where((s) => s.userId.equals(userId) & s.endTime.isNotNull())
@@ -471,72 +307,60 @@ class PracticeRangeScreen extends ConsumerWidget {
             ..limit(8))
           .watch(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
-            child: const Column(
-              children: [
-                Icon(LucideIcons.calendar, color: AppColors.grey100, size: 40),
-                SizedBox(height: 12),
-                Text('No completed sessions', style: TextStyle(color: AppColors.grey400, fontWeight: FontWeight.w700)),
-              ],
-            ),
-          );
+        final list = snapshot.data ?? const <PracticeSession>[];
+        if (list.isEmpty) {
+          return ObCard(child: Text('Finished sessions show up here, with Daniel’s notes.', style: Ob.body(14, color: Ob.creamA(.62))));
         }
-        
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Column(
-            children: snapshot.data!.asMap().entries.map((entry) {
-              final index = entry.key;
-              final session = entry.value;
-              final isLast = index == snapshot.data!.length - 1;
-              return Column(
-                children: [
-                  ListTile(
-                    onTap: () => context.push('/practice/summary/${session.id}'),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(12)),
-                      child: const Icon(LucideIcons.history, color: AppColors.grey400, size: 20),
-                    ),
-                    title: Text(session.sessionType, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.grey900)),
-                    subtitle: Text('${session.totalBalls} balls • ${_formatDuration(session.endTime!.difference(session.startTime))}', 
-                      style: const TextStyle(color: AppColors.grey500, fontSize: 13, fontWeight: FontWeight.w500)),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${session.startTime.day}/${session.startTime.month}',
-                          style: const TextStyle(color: AppColors.grey400, fontSize: 12, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(LucideIcons.chevronRight, size: 16, color: AppColors.grey200),
-                      ],
-                    ),
-                  ),
-                  if (!isLast)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 72),
-                      child: Divider(height: 1, color: Color(0xFFF2F2F7)),
-                    ),
-                ],
-              );
-            }).toList(),
-          ),
+        return ObCard(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(children: [
+            for (var i = 0; i < list.length; i++) ...[
+              if (i > 0) const ObHair(),
+              _sessionRow(context, list[i]),
+            ],
+          ]),
         );
       },
     );
   }
 
+  Widget _sessionRow(BuildContext context, PracticeSession session) {
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    final type = switch (session.sessionType) { 'FREE' => 'Free practice', 'DRILL' => 'Drill', 'COACH_DRILL' => 'Coach’s drill', final t => t };
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.push('/practice/summary/${session.id}'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: .06), borderRadius: BorderRadius.circular(12)),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(months[session.startTime.month - 1], style: Ob.label(10, weight: FontWeight.w800).copyWith(color: Ob.creamA(.55))),
+                Text('${session.startTime.day}', style: Ob.display(17, height: 1)),
+              ]),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(type, style: Ob.body(15, weight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text('${session.totalBalls} balls · ${_formatDuration(session.endTime!.difference(session.startTime))}', style: Ob.body(12, color: Ob.creamA(.55))),
+              ]),
+            ),
+            Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
+          ]),
+        ),
+      ),
+    );
+  }
+
   String _formatDuration(Duration d) {
     if (d.inMinutes < 1) return '${d.inSeconds}s';
-    return '${d.inMinutes}m';
+    return '${d.inMinutes} min';
   }
 }

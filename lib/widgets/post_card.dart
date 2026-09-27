@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import '../core/theme/app_theme.dart';
-import 'pill.dart';
+
+import '../screens/onboarding/ob_app.dart';
+import '../screens/onboarding/ob_style.dart';
 
 String formatTimeAgo(DateTime date) {
   final diff = DateTime.now().difference(date);
@@ -11,6 +12,7 @@ String formatTimeAgo(DateTime date) {
   return 'Just now';
 }
 
+/// A club post: announcement, event, result or notice.
 class PostCard extends StatelessWidget {
   final String type;
   final String title;
@@ -35,93 +37,64 @@ class PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    IconData icon;
-    Color color;
-    String label;
-
-    switch (type) {
-      case 'announcement':
-        icon = LucideIcons.megaphone;
-        color = AppColors.golfLime;
-        label = 'Announcement';
-        break;
-      case 'fixture':
-      case 'competition':
-        icon = LucideIcons.calendar;
-        color = AppColors.blue600;
-        label = 'Event';
-        break;
-      case 'result':
-        icon = LucideIcons.award;
-        color = AppColors.emerald700;
-        label = 'Result';
-        break;
-      default:
-        icon = LucideIcons.messageSquare;
-        color = AppColors.grey600;
-        label = 'Notice';
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.grey200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (imageUrl != null && imageUrl!.isNotEmpty)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: Image.network(imageUrl!, width: double.infinity, height: 180, fit: BoxFit.cover),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Pill(icon: icon, label: label, background: color.withValues(alpha: 0.12), foreground: color),
-                    const Spacer(),
-                    Text(timeAgo, style: const TextStyle(color: AppColors.grey500, fontSize: AppTypeScale.caption, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppTypeScale.title, color: AppColors.grey900, height: 1.25),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  content,
-                  style: const TextStyle(color: AppColors.grey700, fontSize: AppTypeScale.body, height: 1.45),
-                ),
-                const SizedBox(height: 12),
-                Text('By $author', style: const TextStyle(color: AppColors.grey500, fontSize: AppTypeScale.meta, fontWeight: FontWeight.w600)),
-                if (actionText != null && onAction != null) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: AppTypeScale.minTapTarget,
-                    child: ElevatedButton(
-                      onPressed: onAction,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.golfLime,
-                        foregroundColor: AppColors.grey900,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: Text(actionText!, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppTypeScale.body)),
+    final (IconData icon, Color color, String label) = switch (type) {
+      'announcement' => (LucideIcons.megaphone, Ob.lime, 'Announcement'),
+      'fixture' || 'competition' => (LucideIcons.calendar, const Color(0xFF7DD3FC), 'Event'),
+      'result' => (LucideIcons.trophy, const Color(0xFFF5C531), 'Result'),
+      _ => (LucideIcons.messageSquare, Ob.creamA(.7), 'Notice'),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ObCard(
+        padding: EdgeInsets.zero,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (imageUrl != null && imageUrl!.isNotEmpty)
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                child: Image.network(imageUrl!, height: 180, fit: BoxFit.cover, errorBuilder: (_, _, _) => const SizedBox.shrink()),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(color: color.withValues(alpha: .14), borderRadius: BorderRadius.circular(12)),
+                      child: Icon(icon, size: 17, color: color),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(author, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(14, weight: FontWeight.w700)),
+                        Text('$label · $timeAgo', style: Ob.body(12, color: Ob.creamA(.55))),
+                      ]),
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
+                  Text(title, style: Ob.display(20, height: 1.15)),
+                  if (content.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(content, style: Ob.body(14, height: 1.5, color: Ob.creamA(.8))),
+                  ],
+                  if (actionText != null && onAction != null) ...[
+                    const SizedBox(height: 14),
+                    ObButton(
+                      onPressed: onAction,
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: Text(actionText!, style: Ob.label(14, weight: FontWeight.w800)),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
