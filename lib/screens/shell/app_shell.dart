@@ -441,7 +441,9 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
       onBackButtonPressed: () async {
         final root = Navigator.of(context, rootNavigator: true);
         if (!root.canPop()) return false;
-        root.pop();
+        // maybePop so screens with their own PopScope (e.g. stepped flows)
+        // get to handle back first.
+        await root.maybePop();
         return true;
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(
