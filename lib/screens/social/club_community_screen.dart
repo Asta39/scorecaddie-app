@@ -109,7 +109,7 @@ class _ClubCommunityScreenState extends ConsumerState<ClubCommunityScreen> {
                       ObCrest(m.clubName, size: 40, radius: 12),
                       const SizedBox(width: 12),
                       Expanded(child: Text(m.clubName, style: Ob.body(15, weight: FontWeight.w700))),
-                      if (m.status == 'pending') const ObChip('Pending', color: Ob.warn),
+                      if (m.status == 'pending') const ObChip('Pending', on: true, color: Ob.warn),
                       if (m.isHomeClub) const ObChip('Home', on: true),
                     ]),
                   ),

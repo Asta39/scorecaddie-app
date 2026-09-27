@@ -133,16 +133,18 @@ class ObChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? (on ? Ob.lime : Ob.creamA(.78));
+    // [color] tints the chip only while it's on, so a row of coloured
+    // filter chips still shows which one is picked.
+    final c = on ? (color ?? Ob.lime) : Ob.creamA(.78);
     return Container(
       height: 26,
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: on || color != null ? c.withValues(alpha: .14) : Colors.white.withValues(alpha: .06),
+        color: on ? c.withValues(alpha: .14) : Colors.white.withValues(alpha: .06),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(text, style: Ob.label(12).copyWith(color: c)),
+      // widthFactor keeps the chip hugging its label inside a Wrap.
+      child: Center(widthFactor: 1, child: Text(text, style: Ob.label(12).copyWith(color: c))),
     );
   }
 }
@@ -300,8 +302,16 @@ class ObGooSegmented<T> extends StatefulWidget {
 class _ObGooSegmentedState<T> extends State<ObGooSegmented<T>> with SingleTickerProviderStateMixin {
   late final ObSpring _pill = ObSpring(_index.toDouble(), w: 18, z: .62);
   late final ObSpring _drop = ObSpring(_index.toDouble(), w: 9, z: .8);
-  late final AnimationController _loop = AnimationController.unbounded(vsync: this)..addListener(_tick);
+  // Created in initState: a lazy controller would first be built inside
+  // dispose() on screens that never switched, which throws.
+  late final AnimationController _loop;
   Duration _last = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _loop = AnimationController.unbounded(vsync: this)..addListener(_tick);
+  }
 
   int get _index => widget.options.indexWhere((o) => o.$1 == widget.selected).clamp(0, widget.options.length - 1);
 

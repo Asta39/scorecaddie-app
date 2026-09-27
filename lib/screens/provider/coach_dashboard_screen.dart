@@ -121,7 +121,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
     if (next == null) return 'Nothing booked yet. Set up a session and I\'ll keep the roll.';
     final (s, at) = next;
     final today = DateUtils.isSameDay(at, DateTime.now());
-    final when = today ? 'at ${DateFormat.Hm().format(at)}' : DateFormat('EEE').format(at);
+    final when = today ? 'at ${DateFormat.Hm().format(at)}' : 'on ${DateFormat('EEEE').format(at)}';
     final owes = owing == 0 ? 'Everyone\'s paid up.' : '$owing still ${owing == 1 ? 'owes' : 'owe'}.';
     return '${s.name} $when. $owes';
   }

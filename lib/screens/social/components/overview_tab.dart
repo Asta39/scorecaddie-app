@@ -236,7 +236,7 @@ class _MembershipCard extends StatelessWidget {
             if (details.isNotEmpty) ...[const SizedBox(height: 4), Text(details.join(' · '), style: Ob.body(12, color: Ob.creamA(.6)))],
           ]),
         ),
-        if (club.status == 'pending') const ObChip('Pending', color: Ob.warn),
+        if (club.status == 'pending') const ObChip('Pending', on: true, color: Ob.warn),
       ]),
     );
   }
@@ -304,7 +304,7 @@ class _OtherClubCard extends ConsumerWidget {
           const SizedBox(height: 10),
           Text(club.clubName, maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.body(14, weight: FontWeight.w700, height: 1.25)),
           const Spacer(),
-          active ? const ObChip('Switch to it', on: true) : const ObChip('Pending', color: Ob.warn),
+          active ? const ObChip('Switch to it', on: true) : const ObChip('Pending', on: true, color: Ob.warn),
         ]),
       ),
     );

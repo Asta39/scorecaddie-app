@@ -149,11 +149,12 @@ class _StudentCard extends StatelessWidget {
             child: ObButton(
               tone: ObButtonTone.dark,
               height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               onPressed: () => context.push('/chat/${s.id}'),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Icon(LucideIcons.messageCircle, size: 16, color: Ob.cream),
                 const SizedBox(width: 6),
-                Text('Message', style: Ob.label(14, weight: FontWeight.w800)),
+                Flexible(child: Text('Message', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.label(14, weight: FontWeight.w800))),
               ]),
             ),
           ),
@@ -161,6 +162,7 @@ class _StudentCard extends StatelessWidget {
           Expanded(
             child: ObButton(
               height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               onPressed: () => showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
@@ -170,7 +172,7 @@ class _StudentCard extends StatelessWidget {
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Icon(LucideIcons.target, size: 16, color: Ob.ink),
                 const SizedBox(width: 6),
-                Text('Assign drill', style: Ob.label(14, weight: FontWeight.w800)),
+                Flexible(child: Text('Assign drill', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.label(14, weight: FontWeight.w800))),
               ]),
             ),
           ),
