@@ -25,6 +25,7 @@ import '../../widgets/loading_spinner.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
 import '../onboarding/ob_widgets.dart';
+import '../social/friend_code.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -685,7 +686,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
             children: [
               ObTabHeader('Profile', actions: [
-                ObIconButton(icon: LucideIcons.qrCode, label: 'My friend code', onPressed: () => _showQRCodeDialog(profile)),
+                ObIconButton(icon: LucideIcons.qrCode, label: 'My friend code', onPressed: () => showMyFriendCode(context, ref)),
                 ObIconButton(icon: LucideIcons.settings, label: 'Settings', onPressed: () => context.push('/profile/settings')),
               ]).rise(),
               const SizedBox(height: 20),
