@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +8,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/theme/app_theme.dart';
-import '../../core/utils/course_logo_helper.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart' as db;
 import '../../core/cloud/group_sync_service.dart';
@@ -27,6 +27,7 @@ class CourseSelectScreen extends ConsumerStatefulWidget {
 
 class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _codeController = TextEditingController();
   String _search = '';
   bool isLoading = false;
   bool isGroupRound = false;
@@ -34,197 +35,124 @@ class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-
-
     return Scaffold(
-      body: Stack(
-        children: [
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              SliverAppBar(
-                pinned: true,
-                floating: false,
-                backgroundColor: Colors.white,
-                surfaceTintColor: Colors.transparent,
-                elevation: 0,
-                leading: IconButton(
-                  icon: const Icon(LucideIcons.chevronLeft, size: 28, color: AppColors.grey900),
-                  onPressed: () => context.pop(),
-                ),
-                title: const Text(
-                  'Select Course',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: AppColors.grey900),
-                ),
-                centerTitle: false,
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(60),
-                  child: Container(
-                    color: Colors.white,
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: CupertinoSearchTextField(
-                      controller: _searchController,
-                      placeholder: 'Search for a course...',
-                      placeholderStyle: const TextStyle(color: AppColors.grey400, fontSize: 15),
-                      backgroundColor: AppColors.grey50,
-                      onChanged: (v) => setState(() => _search = v),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: Stack(children: [
+          SafeArea(
+            bottom: false,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  sliver: SliverList.list(children: [
+                    ObTopBar('Start a round', onBack: () => context.pop()),
+                    const SizedBox(height: 16),
+                    Container(
+                      height: 50,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(18)),
+                      child: Row(children: [
+                        Icon(LucideIcons.search, size: 18, color: Ob.creamA(.5)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (v) => setState(() => _search = v),
+                            cursorColor: Ob.lime,
+                            style: Ob.body(15, weight: FontWeight.w600),
+                            decoration: InputDecoration(border: InputBorder.none, isDense: true, hintText: 'Search courses', hintStyle: Ob.body(14, color: Ob.creamA(.4))),
+                          ),
+                        ),
+                      ]),
                     ),
-                  ),
-                ),
-              ),
-
-              // Group Round Toggle & Join
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Column(
-                    children: [
-                      // Scan Scorecard CTA
-                      InkWell(
-                        onTap: () {
-                          _showScanScorecardWorkflow();
+                    const SizedBox(height: 14),
+                    _optionRow(
+                      icon: LucideIcons.scanLine,
+                      title: 'Scan a scorecard',
+                      sub: 'Played already? Snap the card and we\'ll read it.',
+                      hero: true,
+                      onTap: _showScanScorecardWorkflow,
+                    ),
+                    const SizedBox(height: 10),
+                    _optionRow(
+                      icon: LucideIcons.users,
+                      title: 'Group round',
+                      sub: 'Everyone scores on their own phone',
+                      trailing: Switch.adaptive(
+                        value: isGroupRound,
+                        activeTrackColor: Ob.lime,
+                        activeThumbColor: Ob.ink,
+                        onChanged: (val) => setState(() => isGroupRound = val),
+                      ),
+                      onTap: () => setState(() => isGroupRound = !isGroupRound),
+                      on: isGroupRound,
+                    ),
+                    if (!isGroupRound) ...[
+                      const SizedBox(height: 10),
+                      _optionRow(
+                        icon: LucideIcons.qrCode,
+                        title: 'Join a friend\'s round',
+                        sub: 'Scan their QR or type the code',
+                        onTap: () async {
+                          final status = await Permission.camera.request();
+                          if (status.isGranted) {
+                            _showJoinRoundDialog();
+                          } else if (context.mounted) {
+                            TopNotification.showError(context, 'Camera permission is required to scan QR codes');
+                          }
                         },
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.golfLime,
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.golfLime.withValues(alpha: 0.2),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.grey900.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(LucideIcons.scanLine, color: AppColors.grey900, size: 20),
-                              ),
-                              const SizedBox(width: 16),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Scan Scorecard',
-                                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.grey900),
-                                    ),
-                                    Text(
-                                      'AI-scan your physical card in seconds',
-                                      style: TextStyle(color: AppColors.grey700, fontSize: 13, fontWeight: FontWeight.w600),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(LucideIcons.chevronRight, color: AppColors.grey700, size: 20),
-                            ],
-                          ),
-                        ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isGroupRound ? AppColors.emerald700.withValues(alpha: 0.05) : Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: isGroupRound ? AppColors.emerald700 : AppColors.grey200),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: isGroupRound ? AppColors.emerald700 : AppColors.grey50, shape: BoxShape.circle),
-                              child: Icon(LucideIcons.users, color: isGroupRound ? Colors.white : AppColors.grey400, size: 20),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Create Group Round', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                                  Text('Play with friends on multiple devices', style: TextStyle(color: AppColors.grey500, fontSize: 13, fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                            ),
-                            Switch.adaptive(
-                              value: isGroupRound,
-                              activeTrackColor: AppColors.emerald700.withValues(alpha: 0.5),
-                              activeThumbColor: AppColors.emerald700,
-                              onChanged: (val) => setState(() => isGroupRound = val),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (!isGroupRound) ...[
-                        const SizedBox(height: 12),
-                        InkWell(
-                          onTap: () async {
-                            final status = await Permission.camera.request();
-                            if (status.isGranted) {
-                              _showJoinRoundDialog();
-                            } else if (context.mounted) {
-                              TopNotification.showError(context, 'Camera permission is required to scan QR codes');
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: AppColors.grey200),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: const BoxDecoration(color: AppColors.emerald50, shape: BoxShape.circle),
-                                  child: const Icon(LucideIcons.qrCode, color: AppColors.emerald700, size: 20),
-                                ),
-                                const SizedBox(width: 16),
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('Join Existing Round', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                                      Text('Scan QR or enter round code', style: TextStyle(color: AppColors.grey500, fontSize: 13, fontWeight: FontWeight.w600)),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(LucideIcons.chevronRight, color: AppColors.grey300, size: 20),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
+                    if (isGroupRound) ...[
+                      const SizedBox(height: 10),
+                      Text('Pick the course and you\'ll get a lobby code to share.', style: Ob.body(13, color: Ob.creamA(.6))),
+                    ],
+                  ]),
                 ),
-              ),
-
-              // Course List Sections
-              ..._buildCourseSections(ref),
-            ],
+                ..._buildCourseSections(ref),
+              ],
+            ),
           ),
           if (isLoading)
-            Container(
-              color: Colors.black.withValues(alpha: 0.3),
-              child: const LoadingSpinner(size: 80),
-            ),
-        ],
+            Container(color: Colors.black.withValues(alpha: 0.5), child: const LoadingSpinner(size: 80)),
+        ]),
       ),
     );
+  }
+
+  Widget _optionRow({required IconData icon, required String title, required String sub, required VoidCallback onTap, Widget? trailing, bool hero = false, bool on = false}) {
+    final child = Row(children: [
+      Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(color: hero ? Ob.ink.withValues(alpha: .12) : Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)),
+        child: Icon(icon, size: 20, color: hero ? Ob.ink : Ob.lime),
+      ),
+      const SizedBox(width: 14),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: Ob.body(16, weight: FontWeight.w800, color: hero ? Ob.ink : Ob.cream)),
+          Text(sub, style: Ob.body(12, color: hero ? Ob.ink.withValues(alpha: .7) : Ob.creamA(.6))),
+        ]),
+      ),
+      trailing ?? Icon(LucideIcons.chevronRight, size: 18, color: hero ? Ob.ink : Ob.creamA(.4)),
+    ]);
+    if (hero) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Ob.lime, borderRadius: BorderRadius.circular(24)), child: child),
+      );
+    }
+    return ObSelectTile(selected: on, onTap: onTap, padding: const EdgeInsets.all(16), child: child);
   }
 
   void _onCourseSelected(dynamic course) async {
@@ -236,45 +164,27 @@ class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
   }
 
   void _showJoinRoundDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-        child: Column(
-          children: [
-            Container(margin: const EdgeInsets.symmetric(vertical: 12), width: 40, height: 4, decoration: BoxDecoration(color: AppColors.grey100, borderRadius: BorderRadius.circular(2))),
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('Join Group Round', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+    showObSheet(
+      context,
+      (sheetContext) => ObSheet(
+        title: 'Join a round',
+        subtitle: 'Scan the QR on your friend\'s phone, or type the code.',
+        height: MediaQuery.of(context).size.height * .8,
+        child: DefaultTabController(
+          length: 2,
+          child: Column(children: [
+            TabBar(
+              tabs: const [Tab(text: 'Scan QR'), Tab(text: 'Type code')],
+              labelColor: Ob.ink,
+              unselectedLabelColor: Ob.creamA(.6),
+              labelStyle: Ob.body(14, weight: FontWeight.w800),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              indicator: BoxDecoration(color: Ob.lime, borderRadius: BorderRadius.circular(999)),
             ),
-            Expanded(
-              child: DefaultTabController(
-                length: 2,
-                child: Column(
-                  children: [
-                    const TabBar(
-                      tabs: [Tab(text: 'Scan QR'), Tab(text: 'Enter Code')],
-                      labelColor: AppColors.emerald700,
-                      unselectedLabelColor: AppColors.grey400,
-                      indicatorColor: AppColors.emerald700,
-                      labelStyle: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          _buildQrScanner(),
-                          _buildCodeInput(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+            const SizedBox(height: 8),
+            Expanded(child: TabBarView(children: [_buildQrScanner(), _buildCodeInput()])),
+          ]),
         ),
       ),
     );
@@ -415,22 +325,8 @@ class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
   Widget _buildSectionHeader(String title, IconData icon) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: AppColors.grey400),
-            const SizedBox(width: 8),
-            Text(
-              title.toUpperCase(),
-              style: TextStyle(
-                color: AppColors.grey500,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
-        ),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+        child: ObEyebrow(title),
       ),
     );
   }
@@ -469,83 +365,72 @@ class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
   }
 
   Widget _buildEmptyState() {
-    return SliverFillRemaining(
-      hasScrollBody: false,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(LucideIcons.mapPinOff, size: 64, color: AppColors.grey300),
-            const SizedBox(height: 16),
-            Text('No courses found', 
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.grey600, fontWeight: FontWeight.w600)),
-          ],
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      sliver: SliverToBoxAdapter(
+        child: ObCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('No course called "$_search".', style: Ob.body(15, weight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            ObButton(
+              onPressed: () => context.push('/courses/add'),
+              child: Text('Add it yourself', style: Ob.label(15, weight: FontWeight.w800)),
+            ),
+          ]),
         ),
       ),
     );
   }
 
   Widget _buildQrScanner() {
-    return Column(
-      children: [
-        const SizedBox(height: 32),
-        Container(
-          width: 250,
-          height: 250,
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.emerald700, width: 2)),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: MobileScanner(
-              onDetect: (capture) {
-                final List<Barcode> barcodes = capture.barcodes;
-                for (final barcode in barcodes) {
-                  final String? code = barcode.rawValue;
-                  if (code != null) {
-                    final roundCode = code.contains('/') ? code.split('/').last : code;
-                    _handleJoin(roundCode);
-                    break;
-                  }
+    return Column(children: [
+      const SizedBox(height: 24),
+      Container(
+        width: 250,
+        height: 250,
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), border: Border.all(color: Ob.lime, width: 3)),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(25),
+          child: MobileScanner(
+            onDetect: (capture) {
+              for (final barcode in capture.barcodes) {
+                final String? code = barcode.rawValue;
+                if (code != null) {
+                  _handleJoin(code.contains('/') ? code.split('/').last : code);
+                  break;
                 }
-              },
-            ),
+              }
+            },
           ),
         ),
-        const SizedBox(height: 24),
-        const Text('Align the QR code within the frame', style: TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w600)),
-      ],
-    );
+      ),
+      const SizedBox(height: 20),
+      Text('Line the QR up inside the frame', style: Ob.body(14, color: Ob.creamA(.6))),
+    ]);
   }
 
   Widget _buildCodeInput() {
-    final controller = TextEditingController();
     return Padding(
-      padding: const EdgeInsets.all(32.0),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.grey100)),
-            child: TextField(
-              controller: controller,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 4),
-              textAlign: TextAlign.center,
-              decoration: const InputDecoration(border: InputBorder.none, hintText: '000000', hintStyle: TextStyle(color: AppColors.grey200)),
-              textCapitalization: TextCapitalization.characters,
-            ),
+      padding: const EdgeInsets.only(top: 24),
+      child: Column(children: [
+        TextField(
+          controller: _codeController,
+          cursorColor: Ob.lime,
+          textAlign: TextAlign.center,
+          textCapitalization: TextCapitalization.characters,
+          style: Ob.display(34, color: Ob.cream).copyWith(letterSpacing: 6),
+          decoration: obInput(null, hint: 'ABC123'),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: ObButton(
+            onPressed: () => _handleJoin(_codeController.text.trim()),
+            child: Text('Join round', style: Ob.label(16, weight: FontWeight.w800)),
           ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: FilledButton(
-              onPressed: () => _handleJoin(controller.text.trim()),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.emerald700, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-              child: const Text('Join Round', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 
@@ -570,19 +455,19 @@ class _CourseSelectScreenState extends ConsumerState<CourseSelectScreen> {
 
       final roundId = query.first['id'];
       // Just a generic name since we don't store courseName right now
-      final courseName = 'the group round';
 
       if (mounted) {
         setState(() => isLoading = false);
-        final confirmed = await showCupertinoDialog<bool>(
-          context: context,
-          builder: (context) => CupertinoAlertDialog(
-            title: const Text('Join Round?'),
-            content: Text('Do you want to join $courseName?'),
-            actions: [
-              CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context, false)),
-              CupertinoDialogAction(isDefaultAction: true, child: const Text('Join'), onPressed: () => Navigator.pop(context, true)),
-            ],
+        final confirmed = await showObSheet<bool>(
+          context,
+          (ctx) => ObSheet(
+            title: 'Join this round?',
+            subtitle: 'You\'ll wait in the lobby until the host starts.',
+            child: Row(children: [
+              Expanded(child: ObButton(tone: ObButtonTone.dark, onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: Ob.label(15, weight: FontWeight.w800)))),
+              const SizedBox(width: 10),
+              Expanded(child: ObButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Join', style: Ob.label(15, weight: FontWeight.w800)))),
+            ]),
           ),
         );
 
@@ -610,142 +495,42 @@ class _CourseCard extends StatelessWidget {
   final db.Course course;
   final double? distance;
   final VoidCallback onTap;
-  
+
   const _CourseCard({required this.course, required this.onTap, this.distance});
 
   @override
   Widget build(BuildContext context) {
-    // If within 500m, consider user "at" the course
-    final bool isAtCourse = distance != null && distance! < 500;
-
+    final here = distance != null && distance! < 500;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(24),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          highlightColor: AppColors.grey100.withValues(alpha: 0.5),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isAtCourse ? AppColors.emerald700 : AppColors.grey200,
-                width: isAtCourse ? 2 : 1,
-              ),
-              boxShadow: isAtCourse ? [
-                BoxShadow(color: AppColors.emerald700.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))
-              ] : null,
-            ),
-            child: Row(
-              children: [
-                _buildCourseAvatar(course.name, isAtCourse),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              course.name, 
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: -0.3),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (isAtCourse)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              margin: const EdgeInsets.only(left: 8),
-                              decoration: BoxDecoration(color: AppColors.emerald700, borderRadius: BorderRadius.circular(6)),
-                              child: const Text('YOU ARE HERE', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900)),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(LucideIcons.mapPin, size: 14, color: AppColors.grey400),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              distance != null 
-                                ? '${(distance! / 1000).toStringAsFixed(1)}km · ${course.location}'
-                                : course.location, 
-                              style: TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w600, fontSize: 13), 
-                              maxLines: 1, 
-                              overflow: TextOverflow.ellipsis
-                            )
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: here ? Ob.roleFill : Ob.cardFill,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: here ? Ob.lime : Colors.transparent, width: 1.5),
+          ),
+          child: Row(children: [
+            ObCrest(course.name, size: 48),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(course.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(16, weight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(
+                  distance != null ? '${(distance! / 1000).toStringAsFixed(1)} km · ${course.location}' : course.location,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Ob.body(12, color: Ob.creamA(.55)),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(color: AppColors.grey50, borderRadius: BorderRadius.circular(10)),
-                  child: Text('Par ${course.par18 ?? "?"}', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.grey700, fontSize: 13)),
-                ),
-              ],
+              ]),
             ),
-          ),
+            const SizedBox(width: 8),
+            if (here) const ObChip('You\'re here', on: true) else ObChip('Par ${course.par18 ?? '?'}'),
+          ]),
         ),
-      ),
-    );
-  }
-
-  Widget _buildCourseAvatar(String courseName, bool isAtCourse) {
-    final logoPath = CourseLogoHelper.getLogoAssetPath(courseName);
-
-    if (logoPath != null) {
-      // Show the course logo
-      return Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isAtCourse ? AppColors.emerald700 : AppColors.grey200,
-            width: isAtCourse ? 2 : 1,
-          ),
-          boxShadow: isAtCourse
-              ? [BoxShadow(color: AppColors.emerald700.withValues(alpha: 0.2), blurRadius: 8)]
-              : null,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
-          child: Image.asset(
-            logoPath,
-            width: 50,
-            height: 50,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => _fallbackIcon(isAtCourse),
-          ),
-        ),
-      );
-    }
-
-    // Fallback: generic golf icon
-    return _fallbackIcon(isAtCourse);
-  }
-
-  Widget _fallbackIcon(bool isAtCourse) {
-    return Container(
-      width: 50,
-      height: 50,
-      decoration: BoxDecoration(
-        color: isAtCourse ? AppColors.emerald700 : AppColors.emerald50,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Icon(
-        Icons.golf_course_rounded,
-        color: isAtCourse ? Colors.white : AppColors.emerald700,
-        size: 26,
       ),
     );
   }
@@ -831,120 +616,54 @@ class _CourseSetupModalState extends ConsumerState<_CourseSetupModal> {
   Widget build(BuildContext context) {
     final teesAsync = ref.watch(courseTeesProvider(widget.course.id));
 
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-      child: Container(
-        margin: EdgeInsets.only(top: MediaQuery.of(context).size.height * 0.3),
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(margin: const EdgeInsets.only(top: 12, bottom: 24), width: 40, height: 5, decoration: BoxDecoration(color: const Color(0xFFE2E2E2), borderRadius: BorderRadius.circular(10))),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(widget.course.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, letterSpacing: -1)),
-                  if (widget.isGroup)
-                    const Text('GROUP ROUND SETUP', style: TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
-                  const SizedBox(height: 32),
-                  const Text('Holes', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(child: _SegmentButton(label: '18 Holes', isSelected: _holesPlayed == 18, onTap: () => setState(() => _holesPlayed = 18))),
-                      const SizedBox(width: 12),
-                      Expanded(child: _SegmentButton(label: 'Front 9', isSelected: _holesPlayed == 9, onTap: () => setState(() => _holesPlayed = 9))),
-                      const SizedBox(width: 12),
-                      Expanded(child: _SegmentButton(label: 'Back 9', isSelected: _holesPlayed == -9, onTap: () => setState(() => _holesPlayed = -9))),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  const Text('Tee Box', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 52,
-                    child: teesAsync.when(
-                      data: (tees) {
-                        if (tees.isEmpty) return const Text('No tees available for this course.', style: TextStyle(color: AppColors.grey400));
-                        if (_selectedTeeId == null && tees.isNotEmpty) {
-                          Future.microtask(() => setState(() => _selectedTeeId = tees.first.id));
-                        }
-                        return ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: tees.length,
-                          itemBuilder: (context, index) {
-                            final tee = tees[index];
-                            final isSelected = _selectedTeeId == tee.id;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: InkWell(
-                                onTap: () => setState(() => _selectedTeeId = tee.id),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? AppColors.grey900 : AppColors.grey50,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: isSelected ? AppColors.grey900 : AppColors.grey200),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(tee.name, style: TextStyle(color: isSelected ? Colors.white : AppColors.grey900, fontWeight: FontWeight.w800, fontSize: 13)),
-                                      Text('Rating: ${tee.courseRating}', style: TextStyle(color: isSelected ? Colors.white70 : AppColors.grey500, fontSize: 10, fontWeight: FontWeight.w600)),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                      loading: () => const LoadingSpinner(size: 40),
-                      error: (e, _) => Text('Error: $e'),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: FilledButton(
-                      onPressed: _isCreating ? null : _startRound,
-                      style: FilledButton.styleFrom(backgroundColor: AppColors.emerald700, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                      child: _isCreating 
-                        ? const LoadingSpinner(size: 32)
-                        : Text(widget.isGroup ? 'Create Group Lobby' : 'Start Round', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                    ),
-                  ),
-                  SizedBox(height: MediaQuery.of(context).padding.bottom + 24),
-                ],
-              ),
-            ),
-          ],
+    return ObSheet(
+      title: widget.course.name,
+      subtitle: widget.isGroup ? 'Group round · everyone joins from the lobby' : 'How are you playing today?',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const ObEyebrow('Holes'),
+        const SizedBox(height: 10),
+        ObGooSegmented<int>(
+          options: const [(18, '18 holes'), (9, 'Front 9'), (-9, 'Back 9')],
+          selected: _holesPlayed,
+          onChanged: (v) => setState(() => _holesPlayed = v),
         ),
-      ),
-    );
-  }
-}
-
-class _SegmentButton extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  const _SegmentButton({required this.label, required this.isSelected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(color: isSelected ? AppColors.grey900 : AppColors.grey50, borderRadius: BorderRadius.circular(14)),
-        alignment: Alignment.center,
-        child: Text(label, style: TextStyle(color: isSelected ? Colors.white : AppColors.grey600, fontWeight: FontWeight.w700)),
-      ),
+        const SizedBox(height: 20),
+        const ObEyebrow('Tee'),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 64,
+          child: teesAsync.when(
+            data: (tees) {
+              if (tees.isEmpty) return Text('No tees set up for this course yet.', style: Ob.body(14, color: Ob.creamA(.6)));
+              if (_selectedTeeId == null) Future.microtask(() => setState(() => _selectedTeeId = tees.first.id));
+              return ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: tees.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  final tee = tees[i];
+                  return ObSelectTile(
+                    selected: _selectedTeeId == tee.id,
+                    onTap: () => setState(() => _selectedTeeId = tee.id),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(tee.name, style: Ob.body(14, weight: FontWeight.w800)),
+                      Text('${tee.courseRating} / ${tee.slopeRating}', style: Ob.body(11, color: Ob.creamA(.55))),
+                    ]),
+                  );
+                },
+              );
+            },
+            loading: () => const Center(child: CupertinoActivityIndicator(color: Ob.lime)),
+            error: (e, _) => Text('Couldn\'t load tees: $e', style: Ob.body(13, color: Ob.warn)),
+          ),
+        ),
+        const SizedBox(height: 24),
+        ObButton(
+          onPressed: _isCreating ? null : _startRound,
+          child: Text(_isCreating ? 'Setting up…' : (widget.isGroup ? 'Open the lobby' : 'Tee off'), style: Ob.label(17, weight: FontWeight.w800)),
+        ),
+      ]),
     );
   }
 }
@@ -955,20 +674,16 @@ class _AddCustomCourseCTA extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.emerald200)),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(LucideIcons.plusCircle, color: AppColors.emerald700, size: 20),
-            SizedBox(width: 8),
-            Text("Add Custom Course", style: TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.w800)),
-          ],
-        ),
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), border: Border.all(color: Ob.lime.withValues(alpha: .4))),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(LucideIcons.plus, color: Ob.lime, size: 18),
+          const SizedBox(width: 8),
+          Text('Course not listed? Add it', style: Ob.body(14, weight: FontWeight.w800, color: Ob.lime)),
+        ]),
       ),
     );
   }
@@ -992,129 +707,39 @@ class _ScanCoursePickerSheetState extends ConsumerState<_ScanCoursePickerSheet> 
     super.dispose();
   }
 
-  Widget _buildCourseLogo(String courseName) {
-    final logoPath = CourseLogoHelper.getLogoAssetPath(courseName);
-    if (logoPath != null) {
-      return Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.grey200, width: 1),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(11),
-          child: Image.asset(
-            logoPath,
-            width: 40,
-            height: 40,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => _buildFallbackLogo(),
-          ),
-        ),
-      );
-    }
-    return _buildFallbackLogo();
-  }
-
-  Widget _buildFallbackLogo() {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: AppColors.emerald50,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Icon(
-        Icons.golf_course_rounded,
-        color: AppColors.emerald700,
-        size: 20,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final coursesAsync = ref.watch(coursesProvider);
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(color: AppColors.grey200, borderRadius: BorderRadius.circular(2)),
-            ),
+    return ObSheet(
+      title: 'Which course?',
+      subtitle: 'The one printed on the card.',
+      height: MediaQuery.of(context).size.height * .85,
+      child: Column(children: [
+        TextField(
+          controller: _sheetSearchController,
+          onChanged: (v) => setState(() => _sheetSearch = v),
+          cursorColor: Ob.lime,
+          style: Ob.body(15, weight: FontWeight.w600),
+          decoration: obInput(null, hint: 'Search courses', prefix: Icon(LucideIcons.search, size: 18, color: Ob.creamA(.5))),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: coursesAsync.when(
+            data: (list) {
+              final q = _sheetSearch.toLowerCase();
+              final filtered = list.where((c) => c.name.toLowerCase().contains(q) || c.location.toLowerCase().contains(q)).toList();
+              if (filtered.isEmpty) return Center(child: Text('No courses found.', style: Ob.body(14, color: Ob.creamA(.6))));
+              return ListView.builder(
+                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                itemCount: filtered.length,
+                itemBuilder: (_, i) => _CourseCard(course: filtered[i], onTap: () => widget.onCourseSelected(filtered[i])),
+              );
+            },
+            loading: () => const Center(child: CupertinoActivityIndicator(color: Ob.lime)),
+            error: (e, _) => Center(child: Text('Couldn\'t load courses: $e', style: Ob.body(13, color: Ob.warn))),
           ),
-          const SizedBox(height: 24),
-          const Text(
-            'Select Course for Scan',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.grey900),
-          ),
-          const SizedBox(height: 16),
-          CupertinoSearchTextField(
-            controller: _sheetSearchController,
-            placeholder: 'Search courses...',
-            onChanged: (v) => setState(() => _sheetSearch = v),
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: coursesAsync.when(
-              data: (coursesList) {
-                final filtered = coursesList.where((c) {
-                  final q = _sheetSearch.toLowerCase();
-                  return c.name.toLowerCase().contains(q) ||
-                      c.location.toLowerCase().contains(q);
-                }).toList();
-
-                if (filtered.isEmpty) {
-                  return const Center(child: Text('No courses found.'));
-                }
-
-                return ListView.builder(
-                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                  itemCount: filtered.length,
-                  itemExtent: 80.0,
-                  itemBuilder: (context, index) {
-                    final course = filtered[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: ListTile(
-                        onTap: () => widget.onCourseSelected(course),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: const BorderSide(color: AppColors.grey100),
-                        ),
-                        tileColor: AppColors.grey25,
-                        leading: _buildCourseLogo(course.name),
-                        title: Text(
-                          course.name,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                        ),
-                        subtitle: Text(
-                          course.location,
-                          style: const TextStyle(color: AppColors.grey500, fontSize: 13),
-                        ),
-                        trailing: const Icon(LucideIcons.chevronRight, color: AppColors.grey300, size: 18),
-                      ),
-                    );
-                  },
-                );
-              },
-              loading: () => const Center(child: CupertinoActivityIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }
@@ -1181,18 +806,7 @@ class _ScanSetupSheetState extends ConsumerState<_ScanSetupSheet> {
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.emerald700,
-              onPrimary: Colors.white,
-              onSurface: AppColors.grey900,
-            ),
-          ),
-          child: child!,
-        );
-      },
+      builder: obPickerTheme,
     );
     if (picked != null && picked != _selectedDate) {
       setState(() {
@@ -1205,174 +819,82 @@ class _ScanSetupSheetState extends ConsumerState<_ScanSetupSheet> {
   @override
   Widget build(BuildContext context) {
     if (_loadingTees) {
-      return Container(
-        height: 350,
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-        child: const Center(child: CupertinoActivityIndicator()),
-      );
+      return const ObSheet(child: SizedBox(height: 240, child: Center(child: CupertinoActivityIndicator(color: Ob.lime))));
     }
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(color: AppColors.grey200, borderRadius: BorderRadius.circular(2)),
-              ),
+    return ObSheet(
+      title: 'Before we scan',
+      subtitle: widget.course.name,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        TextFormField(
+          controller: _nameController,
+          onChanged: (v) => ref.read(scorecardScannerProvider.notifier).setPlayerName(v),
+          cursorColor: Ob.lime,
+          style: Ob.body(15, weight: FontWeight.w700),
+          decoration: obInput('Your name as written on the card'),
+        ),
+        const SizedBox(height: 12),
+        ObSelectTile(
+          selected: false,
+          onTap: _selectDate,
+          child: Row(children: [
+            const Icon(LucideIcons.calendar, color: Ob.lime, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Played on', style: Ob.body(11, color: Ob.creamA(.55))),
+                Text(DateFormat('EEE d MMMM yyyy').format(_selectedDate), style: Ob.body(15, weight: FontWeight.w800)),
+              ]),
             ),
-            const SizedBox(height: 24),
-            const Text(
-              'Scanner Setup',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.grey900),
+            Icon(LucideIcons.chevronDown, size: 18, color: Ob.creamA(.5)),
+          ]),
+        ),
+        const SizedBox(height: 18),
+        const ObEyebrow('Tee you played'),
+        const SizedBox(height: 10),
+        if (_tees.isEmpty)
+          Text('This course has no tees yet, so we can\'t work out a handicap from it.', style: Ob.body(13, color: Ob.creamA(.6)))
+        else
+          SizedBox(
+            height: 64,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _tees.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final t = _tees[i];
+                return ObSelectTile(
+                  selected: _selectedTee?.id == t.id,
+                  onTap: () {
+                    setState(() => _selectedTee = t);
+                    ref.read(scorecardScannerProvider.notifier).setTee(t);
+                  },
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(t.name, style: Ob.body(14, weight: FontWeight.w800)),
+                    Text('Slope ${t.slopeRating}', style: Ob.body(11, color: Ob.creamA(.55))),
+                  ]),
+                );
+              },
             ),
-            const SizedBox(height: 4),
-            Text(
-              widget.course.name,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.grey500),
-            ),
-            const SizedBox(height: 24),
-
-            // Player Name input
-            const Text('PLAYER NAME ON SCORECARD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _nameController,
-              onChanged: (v) => ref.read(scorecardScannerProvider.notifier).setPlayerName(v),
-              decoration: InputDecoration(
-                hintText: 'Enter name (exactly as written on scorecard)',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                filled: true,
-                fillColor: AppColors.grey50,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Date picker field
-            const Text('ROUND DATE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-            const SizedBox(height: 8),
-            InkWell(
-              onTap: _selectDate,
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.grey50,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(LucideIcons.calendar, color: AppColors.grey400, size: 20),
-                    const SizedBox(width: 12),
-                    Text(
-                      DateFormat('MMMM d, yyyy').format(_selectedDate),
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.grey900),
-                    ),
-                    const Spacer(),
-                    const Icon(LucideIcons.chevronDown, color: AppColors.grey400, size: 18),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Tee selection
-            const Text('SELECT PLAYING TEE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-            const SizedBox(height: 12),
-            _tees.isEmpty
-                ? const Text('No tees found. Add tees to this course to calculate WHS handicap.')
-                : SizedBox(
-                    height: 84,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _tees.length,
-                      itemBuilder: (context, i) {
-                        final t = _tees[i];
-                        final isSelected = _selectedTee?.id == t.id;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 12.0),
-                          child: InkWell(
-                            onTap: () {
-                              setState(() => _selectedTee = t);
-                              ref.read(scorecardScannerProvider.notifier).setTee(t);
-                            },
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              width: 120,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.grey900 : AppColors.grey50,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: isSelected ? AppColors.grey900 : AppColors.grey200),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    t.name,
-                                    style: TextStyle(
-                                      color: isSelected ? Colors.white : AppColors.grey800,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Slope: ${t.slopeRating}',
-                                    style: TextStyle(
-                                      color: isSelected ? Colors.white.withValues(alpha: 0.75) : AppColors.grey500,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-
-            const SizedBox(height: 32),
-
-            // Proceed Button
-            SizedBox(
-              width: double.infinity,
-              height: 60,
-              child: FilledButton(
-                onPressed: _selectedTee == null
-                    ? null
-                    : () {
-                        Navigator.pop(context);
-                        widget.onProceed();
-                      },
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.grey900,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                ),
-                child: const Text('PROCEED TO CAMERA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 60,
-              child: OutlinedButton(
-                onPressed: _selectedTee == null
-                    ? null
-                    : () async {
+          ),
+        const SizedBox(height: 22),
+        ObButton(
+          onPressed: _selectedTee == null
+              ? null
+              : () {
+                  Navigator.pop(context);
+                  widget.onProceed();
+                },
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(LucideIcons.camera, size: 18, color: Ob.ink),
+            const SizedBox(width: 8),
+            Text('Open the camera', style: Ob.label(16, weight: FontWeight.w800)),
+          ]),
+        ),
+        const SizedBox(height: 10),
+        ObButton(
+          tone: ObButtonTone.dark,
+          onPressed: _selectedTee == null ? null : () async {
                         final ImagePicker picker = ImagePicker();
                         try {
                           final XFile? image = await picker.pickImage(
@@ -1394,16 +916,13 @@ class _ScanSetupSheetState extends ConsumerState<_ScanSetupSheet> {
                           debugPrint('Error picking image: $e');
                         }
                       },
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.grey300, width: 2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                ),
-                child: const Text('UPLOAD FROM GALLERY', style: TextStyle(color: AppColors.grey700, fontWeight: FontWeight.w900, fontSize: 16)),
-              ),
-            ),
-          ],
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(LucideIcons.image, size: 18, color: Ob.cream),
+            const SizedBox(width: 8),
+            Text('Pick a photo instead', style: Ob.label(16, weight: FontWeight.w800)),
+          ]),
         ),
-      ),
+      ]),
     );
   }
 }
