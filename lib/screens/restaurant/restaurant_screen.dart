@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/providers/club_feed_provider.dart';
 import '../../core/providers/restaurant_provider.dart';
-import '../../widgets/pill.dart';
-import '../../widgets/menu_pdf_card.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
+import 'menu_pdf_viewer_screen.dart';
 import 'table_reservation_screen.dart';
 
-/// Player-facing Restaurant tab: browse the club's menu, or reserve a table.
-/// Scoped to the player's active club — no payment/delivery yet, reservation
-/// only, per current phase.
+enum _View { menu, book }
+
+/// The clubhouse: browse the active club's menu, or reserve a table.
 class RestaurantScreen extends ConsumerStatefulWidget {
   const RestaurantScreen({super.key});
 
@@ -18,259 +23,204 @@ class RestaurantScreen extends ConsumerStatefulWidget {
   ConsumerState<RestaurantScreen> createState() => _RestaurantScreenState();
 }
 
-class _RestaurantScreenState extends ConsumerState<RestaurantScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
+  _View _view = _View.menu;
+  String _course = 'all';
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
+  static const _order = ['starter', 'main', 'special', 'dessert', 'drink'];
+  static String _label(String c) => switch (c) {
+        'all' => 'All',
+        'starter' => 'Starters',
+        'main' => 'Mains',
+        'special' => 'Specials',
+        'dessert' => 'Desserts',
+        'drink' => 'Drinks',
+        _ => c[0].toUpperCase() + c.substring(1),
+      };
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+  // A warm tint per course where a dish has no photo.
+  static Color _tint(String c) => switch (c) {
+        'starter' => const Color(0xFF2E3B1C),
+        'main' => const Color(0xFF3B2A18),
+        'special' => const Color(0xFF3A3212),
+        'dessert' => const Color(0xFF3A1E2A),
+        'drink' => const Color(0xFF16323A),
+        _ => Ob.roleFill,
+      };
 
   @override
   Widget build(BuildContext context) {
-    final activeClub = ref.watch(activeClubProvider);
+    final club = ref.watch(activeClubProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.grey25,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        title: Text(
-          activeClub?.clubName ?? 'Restaurant',
-          style: const TextStyle(fontSize: AppTypeScale.title, fontWeight: FontWeight.w800, color: AppColors.grey900),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.emerald700,
-          unselectedLabelColor: AppColors.grey500,
-          indicatorColor: AppColors.emerald600,
-          labelStyle: const TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w700),
-          tabs: const [
-            Tab(text: 'Menu'),
-            Tab(text: 'Reserve a Table'),
-          ],
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: club == null
+              ? Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    ObTopBar('Clubhouse', onBack: () => context.pop()),
+                    const SizedBox(height: 20),
+                    ObGuideRow(botAsset: ObBot.ball.idle, botLabel: 'Your golf-ball avatar', text: 'Join a club to see its menu and book a table.', size: 76, fontSize: 16),
+                  ]),
+                )
+              : _content(club.clubId, club.clubName),
         ),
       ),
-      body: activeClub == null
-          ? const Center(child: Text('Join a club to view its restaurant.'))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _MenuTab(clubId: activeClub.clubId),
-                _ReserveTab(clubId: activeClub.clubId),
-              ],
-            ),
     );
   }
-}
 
-class _MenuTab extends ConsumerWidget {
-  final String clubId;
-  const _MenuTab({required this.clubId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget _content(String clubId, String clubName) {
     final menuAsync = ref.watch(clubMenuProvider(clubId));
-    final docsAsync = ref.watch(clubMenuDocumentsProvider(clubId));
+    final docs = ref.watch(clubMenuDocumentsProvider(clubId)).valueOrNull ?? const <MenuDocument>[];
+    final items = menuAsync.valueOrNull ?? const <MenuItem>[];
+    final courses = ['all', ..._order.where((c) => items.any((i) => i.category == c))];
+    final shown = items.where((i) => _course == 'all' || i.category == _course).toList()
+      ..sort((a, b) => _order.indexOf(a.category).compareTo(_order.indexOf(b.category)));
 
-    return menuAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => const Center(child: Text('Could not load the menu.')),
-      data: (items) {
-        final docs = docsAsync.valueOrNull ?? [];
-        if (items.isEmpty && docs.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Text('No menu has been published yet.', style: TextStyle(color: AppColors.grey500, fontSize: AppTypeScale.body)),
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
+      children: [
+        ObTopBar('Clubhouse', onBack: () => context.pop(), actions: [
+          if (docs.isNotEmpty)
+            ObIconButton(
+              icon: LucideIcons.fileText,
+              label: 'Full menu (PDF)',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MenuPdfViewerScreen(title: docs.first.name, pdfUrl: docs.first.pdfUrl))),
             ),
-          );
-        }
-        const categoryOrder = ['starter', 'main', 'special', 'dessert', 'drink'];
-        final byCategory = <String, List<MenuItem>>{};
-        for (final item in items) {
-          byCategory.putIfAbsent(item.category, () => []).add(item);
-        }
-
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (docs.isNotEmpty) ...[
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.62,
-                ),
-                itemCount: docs.length,
-                itemBuilder: (context, i) => MenuPdfCard(document: docs[i]),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          ObCrest(clubName, size: 40, radius: 12),
+          const SizedBox(width: 12),
+          Expanded(child: Text(clubName, style: Ob.body(14, weight: FontWeight.w800))),
+        ]).rise(),
+        const SizedBox(height: 14),
+        ObGooSegmented<_View>(
+          options: const [(_View.menu, 'Menu'), (_View.book, 'Book a table')],
+          selected: _view,
+          onChanged: (v) => setState(() => _view = v),
+        ).rise(1),
+        const SizedBox(height: 14),
+        if (_view == _View.book)
+          _BookList(clubId: clubId)
+        else if (menuAsync.isLoading && items.isEmpty)
+          const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+        else if (items.isEmpty && docs.isEmpty)
+          ObCard(child: Text('The kitchen hasn\'t put its menu up yet.', style: Ob.body(14, color: Ob.creamA(.65))))
+        else ...[
+          if (items.isNotEmpty) ...[
+            SizedBox(
+              height: 34,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: courses.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => GestureDetector(onTap: () => setState(() => _course = courses[i]), child: ObChip(_label(courses[i]), on: _course == courses[i])),
               ),
-              const SizedBox(height: 12),
-            ],
-            for (final cat in categoryOrder)
-              if (byCategory[cat]?.isNotEmpty == true) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 12, bottom: 8, left: 4),
-                  child: Text(
-                    _categoryLabel(cat),
-                    style: const TextStyle(fontSize: AppTypeScale.title, fontWeight: FontWeight.w800, color: AppColors.grey900),
-                  ),
-                ),
-                for (final item in byCategory[cat]!) _MenuItemCard(item: item),
-              ],
+            ),
+            const SizedBox(height: 12),
+            for (final d in shown) Padding(padding: const EdgeInsets.only(bottom: 10), child: _dish(d)),
           ],
-        );
-      },
-    );
-  }
-
-  String _categoryLabel(String cat) {
-    switch (cat) {
-      case 'starter':
-        return 'Starters';
-      case 'main':
-        return 'Mains';
-      case 'special':
-        return "Chef's Specials";
-      case 'dessert':
-        return 'Desserts';
-      case 'drink':
-        return 'Drinks';
-      default:
-        return cat;
-    }
-  }
-}
-
-class _MenuItemCard extends StatelessWidget {
-  final MenuItem item;
-  const _MenuItemCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.grey200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        item.name,
-                        style: const TextStyle(fontSize: AppTypeScale.subtitle, fontWeight: FontWeight.w800, color: AppColors.grey900),
-                      ),
-                    ),
-                    if (item.isNew) ...[
-                      const SizedBox(width: 8),
-                      const Pill(label: 'New', background: AppColors.emerald100, foreground: AppColors.emerald700, dense: true),
-                    ],
-                  ],
+          if (docs.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const ObEyebrow('Menus to download'),
+            const SizedBox(height: 10),
+            for (final doc in docs)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: ObCard(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MenuPdfViewerScreen(title: doc.name, pdfUrl: doc.pdfUrl))),
+                  child: Row(children: [
+                    const Icon(LucideIcons.fileText, color: Ob.lime),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(doc.name, style: Ob.body(15, weight: FontWeight.w700))),
+                    Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
+                  ]),
                 ),
-                if (item.description != null && item.description!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    item.description!,
-                    style: const TextStyle(fontSize: AppTypeScale.meta, color: AppColors.grey600, fontWeight: FontWeight.w500),
-                  ),
-                ],
-                if (item.chefName != null && item.chefName!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(LucideIcons.chefHat, size: 15, color: AppColors.grey500),
-                      const SizedBox(width: 5),
-                      Text('Chef ${item.chefName}', style: const TextStyle(fontSize: AppTypeScale.caption, color: AppColors.grey500, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (item.priceKes != null) ...[
-            const SizedBox(width: 12),
-            Text(
-              'KES ${item.priceKes!.toStringAsFixed(0)}',
-              style: const TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w800, color: AppColors.emerald700),
-            ),
+              ),
           ],
         ],
-      ),
+      ],
+    );
+  }
+
+  Widget _dish(MenuItem d) {
+    return ObCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 88,
+          height: 88,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(color: _tint(d.category), borderRadius: BorderRadius.circular(18)),
+          child: Stack(children: [
+            if ((d.photoUrl ?? '').isNotEmpty) Positioned.fill(child: Image.network(d.photoUrl!, fit: BoxFit.cover, errorBuilder: (_, _, _) => const SizedBox())),
+            if (d.isNew) const Positioned(left: 8, bottom: 8, child: ObChip('New', on: true)),
+          ]),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: SizedBox(
+            height: 88,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(d.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w800)),
+              if ((d.description ?? '').isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(d.description!, maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.body(12, height: 1.4, color: Ob.creamA(.62))),
+              ],
+              const Spacer(),
+              Row(children: [
+                Expanded(child: Text((d.chefName ?? '').isEmpty ? '' : 'Chef ${d.chefName}', style: Ob.body(11, color: Ob.creamA(.5)))),
+                if (d.priceKes != null) Text('KES ${NumberFormat('#,###').format(d.priceKes)}', style: Ob.display(18)),
+              ]),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }
 
-class _ReserveTab extends ConsumerWidget {
+class _BookList extends ConsumerWidget {
+  const _BookList({required this.clubId});
   final String clubId;
-  const _ReserveTab({required this.clubId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final locationsAsync = ref.watch(restaurantLocationsProvider(clubId));
-
-    return locationsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => const Center(child: Text('Could not load locations.')),
-      data: (locations) {
-        if (locations.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Text('No bookable dining areas yet.', style: TextStyle(color: AppColors.grey500, fontSize: AppTypeScale.body)),
-            ),
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: locations.length,
-          itemBuilder: (context, i) {
-            final loc = locations[i];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.grey200),
+    final async = ref.watch(restaurantLocationsProvider(clubId));
+    final list = async.valueOrNull ?? const <RestaurantLocation>[];
+    if (async.isLoading && list.isEmpty) return const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)));
+    if (list.isEmpty) return ObCard(child: Text('No tables to book here yet.', style: Ob.body(14, color: Ob.creamA(.65))));
+    const tints = [Color(0xFF2E3B1C), Color(0xFF16323A), Color(0xFF3B2A18), Color(0xFF3A1E2A)];
+    return Column(children: [
+      for (final (i, loc) in list.indexed)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: ObCard(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => TableReservationScreen(clubId: clubId, location: loc))),
+            child: Row(children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(color: tints[i % tints.length], borderRadius: BorderRadius.circular(16)),
+                child: const Icon(LucideIcons.utensils, color: Ob.cream, size: 20),
               ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                leading: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(color: AppColors.emerald50, borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(LucideIcons.utensils, color: AppColors.emerald700),
-                ),
-                title: Text(loc.name, style: const TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w800, color: AppColors.grey900)),
-                trailing: const Icon(LucideIcons.chevronRight, color: AppColors.grey400),
-                minVerticalPadding: 16,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => TableReservationScreen(clubId: clubId, location: loc)),
-                ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(loc.name, style: Ob.body(16, weight: FontWeight.w800)),
+                  Text('Pick a day, a time and your table', style: Ob.body(12, color: Ob.creamA(.58))),
+                ]),
               ),
-            );
-          },
-        );
-      },
-    );
+              Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
+            ]),
+          ),
+        ),
+    ]);
   }
 }

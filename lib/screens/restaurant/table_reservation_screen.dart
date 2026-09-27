@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:intl/intl.dart';
+import '../../widgets/top_notification.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 import '../../core/providers/restaurant_provider.dart';
-import '../../widgets/pill.dart';
-import '../../widgets/table_visual.dart';
-import '../../widgets/animated_checkmark.dart';
 
 const _timeSlots = ['12:00', '12:30', '13:00', '13:30', '18:00', '18:30', '19:00', '19:30', '20:00'];
 
@@ -30,155 +33,164 @@ class _TableReservationScreenState extends ConsumerState<TableReservationScreen>
   @override
   Widget build(BuildContext context) {
     final tablesAsync = ref.watch(restaurantTablesProvider(widget.location.id));
-    final bookedAsync = ref.watch(bookedTableIdsProvider(
-      ReservationSlotParams(locationId: widget.location.id, date: _selectedDate, time: _selectedTime),
-    ));
+    final booked = ref.watch(bookedTableIdsProvider(ReservationSlotParams(locationId: widget.location.id, date: _selectedDate, time: _selectedTime))).valueOrNull ?? const <String>{};
+    final tables = tablesAsync.valueOrNull ?? const <RestaurantTable>[];
+    final today = DateUtils.dateOnly(DateTime.now());
+    final picked = tables.where((t) => t.id == _selectedTableId).firstOrNull;
 
     return Scaffold(
-      backgroundColor: AppColors.grey25,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        title: Text(widget.location.name, style: const TextStyle(fontSize: AppTypeScale.title, fontWeight: FontWeight.w800, color: AppColors.grey900)),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Date', style: TextStyle(fontSize: AppTypeScale.meta, fontWeight: FontWeight.w700, color: AppColors.grey600)),
-                const SizedBox(height: 8),
-                _DateStrip(
-                  selectedDate: _selectedDate,
-                  onSelect: (d) => setState(() { _selectedDate = d; _selectedTableId = null; }),
-                ),
-                const SizedBox(height: 16),
-                const Text('Time', style: TextStyle(fontSize: AppTypeScale.meta, fontWeight: FontWeight.w700, color: AppColors.grey600)),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 44,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _timeSlots.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, i) {
-                      final slot = _timeSlots[i];
-                      final selected = slot == _selectedTime;
-                      return GestureDetector(
-                        onTap: () => setState(() { _selectedTime = slot; _selectedTableId = null; }),
-                        child: Container(
-                          alignment: Alignment.center,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: selected ? AppColors.emerald600 : AppColors.white,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: selected ? AppColors.emerald600 : AppColors.grey200),
-                          ),
-                          child: Text(
-                            slot,
-                            style: TextStyle(
-                              fontSize: AppTypeScale.meta,
-                              fontWeight: FontWeight.w700,
-                              color: selected ? AppColors.white : AppColors.grey700,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Text('Party size', style: TextStyle(fontSize: AppTypeScale.meta, fontWeight: FontWeight.w700, color: AppColors.grey600)),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: _partySize > 1 ? () => setState(() => _partySize--) : null,
-                      icon: const Icon(LucideIcons.minus),
-                      style: IconButton.styleFrom(minimumSize: const Size(AppTypeScale.minTapTarget, AppTypeScale.minTapTarget)),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: Column(children: [
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                children: [
+                  ObTopBar(widget.location.name, onBack: () => Navigator.of(context).maybePop()),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 70,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: 7,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) {
+                        final d = today.add(Duration(days: i));
+                        final on = DateUtils.isSameDay(d, _selectedDate);
+                        return ObSelectTile(
+                          selected: on,
+                          width: 58,
+                          padding: EdgeInsets.zero,
+                          onTap: () => setState(() {
+                            _selectedDate = d;
+                            _selectedTableId = null;
+                          }),
+                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Text(i == 0 ? 'Today' : DateFormat('EEE').format(d), style: Ob.body(11, weight: FontWeight.w800, color: on ? Ob.lime : Ob.creamA(.6))),
+                            Text('${d.day}', style: Ob.display(22, height: 1.1)),
+                          ]),
+                        );
+                      },
                     ),
-                    Text('$_partySize', style: const TextStyle(fontSize: AppTypeScale.title, fontWeight: FontWeight.w800)),
-                    IconButton(
-                      onPressed: () => setState(() => _partySize++),
-                      icon: const Icon(LucideIcons.plus),
-                      style: IconButton.styleFrom(minimumSize: const Size(AppTypeScale.minTapTarget, AppTypeScale.minTapTarget)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: tablesAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => const Center(child: Text('Could not load tables.')),
-              data: (tables) {
-                if (tables.isEmpty) {
-                  return const Center(child: Text('No tables set up here yet.', style: TextStyle(color: AppColors.grey500)));
-                }
-                final bookedIds = bookedAsync.valueOrNull ?? {};
-                return GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 0.85,
                   ),
-                  itemCount: tables.length,
-                  itemBuilder: (context, i) {
-                    final table = tables[i];
-                    final isBooked = bookedIds.contains(table.id);
-                    final isSelected = table.id == _selectedTableId;
-                    return GestureDetector(
-                      onTap: isBooked ? null : () => setState(() => _selectedTableId = table.id),
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: TableVisual(shape: table.shape, seatCount: table.seatCount, isBooked: isBooked, isSelected: isSelected),
-                          ),
-                          const SizedBox(height: 6),
-                          Text('Table ${table.tableNumber}', style: const TextStyle(fontSize: AppTypeScale.meta, fontWeight: FontWeight.w800, color: AppColors.grey900)),
-                          if (isBooked)
-                            const Pill(label: 'Booked', background: AppColors.grey100, foreground: AppColors.grey500, dense: true)
-                          else
-                            Text('${table.seatCount} seats', style: const TextStyle(fontSize: AppTypeScale.caption, color: AppColors.grey500, fontWeight: FontWeight.w600)),
-                        ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 34,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _timeSlots.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) => GestureDetector(
+                        onTap: () => setState(() {
+                          _selectedTime = _timeSlots[i];
+                          _selectedTableId = null;
+                        }),
+                        child: ObChip(_timeSlots[i], on: _timeSlots[i] == _selectedTime),
                       ),
-                    );
-                  },
-                );
-              },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ObCard(
+                    child: Row(children: [
+                      Expanded(child: Text('How many?', style: Ob.body(15, weight: FontWeight.w700))),
+                      _step(LucideIcons.minus, _partySize > 1 ? () => setState(() => _partySize--) : null),
+                      SizedBox(width: 64, child: Column(children: [Text('$_partySize', style: Ob.display(26, height: 1)), Text('people', style: Ob.body(10, color: Ob.creamA(.5)))])),
+                      _step(LucideIcons.plus, _partySize < 20 ? () => setState(() => _partySize++) : null),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                  ObCard(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const ObEyebrow('Pick a table'),
+                      const SizedBox(height: 12),
+                      if (tablesAsync.isLoading && tables.isEmpty)
+                        const Center(child: CupertinoActivityIndicator(color: Ob.lime))
+                      else if (tables.isEmpty)
+                        Text('No tables set up here yet.', style: Ob.body(13, color: Ob.creamA(.6)))
+                      else
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: Ob.bg.withValues(alpha: .5), borderRadius: BorderRadius.circular(20)),
+                          child: Wrap(spacing: 10, runSpacing: 10, alignment: WrapAlignment.center, children: [
+                            for (final t in tables) _table(t, booked.contains(t.id) || t.seatCount < _partySize),
+                          ]),
+                        ),
+                      const SizedBox(height: 12),
+                      Wrap(spacing: 14, runSpacing: 6, children: [
+                        _legend(Ob.lime, 'Yours', filled: true),
+                        _legend(Ob.creamA(.3), 'Free'),
+                        _legend(Ob.creamA(.08), 'Taken or too small', filled: true),
+                      ]),
+                    ]),
+                  ),
+                ],
+              ),
             ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
               child: SizedBox(
                 width: double.infinity,
-                height: AppTypeScale.minTapTarget,
-                child: ElevatedButton(
-                  onPressed: (_selectedTableId == null || _isBooking) ? null : _confirmReservation,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.emerald600,
-                    disabledBackgroundColor: AppColors.grey200,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                child: ObButton(
+                  onPressed: picked == null || _isBooking ? null : _confirmReservation,
+                  child: Text(
+                    _isBooking ? 'Booking…' : (picked == null ? 'Pick a table' : 'Book table ${picked.tableNumber} · $_selectedTime'),
+                    style: Ob.label(16, weight: FontWeight.w800),
                   ),
-                  child: _isBooking
-                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                      : const Text('Reserve Table', style: TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w800, color: Colors.white)),
                 ),
               ),
             ),
-          ),
-        ],
+          ]),
+        ),
       ),
     );
   }
+
+  Widget _step(IconData icon, VoidCallback? onTap) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(color: Ob.creamA(onTap == null ? .03 : .08), shape: BoxShape.circle),
+          child: Icon(icon, size: 16, color: onTap == null ? Ob.creamA(.25) : Ob.cream),
+        ),
+      );
+
+  Widget _table(RestaurantTable t, bool unavailable) {
+    final on = t.id == _selectedTableId;
+    final round = t.shape == 'round';
+    return Semantics(
+      button: true,
+      selected: on,
+      label: 'Table ${t.tableNumber}, ${t.seatCount} seats${unavailable ? ', unavailable' : ''}',
+      child: GestureDetector(
+        onTap: unavailable ? null : () => setState(() => _selectedTableId = t.id),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: round ? 64 : 84,
+          height: 64,
+          decoration: BoxDecoration(
+            color: on ? Ob.lime : (unavailable ? Ob.creamA(.08) : Colors.transparent),
+            borderRadius: BorderRadius.circular(round ? 32 : 16),
+            border: Border.all(color: on ? Ob.lime : (unavailable ? Colors.transparent : Ob.creamA(.3)), width: 1.5),
+          ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(t.tableNumber, style: Ob.display(18, height: 1, color: on ? Ob.ink : (unavailable ? Ob.creamA(.35) : Ob.cream))),
+            Text('${t.seatCount} seats', style: Ob.body(10, weight: FontWeight.w700, color: on ? Ob.ink : Ob.creamA(unavailable ? .3 : .6))),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _legend(Color c, String label, {bool filled = false}) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 12, height: 12, decoration: BoxDecoration(color: filled ? c : null, borderRadius: BorderRadius.circular(4), border: filled ? null : Border.all(color: c))),
+        const SizedBox(width: 6),
+        Text(label, style: Ob.body(12, color: Ob.creamA(.6))),
+      ]);
 
   Future<void> _confirmReservation() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -200,9 +212,8 @@ class _TableReservationScreenState extends ConsumerState<TableReservationScreen>
         final tables = ref.read(restaurantTablesProvider(widget.location.id)).valueOrNull ?? [];
         final matchingTable = tables.where((t) => t.id == _selectedTableId);
         final tableNumber = matchingTable.isNotEmpty ? matchingTable.first.tableNumber : '—';
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
+        await Navigator.of(context).push(MaterialPageRoute(
+          fullscreenDialog: true,
           builder: (_) => ReservationConfirmedDialog(
             locationName: widget.location.name,
             tableNumber: tableNumber,
@@ -210,13 +221,13 @@ class _TableReservationScreenState extends ConsumerState<TableReservationScreen>
             time: _selectedTime,
             partySize: _partySize,
           ),
-        );
+        ));
         if (mounted) Navigator.of(context).pop();
       }
     } on PostgrestException catch (e) {
       if (mounted) {
         final msg = e.message.contains('duplicate') ? 'That table was just booked by someone else — pick another.' : 'Could not complete the reservation.';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        TopNotification.showError(context, msg);
       }
     } finally {
       if (mounted) setState(() => _isBooking = false);
@@ -224,55 +235,7 @@ class _TableReservationScreenState extends ConsumerState<TableReservationScreen>
   }
 }
 
-class _DateStrip extends StatelessWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onSelect;
-
-  const _DateStrip({required this.selectedDate, required this.onSelect});
-
-  @override
-  Widget build(BuildContext context) {
-    final today = DateTime.now();
-    final days = List.generate(7, (i) => DateTime(today.year, today.month, today.day + i));
-    const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    return SizedBox(
-      height: 68,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: days.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final d = days[i];
-          final selected = d.year == selectedDate.year && d.month == selectedDate.month && d.day == selectedDate.day;
-          return GestureDetector(
-            onTap: () => onSelect(d),
-            child: Container(
-              width: 56,
-              decoration: BoxDecoration(
-                color: selected ? AppColors.emerald600 : AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: selected ? AppColors.emerald600 : AppColors.grey200),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(weekdayLabels[d.weekday - 1], style: TextStyle(fontSize: AppTypeScale.caption, fontWeight: FontWeight.w700, color: selected ? AppColors.white : AppColors.grey500)),
-                  const SizedBox(height: 4),
-                  Text('${d.day}', style: TextStyle(fontSize: AppTypeScale.title, fontWeight: FontWeight.w800, color: selected ? AppColors.white : AppColors.grey900)),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Confirmation modal shown after a successful table reservation — replaces
-/// the old bottom SnackBar, which was easy to miss and didn't carry the
-/// booking details.
+/// Shown after a table is booked.
 class ReservationConfirmedDialog extends StatelessWidget {
   final String locationName;
   final String tableNumber;
@@ -291,86 +254,36 @@ class ReservationConfirmedDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final dateLabel = '${weekdayLabels[date.weekday - 1]}, ${date.month}/${date.day}';
-
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(28),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const AnimatedCheckmark(),
-            const SizedBox(height: 20),
-            const Text(
-              'Table Reserved',
-              style: TextStyle(fontSize: AppTypeScale.headline, fontWeight: FontWeight.w800, color: AppColors.grey900),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              locationName,
-              style: const TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w600, color: AppColors.grey600),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppColors.grey25, borderRadius: BorderRadius.circular(18)),
-              child: Column(
-                children: [
-                  _DetailRow(icon: LucideIcons.calendar, label: 'Date', value: dateLabel),
-                  const SizedBox(height: 10),
-                  _DetailRow(icon: LucideIcons.clock, label: 'Time', value: time),
-                  const SizedBox(height: 10),
-                  _DetailRow(icon: LucideIcons.armchair, label: 'Table', value: tableNumber),
-                  const SizedBox(height: 10),
-                  _DetailRow(icon: LucideIcons.users, label: 'Party size', value: '$partySize'),
-                ],
+    final when = DateUtils.isSameDay(date, DateTime.now()) ? 'Tonight' : DateFormat('EEEE d MMM').format(date);
+    return Scaffold(
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Column(children: [
+              const Spacer(),
+              SizedBox(
+                width: 220,
+                height: 200,
+                child: Stack(alignment: Alignment.center, children: [
+                  Container(width: 140, height: 140, decoration: const BoxDecoration(color: Ob.roleFill, shape: BoxShape.circle)),
+                  Image.asset(ObBot.ball.happy, width: 160, height: 160),
+                ]),
               ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: AppTypeScale.minTapTarget,
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.emerald600,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                child: const Text('Done', style: TextStyle(fontSize: AppTypeScale.body, fontWeight: FontWeight.w800, color: Colors.white)),
-              ),
-            ),
-          ],
+              Text('TABLE BOOKED', style: Ob.eyebrow()),
+              const SizedBox(height: 8),
+              Text('$when at $time', textAlign: TextAlign.center, style: Ob.display(34, height: 1.05)),
+              const SizedBox(height: 10),
+              Text('Table $tableNumber at $locationName, for $partySize. The clubhouse has your name.', textAlign: TextAlign.center, style: Ob.body(15, height: 1.5, color: Ob.creamA(.7))),
+              const Spacer(),
+              SizedBox(width: double.infinity, child: ObButton(onPressed: () => Navigator.of(context).pop(), child: Text('Done', style: Ob.label(16, weight: FontWeight.w800)))),
+              const SizedBox(height: 16),
+            ]),
+          ),
         ),
       ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _DetailRow({required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppColors.grey500),
-        const SizedBox(width: 10),
-        Text(label, style: const TextStyle(fontSize: AppTypeScale.meta, color: AppColors.grey500, fontWeight: FontWeight.w600)),
-        const Spacer(),
-        Text(value, style: const TextStyle(fontSize: AppTypeScale.body, color: AppColors.grey900, fontWeight: FontWeight.w800)),
-      ],
     );
   }
 }
