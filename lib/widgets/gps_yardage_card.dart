@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/theme/app_theme.dart';
+import '../screens/onboarding/ob_style.dart';
 import '../providers/location_provider.dart';
 
 class GPSYardageCard extends ConsumerStatefulWidget {
@@ -67,11 +68,11 @@ class _GPSYardageCardState extends ConsumerState<GPSYardageCard> {
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.grey900,
+            color: Ob.cardFill,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: AppColors.grey900.withValues(alpha: 0.15),
+                color: Colors.transparent,
                 blurRadius: 16,
                 offset: const Offset(0, 8),
               ),
@@ -84,12 +85,12 @@ class _GPSYardageCardState extends ConsumerState<GPSYardageCard> {
                 children: [
                   Row(
                     children: [
-                      const Icon(LucideIcons.navigation, color: AppColors.golfLime, size: 16),
+                      const Icon(LucideIcons.navigation, color: Ob.lime, size: 16),
                       const SizedBox(width: 8),
                       const Text(
                         'LIVE GPS RANGEFINDER',
                         style: TextStyle(
-                          color: AppColors.golfLime,
+                          color: Ob.lime,
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.5,
@@ -114,13 +115,13 @@ class _GPSYardageCardState extends ConsumerState<GPSYardageCard> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _isSimulating ? AppColors.golfLime.withValues(alpha: 0.2) : AppColors.grey800,
+                        color: _isSimulating ? Ob.lime.withValues(alpha: 0.2) : Ob.creamA(.08),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         _isSimulating ? 'SIMULATING (-40y)' : 'SIMULATE',
                         style: TextStyle(
-                          color: _isSimulating ? AppColors.golfLime : AppColors.grey400,
+                          color: _isSimulating ? Ob.lime : AppColors.grey400,
                           fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
@@ -134,12 +135,12 @@ class _GPSYardageCardState extends ConsumerState<GPSYardageCard> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildDistanceColumn('FRONT', '$frontDistance', AppColors.grey400),
-                  _buildDistanceColumn('CENTER', '$centerDistRound', AppColors.golfLime, isMain: true),
+                  _buildDistanceColumn('CENTER', '$centerDistRound', Ob.lime, isMain: true),
                   _buildDistanceColumn('BACK', '$backDistance', AppColors.grey400),
                 ],
               ),
               const SizedBox(height: 16),
-              const Divider(color: AppColors.grey800, height: 1),
+              Divider(color: Ob.creamA(.08), height: 1),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -177,14 +178,14 @@ class _GPSYardageCardState extends ConsumerState<GPSYardageCard> {
       height: 160,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.grey900,
+        color: Ob.cardFill,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(LucideIcons.satellite, color: AppColors.golfLime, size: 28),
+            const Icon(LucideIcons.satellite, color: Ob.lime, size: 28),
             const SizedBox(height: 12),
             Text(
               message,
@@ -251,7 +252,7 @@ class _HoleMapBottomSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       decoration: const BoxDecoration(
-        color: AppColors.white,
+        color: Ob.bg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: Column(
@@ -266,7 +267,7 @@ class _HoleMapBottomSheet extends StatelessWidget {
                 children: [
                   Text(
                     'HOLE $holeNumber MAP',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.grey900, letterSpacing: -0.5),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Ob.cardFill, letterSpacing: -0.5),
                   ),
                   Text(
                     'Par $par • $distanceYards yards to green center',
@@ -275,10 +276,10 @@ class _HoleMapBottomSheet extends StatelessWidget {
                 ],
               ),
               IconButton(
-                icon: const Icon(LucideIcons.x, color: AppColors.grey900),
+                icon: const Icon(LucideIcons.x, color: Ob.cream),
                 onPressed: () => Navigator.pop(context),
                 style: IconButton.styleFrom(
-                  backgroundColor: AppColors.grey50,
+                  backgroundColor: Ob.cardFill,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
@@ -328,7 +329,7 @@ class _HoleMapBottomSheet extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.grey700),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Ob.creamA(.7)),
         ),
       ],
     );
@@ -407,7 +408,7 @@ class _GolfHolePainter extends CustomPainter {
 
     // Draw Tee box
     final teeBoxPaint = Paint()
-      ..color = AppColors.grey800
+      ..color = Ob.creamA(.08)
       ..style = PaintingStyle.fill;
     canvas.drawRect(Rect.fromCenter(center: Offset(width * 0.45, height * 0.88), width: 32, height: 12), teeBoxPaint);
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'signature_pad.dart';
-import '../core/theme/app_theme.dart';
+import '../screens/onboarding/ob_style.dart';
 
 class CertificationSignatureDialog extends StatefulWidget {
   final String playerName;
@@ -22,9 +22,11 @@ class _CertificationSignatureDialogState extends State<CertificationSignatureDia
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    return DefaultTextStyle(
+      style: Ob.textBase,
+      child: Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      backgroundColor: AppColors.white,
+      backgroundColor: Ob.cardFill,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -32,19 +34,11 @@ class _CertificationSignatureDialogState extends State<CertificationSignatureDia
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Review & Sign Scorecard',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: AppColors.grey900,
-                letterSpacing: -0.5,
-              ),
-            ),
+            Text('Sign the card', style: Ob.display(26)),
             const SizedBox(height: 6),
-            const Text(
-              'Both player and marker must digitally sign to certify scores for handicap calculation.',
-              style: TextStyle(color: AppColors.grey500, fontSize: 13, height: 1.4),
+            Text(
+              'You and your marker both sign so the round counts for your handicap.',
+              style: Ob.body(13, height: 1.45, color: Ob.creamA(.7)),
             ),
             const SizedBox(height: 24),
             SignaturePad(
@@ -83,45 +77,21 @@ class _CertificationSignatureDialogState extends State<CertificationSignatureDia
               },
             ),
             const SizedBox(height: 32),
-            Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 52,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.grey300),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      child: const Text('Cancel', style: TextStyle(color: AppColors.grey700, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
+            Row(children: [
+              Expanded(
+                child: ObButton(tone: ObButtonTone.dark, onPressed: () => Navigator.pop(context, false), child: Text('Cancel', style: Ob.label(15, weight: FontWeight.w800))),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ObButton(
+                  onPressed: (_playerSigned && _markerSigned) ? () => Navigator.pop(context, true) : null,
+                  child: Text('Certify', style: Ob.label(15, weight: FontWeight.w800)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SizedBox(
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: (_playerSigned && _markerSigned)
-                          ? () => Navigator.pop(context, true)
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.golfLime,
-                        foregroundColor: AppColors.grey900,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        disabledBackgroundColor: AppColors.grey100,
-                        disabledForegroundColor: AppColors.grey400,
-                      ),
-                      child: const Text('Certify & Submit', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ]),
           ],
         ),
+      ),
       ),
     );
   }

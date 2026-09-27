@@ -39,7 +39,7 @@ class _SignaturePadState extends State<SignaturePad> {
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
-                    color: AppColors.grey400,
+                    color: Color(0xFFA3E635),
                     letterSpacing: 1.5,
                   ),
                 ),
@@ -48,7 +48,7 @@ class _SignaturePadState extends State<SignaturePad> {
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.grey900,
+                    color: Color(0xFFF4F7F2),
                   ),
                 ),
               ],
@@ -61,8 +61,8 @@ class _SignaturePadState extends State<SignaturePad> {
                   });
                   widget.onClear();
                 },
-                icon: const Icon(LucideIcons.rotateCcw, size: 14, color: Colors.red),
-                label: const Text('Clear', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+                icon: const Icon(LucideIcons.rotateCcw, size: 14, color: Color(0xFFFB923C)),
+                label: const Text('Clear', style: TextStyle(color: Color(0xFFFB923C), fontSize: 12, fontWeight: FontWeight.bold)),
                 style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
               ),
           ],
@@ -72,7 +72,7 @@ class _SignaturePadState extends State<SignaturePad> {
           height: 120,
           width: double.infinity,
           decoration: BoxDecoration(
-            color: AppColors.grey50,
+            color: const Color(0xFFF4F7F2),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.grey200),
           ),
