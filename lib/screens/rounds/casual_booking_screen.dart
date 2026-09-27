@@ -3,9 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:intl/intl.dart';
 import '../../providers/auth_providers.dart';
-import '../../core/utils/course_logo_helper.dart';
+import '../../providers/booking_providers.dart';
+import '../../widgets/profile_image.dart';
+import '../../widgets/top_notification.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
 
 class CasualBookingScreen extends ConsumerStatefulWidget {
   const CasualBookingScreen({super.key});
@@ -19,7 +25,7 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
   String? _selectedCourseId;
   DateTime? _selectedDate;
   String? _selectedTimeSlot;
-  List<Map<String, dynamic>> _guestPlayers = [];
+  final List<Map<String, dynamic>> _guestPlayers = [];
   bool _beNotified = true;
   bool _isLoading = false;
   
@@ -132,475 +138,314 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(LucideIcons.arrowLeft, color: AppColors.grey900),
-          onPressed: () {
-            if (_currentStep > 0) {
-              setState(() => _currentStep--);
-            } else {
-              context.pop();
-            }
-          },
-        ),
-        title: const Text('Book Tee Time', style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.bold, fontSize: 18)),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildProgressIndicator(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: _buildCurrentStep(),
-              ),
-            ),
-            _buildBottomBar(),
-          ],
-        ),
-      ),
-    );
+  static const _stepTitles = ['Where are you playing?', 'When?', 'Who\'s playing?', 'All good?'];
+
+  void _back() {
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+    } else {
+      context.pop();
+    }
   }
 
-  Widget _buildProgressIndicator() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Row(
-        children: List.generate(4, (index) {
-          return Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              height: 4,
-              decoration: BoxDecoration(
-                color: index <= _currentStep ? AppColors.golfLime : AppColors.grey200,
-                borderRadius: BorderRadius.circular(2),
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: _currentStep == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: Scaffold(
+        backgroundColor: Ob.bg,
+        body: DefaultTextStyle(
+          style: Ob.textBase,
+          child: SafeArea(
+            bottom: false,
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: ObTopBar('Book a tee time', eyebrow: 'Step ${_currentStep + 1} of 4', onBack: _back),
               ),
-            ),
-          );
-        }),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                child: Row(children: [
+                  for (var i = 0; i < 4; i++)
+                    Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        height: 6,
+                        decoration: BoxDecoration(color: i <= _currentStep ? Ob.lime : Ob.creamA(.1), borderRadius: BorderRadius.circular(3)),
+                      ),
+                    ),
+                ]),
+              ),
+              Expanded(
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  children: [
+                    Text(_stepTitles[_currentStep], style: Ob.display(30, height: 1.05)),
+                    const SizedBox(height: 16),
+                    _buildCurrentStep(),
+                  ],
+                ),
+              ),
+              _buildBottomBar(),
+            ]),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildCurrentStep() {
     switch (_currentStep) {
-      case 0: return _buildCourseSelection();
-      case 1: return _buildDateAndTimeSelection();
-      case 2: return _buildPlayerSelection();
-      case 3: return _buildConfirmation();
-      default: return const SizedBox.shrink();
+      case 0:
+        return _buildCourseSelection();
+      case 1:
+        return _buildDateAndTimeSelection();
+      case 2:
+        return _buildPlayerSelection();
+      case 3:
+        return _buildConfirmation();
+      default:
+        return const SizedBox.shrink();
     }
   }
 
   Widget _buildCourseSelection() {
-    if (_isLoadingCourses) return const Center(child: CircularProgressIndicator(color: AppColors.golfLime));
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Where are you playing?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.grey900)),
-        const SizedBox(height: 24),
-        ..._courses.map((c) => _buildCourseCard(c['id'].toString(), c['name'].toString(), c['location']?.toString() ?? 'Kenya')),
-      ],
-    );
-  }
-
-  Widget _buildCourseCard(String id, String name, String location) {
-    final isSelected = _selectedCourseId == id;
-    final logoPath = CourseLogoHelper.getLogoAssetPath(id);
-
-    return GestureDetector(
-      onTap: () => setState(() => _selectedCourseId = id),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSelected ? AppColors.golfLime : AppColors.grey200, width: isSelected ? 2 : 1),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: logoPath != null ? Colors.white : AppColors.emerald50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.grey100),
+    if (_isLoadingCourses) return const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)));
+    if (_courses.isEmpty) return ObCard(child: Text('Couldn\'t load courses. Go back and try again.', style: Ob.body(14, color: Ob.creamA(.7))));
+    return Column(children: [
+      for (final c in _courses)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: ObSelectTile(
+            selected: _selectedCourseId == c['id'].toString(),
+            onTap: () => setState(() => _selectedCourseId = c['id'].toString()),
+            child: Row(children: [
+              ObCrest(c['name'].toString(), size: 46),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(c['name'].toString(), style: Ob.body(15, weight: FontWeight.w800)),
+                  Text(c['location']?.toString() ?? 'Kenya', style: Ob.body(12, color: Ob.creamA(.55))),
+                ]),
               ),
-              child: logoPath != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(11),
-                      child: Image.asset(logoPath, fit: BoxFit.cover, errorBuilder: (c, _, __) => Icon(LucideIcons.mapPin, color: AppColors.emerald700)),
-                    )
-                  : const Icon(LucideIcons.mapPin, color: AppColors.emerald700),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.grey900)),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(location, style: const TextStyle(fontSize: 13, color: AppColors.grey500)),
-                      if (_homeClubs.contains(id)) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.golfLime.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
-                          child: const Text('Home Club', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.emerald800)),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected) Icon(LucideIcons.checkCircle, color: AppColors.golfLime),
-          ],
+              if (_homeClubs.contains(c['id'].toString())) const ObChip('Home club', on: true),
+            ]),
+          ),
         ),
-      ),
-    );
+    ]);
   }
 
   Widget _buildDateAndTimeSelection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('When do you want to play?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.grey900)),
-        const SizedBox(height: 24),
-        
-        GestureDetector(
-          onTap: () async {
-            final date = await showDatePicker(
-              context: context,
-              initialDate: _selectedDate ?? DateTime.now(),
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(const Duration(days: 14)),
-              builder: (context, child) => Theme(
-                data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: AppColors.golfLime)),
-                child: child!,
-              ),
-            );
-            if (date != null) {
-              setState(() => _selectedDate = date);
-              _fetchAvailableSlots(date);
-            }
-          },
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.grey200),
-            ),
-            child: Row(
-              children: [
-                const Icon(LucideIcons.calendar, color: AppColors.grey600),
-                const SizedBox(width: 16),
-                Text(
-                  _selectedDate != null ? "${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}" : 'Select Date',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.grey900),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        if (_selectedDate != null) ...[
-          const SizedBox(height: 32),
-          const Text('Available Times', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.grey900)),
-          const SizedBox(height: 16),
-          
-          if (_isLoadingSlots)
-             const Center(child: CircularProgressIndicator(color: AppColors.golfLime))
-          else if (_availableSlots.isEmpty)
-             const Center(child: Text('No slots available for this date.'))
-          else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: _availableSlots.length,
-              itemBuilder: (context, index) {
-                final slot = _availableSlots[index];
-                final isSelected = _selectedTimeSlot == slot['time'];
-                final isBlocked = slot['blocked'];
-                
-                return GestureDetector(
-                  onTap: isBlocked ? null : () => setState(() => _selectedTimeSlot = slot['time']),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isBlocked ? AppColors.grey100 : (isSelected ? AppColors.golfLime : Colors.white),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isSelected ? AppColors.golfLime : AppColors.grey200),
-                    ),
-                    alignment: Alignment.center,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(slot['time'], style: TextStyle(
-                          fontSize: 16, 
-                          fontWeight: FontWeight.w700, 
-                          decoration: isBlocked ? TextDecoration.lineThrough : TextDecoration.none,
-                          color: isBlocked ? AppColors.grey400 : (isSelected ? AppColors.grey900 : AppColors.grey900)
-                        )),
-                        if (!isBlocked)
-                          Text('${slot['available']} spots', style: TextStyle(
-                            fontSize: 10,
-                            color: isSelected ? AppColors.grey900 : AppColors.grey500
-                          )),
-                      ],
-                    ),
-                  ),
-                );
+    final today = DateUtils.dateOnly(DateTime.now());
+    final days = [for (var i = 0; i < 14; i++) today.add(Duration(days: i))];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      SizedBox(
+        height: 84,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: days.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (_, i) {
+            final d = days[i];
+            final on = _selectedDate != null && DateUtils.isSameDay(_selectedDate, d);
+            return ObSelectTile(
+              selected: on,
+              width: 64,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              onTap: () {
+                setState(() => _selectedDate = d);
+                _fetchAvailableSlots(d);
               },
-            ),
-        ],
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(i == 0 ? 'Today' : DateFormat('EEE').format(d), style: Ob.body(11, weight: FontWeight.w700, color: on ? Ob.lime : Ob.creamA(.6))),
+                Text('${d.day}', style: Ob.display(24, height: 1.1)),
+                Text(DateFormat('MMM').format(d), style: Ob.body(10, color: Ob.creamA(.5))),
+              ]),
+            );
+          },
+        ),
+      ),
+      if (_selectedDate == null) ...[
+        const SizedBox(height: 20),
+        Text('Pick a day to see open slots.', style: Ob.body(14, color: Ob.creamA(.6))),
+      ] else ...[
+        const SizedBox(height: 22),
+        ObEyebrow('Open slots · ${DateFormat('EEE d MMM').format(_selectedDate!)}'),
+        const SizedBox(height: 10),
+        if (_isLoadingSlots)
+          const Padding(padding: EdgeInsets.all(30), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+        else if (_availableSlots.isEmpty)
+          ObCard(child: Text('No slots open that day. Try another.', style: Ob.body(14, color: Ob.creamA(.7))))
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, childAspectRatio: 1.7, crossAxisSpacing: 8, mainAxisSpacing: 8),
+            itemCount: _availableSlots.length,
+            itemBuilder: (_, i) {
+              final slot = _availableSlots[i];
+              final blocked = slot['blocked'] == true;
+              final on = _selectedTimeSlot == slot['time'];
+              return Opacity(
+                opacity: blocked ? .4 : 1,
+                child: ObSelectTile(
+                  selected: on,
+                  padding: EdgeInsets.zero,
+                  onTap: blocked ? null : () => setState(() => _selectedTimeSlot = slot['time']),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(slot['time'], style: Ob.display(20, color: on ? Ob.lime : Ob.cream).copyWith(decoration: blocked ? TextDecoration.lineThrough : null)),
+                    Text(
+                      blocked ? (slot['reason']?.toString() ?? 'Taken') : '${slot['available']} ${slot['available'] == 1 ? 'spot' : 'spots'}',
+                      style: Ob.body(11, color: Ob.creamA(.55)),
+                    ),
+                  ]),
+                ),
+              );
+            },
+          ),
       ],
-    );
+    ]);
   }
 
   Widget _buildPlayerSelection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Who is playing?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.grey900)),
-        const SizedBox(height: 8),
-        const Text('Add up to 3 more players to your group.', style: TextStyle(color: AppColors.grey600)),
-        const SizedBox(height: 24),
-        
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.golfLime, width: 2),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(backgroundColor: AppColors.grey200, child: Icon(LucideIcons.user, color: AppColors.grey600)),
-              const SizedBox(width: 16),
-              const Expanded(child: Text('You (Host)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        ..._guestPlayers.asMap().entries.map((entry) => Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.grey200),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(backgroundColor: AppColors.grey100, child: Icon(LucideIcons.user, color: AppColors.grey400)),
-              const SizedBox(width: 16),
+    final me = ref.watch(userProfileProvider).valueOrNull;
+    Widget row(String name, String sub, {VoidCallback? onRemove, bool host = false}) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: ObSelectTile(
+            selected: host,
+            onTap: null,
+            child: Row(children: [
+              ProfileImage(url: host ? me?.avatarUrl : null, name: name, size: 38, isCircle: true),
+              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(entry.value['name'], style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                    if (entry.value['type'] == 'guest')
-                      const Text('Guest', style: TextStyle(fontSize: 12, color: AppColors.grey500))
-                  ],
-                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(name, style: Ob.body(15, weight: FontWeight.w800)),
+                  Text(sub, style: Ob.body(12, color: Ob.creamA(.55))),
+                ]),
               ),
-              IconButton(
-                icon: Icon(LucideIcons.trash2, color: AppColors.doubleBogey),
-                onPressed: () => setState(() => _guestPlayers.removeAt(entry.key)),
-              ),
-            ],
+              if (onRemove != null)
+                IconButton(tooltip: 'Remove $name', onPressed: onRemove, icon: Icon(LucideIcons.x, size: 18, color: Ob.creamA(.6))),
+            ]),
           ),
-        )),
+        );
 
-        if (_guestPlayers.length < 3)
-          GestureDetector(
-            onTap: _showPlayerSearchModal,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.grey50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.grey200, style: BorderStyle.solid),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(LucideIcons.plus, color: AppColors.grey600),
-                  const SizedBox(width: 8),
-                  const Text('Add Player', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.grey600)),
-                ],
-              ),
-            ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text('Up to 3 more. They get the booking in their app.', style: Ob.body(14, color: Ob.creamA(.65))),
+      const SizedBox(height: 14),
+      row(me?.name ?? 'You', 'You · booking', host: true),
+      for (final (i, g) in _guestPlayers.indexed)
+        row(g['name'], g['type'] == 'guest' ? 'Guest' : 'On ScoreCaddie', onRemove: () => setState(() => _guestPlayers.removeAt(i))),
+      if (_guestPlayers.length < 3)
+        GestureDetector(
+          onTap: _showPlayerSearchModal,
+          child: Container(
+            height: 56,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: Ob.lime.withValues(alpha: .4))),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(LucideIcons.userPlus, size: 18, color: Ob.lime),
+              const SizedBox(width: 8),
+              Text('Add a player', style: Ob.body(14, weight: FontWeight.w800, color: Ob.lime)),
+            ]),
           ),
-          
-        const SizedBox(height: 32),
-        SwitchListTile(
-          title: const Text('Tee Time Reminder', style: TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: const Text('Get notified 30 minutes before your tee time.', style: TextStyle(fontSize: 12)),
-          value: _beNotified,
-          onChanged: (v) => setState(() => _beNotified = v),
-          activeColor: AppColors.golfLime,
-          contentPadding: EdgeInsets.zero,
         ),
-      ],
-    );
+      const SizedBox(height: 18),
+      ObCard(
+        child: Row(children: [
+          const Icon(LucideIcons.bellRing, color: Ob.lime, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Remind me', style: Ob.body(15, weight: FontWeight.w800)),
+              Text('30 minutes before you tee off', style: Ob.body(12, color: Ob.creamA(.55))),
+            ]),
+          ),
+          Switch.adaptive(value: _beNotified, activeTrackColor: Ob.lime, activeThumbColor: Ob.ink, onChanged: (v) => setState(() => _beNotified = v)),
+        ]),
+      ),
+    ]);
   }
-  
+
   void _showPlayerSearchModal() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _PlayerSearchSheet(
-        onAddAppUser: (user) {
-          setState(() {
-            _guestPlayers.add({
-              'id': user['id'],
-              'name': user['name'] ?? 'Unknown User',
-              'type': 'app_user'
-            });
-          });
-        },
-        onAddCustomGuest: (name) {
-          setState(() {
-            _guestPlayers.add({
-              'id': null,
-              'name': name,
-              'type': 'guest'
-            });
-          });
-        },
+        onAddAppUser: (user) => setState(() => _guestPlayers.add({'id': user['id'], 'name': user['name'] ?? 'Golfer', 'type': 'app_user'})),
+        onAddCustomGuest: (name) => setState(() => _guestPlayers.add({'id': null, 'name': name, 'type': 'guest'})),
       ),
     );
   }
 
   Widget _buildConfirmation() {
-    final course = _courses.firstWhere((c) => c['id'].toString() == _selectedCourseId);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Review Booking', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.grey900)),
-        const SizedBox(height: 24),
-        
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.grey200),
+    final course = _courses.where((c) => c['id'].toString() == _selectedCourseId).firstOrNull;
+    if (course == null || _selectedDate == null || _selectedTimeSlot == null) {
+      return ObCard(child: Text('Something\'s missing. Go back a step.', style: Ob.body(14, color: Ob.creamA(.7))));
+    }
+    final home = _homeClubs.contains(_selectedCourseId);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ObHeroCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            ObCrest(course['name'].toString(), size: 52),
+            const SizedBox(width: 12),
+            Expanded(child: Text(course['name'].toString(), style: Ob.display(22, height: 1.05))),
+          ]),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(child: ObStat('Day', DateFormat('EEE d MMM').format(_selectedDate!), valueSize: 20)),
+            Expanded(child: ObStat('Tee off', _selectedTimeSlot!, valueSize: 20, valueColor: Ob.lime)),
+            Expanded(child: ObStat('Players', '${1 + _guestPlayers.length}', valueSize: 20)),
+          ]),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      ObCard(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(LucideIcons.info, size: 18, color: home ? Ob.lime : const Color(0xFFF5C531)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              home ? 'You pay at the pro shop when you arrive.' : 'Not your home club, so guest rates may apply at the pro shop.',
+              style: Ob.body(13, height: 1.45, color: Ob.creamA(.8)),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('COURSE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.grey500)),
-              const SizedBox(height: 4),
-              Text(course['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              
-              const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider()),
-              
-              Text('DATE & TIME', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.grey500)),
-              const SizedBox(height: 4),
-              Text('${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year} at $_selectedTimeSlot', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              
-              const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider()),
-              
-              Text('PLAYERS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.grey500)),
-              const SizedBox(height: 4),
-              Text('${1 + _guestPlayers.length} Players', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.blue50,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(LucideIcons.info, color: AppColors.blue600),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _homeClubs.contains(_selectedCourseId) 
-                    ? 'Payment for this round will be handled at the pro shop upon arrival.'
-                    : 'Notice: Since this is not your home club, guest rates may apply at the pro shop.', 
-                  style: const TextStyle(color: AppColors.blue700, fontSize: 13)
-                ),
-              ),
-            ],
-          ),
-        )
-      ],
-    );
+        ]),
+      ),
+    ]);
   }
 
   Widget _buildBottomBar() {
-    bool canProceed = false;
-    if (_currentStep == 0 && _selectedCourseId != null) canProceed = true;
-    if (_currentStep == 1 && _selectedDate != null && _selectedTimeSlot != null) canProceed = true;
-    if (_currentStep == 2) canProceed = true;
-    if (_currentStep == 3) canProceed = true;
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppColors.grey200)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: GestureDetector(
-          onTap: canProceed && !_isLoading ? () async {
-            if (_currentStep < 3) {
-              setState(() => _currentStep++);
-            } else {
-              await _submitBooking();
-            }
-          } : null,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              color: canProceed ? AppColors.golfLime : AppColors.grey300,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            alignment: Alignment.center,
-            child: _isLoading 
-              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppColors.grey900, strokeWidth: 2))
-              : Text(
-                  _currentStep == 3 ? 'Confirm Booking' : 'Continue',
-                  style: const TextStyle(color: AppColors.grey900, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-          ),
+    final canProceed = switch (_currentStep) {
+      0 => _selectedCourseId != null,
+      1 => _selectedDate != null && _selectedTimeSlot != null,
+      _ => true,
+    };
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
+      child: SizedBox(
+        width: double.infinity,
+        child: ObButton(
+          onPressed: canProceed && !_isLoading
+              ? () async {
+                  if (_currentStep < 3) {
+                    setState(() => _currentStep++);
+                  } else {
+                    await _submitBooking();
+                  }
+                }
+              : null,
+          child: Text(_isLoading ? 'Booking…' : (_currentStep == 3 ? 'Book it' : 'Continue'), style: Ob.label(17, weight: FontWeight.w800)),
         ),
       ),
     );
   }
-  
+
   Future<void> _submitBooking() async {
     setState(() => _isLoading = true);
     try {
@@ -640,7 +485,8 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
       }
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Booking Confirmed!')));
+        ref.invalidate(casualTeeTimeBookingsProvider);
+        TopNotification.showSuccess(context, 'You\'re booked in');
         context.pop();
       }
     } catch (e) {
@@ -695,115 +541,76 @@ class _PlayerSearchSheetState extends State<_PlayerSearchSheet> {
     }
   }
 
+  final _guestController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _guestController.dispose();
+    super.dispose();
+  }
+
+  void _addGuest() {
+    final name = _guestController.text.trim();
+    if (name.isEmpty) return;
+    widget.onAddCustomGuest(name);
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                const Text('Add Player', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                const SizedBox(width: 64),
-              ],
+    return ObSheet(
+      title: 'Add a player',
+      height: MediaQuery.of(context).size.height * .8,
+      child: ListView(children: [
+        TextField(
+          controller: _searchController,
+          onChanged: _performSearch,
+          cursorColor: Ob.lime,
+          style: Ob.body(15, weight: FontWeight.w600),
+          decoration: obInput(null, hint: 'Search ScoreCaddie players', prefix: Icon(LucideIcons.search, size: 18, color: Ob.creamA(.5))),
+        ),
+        const SizedBox(height: 12),
+        if (_isSearching)
+          const Padding(padding: EdgeInsets.all(20), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+        else if (_searchResults.isEmpty && _searchController.text.isNotEmpty)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text('Nobody by that name. Add them as a guest below.', style: Ob.body(13, color: Ob.creamA(.6))))
+        else
+          for (final u in _searchResults)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: ObSelectTile(
+                selected: false,
+                onTap: () {
+                  widget.onAddAppUser(u);
+                  Navigator.pop(context);
+                },
+                child: Row(children: [
+                  ProfileImage(url: u['avatarUrl'], name: u['name'], size: 38, isCircle: true),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('${u['name'] ?? 'Golfer'}', style: Ob.body(15, weight: FontWeight.w700))),
+                  const Icon(LucideIcons.plus, size: 18, color: Ob.lime),
+                ]),
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _performSearch,
-                    decoration: InputDecoration(
-                      hintText: 'Search Scorecaddie players...',
-                      prefixIcon: const Icon(LucideIcons.search, color: AppColors.grey400),
-                      filled: true,
-                      fillColor: AppColors.grey50,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+        const SizedBox(height: 16),
+        const ObEyebrow('Not on ScoreCaddie?'),
+        const SizedBox(height: 10),
+        Row(children: [
           Expanded(
-            child: _isSearching
-                ? const Center(child: CircularProgressIndicator(color: AppColors.golfLime))
-                : ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: AppColors.emerald50.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.emerald200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Add Custom Guest', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    decoration: InputDecoration(
-                                      hintText: 'Guest Name',
-                                      filled: true,
-                                      fillColor: Colors.white,
-                                      isDense: true,
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                                    ),
-                                    onSubmitted: (name) {
-                                      if (name.isNotEmpty) {
-                                        widget.onAddCustomGuest(name);
-                                        Navigator.pop(context);
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Text('Search Results', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.grey500)),
-                      const SizedBox(height: 8),
-                      if (_searchResults.isEmpty && _searchController.text.isNotEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          child: Text('No players found. Try adding them as a custom guest above.'),
-                        ),
-                      ..._searchResults.map((user) => ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.grey100,
-                          backgroundImage: user['avatarUrl'] != null ? NetworkImage(user['avatarUrl']) : null,
-                          child: user['avatarUrl'] == null ? const Icon(LucideIcons.user, color: AppColors.grey400) : null,
-                        ),
-                        title: Text(user['name'] ?? 'Unknown User'),
-                        onTap: () {
-                          widget.onAddAppUser(user);
-                          Navigator.pop(context);
-                        },
-                      )),
-                    ],
-                  ),
+            child: TextField(
+              controller: _guestController,
+              cursorColor: Ob.lime,
+              textCapitalization: TextCapitalization.words,
+              style: Ob.body(15, weight: FontWeight.w600),
+              decoration: obInput(null, hint: 'Guest\'s name'),
+              onSubmitted: (_) => _addGuest(),
+            ),
           ),
-        ],
-      ),
+          const SizedBox(width: 8),
+          ObButton(height: 50, padding: const EdgeInsets.symmetric(horizontal: 16), onPressed: _addGuest, child: Text('Add', style: Ob.label(15, weight: FontWeight.w800))),
+        ]),
+      ]),
     );
   }
 }
