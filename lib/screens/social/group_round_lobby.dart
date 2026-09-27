@@ -1,12 +1,19 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/app_providers.dart';
 import '../../core/cloud/group_sync_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../widgets/profile_image.dart';
+import '../../widgets/top_notification.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
 
 class GroupRoundLobbyScreen extends ConsumerStatefulWidget {
   final String roundId;
@@ -17,192 +24,167 @@ class GroupRoundLobbyScreen extends ConsumerStatefulWidget {
 }
 
 class _GroupRoundLobbyScreenState extends ConsumerState<GroupRoundLobbyScreen> {
+  // Subscribed once; building them in build() re-subscribed on every frame.
+  late final Stream<Map<String, dynamic>> _round = ref.read(groupSyncServiceProvider).watchGroupRound(widget.roundId);
+  late final Stream<List<Map<String, dynamic>>> _players = ref.read(groupSyncServiceProvider).watchParticipants(widget.roundId);
+  bool _starting = false;
+  bool _left = false;
+
+  void _goScore(Map<String, dynamic> data) {
+    if (_left || !mounted) return;
+    _left = true;
+    context.pushReplacement('/scoring', extra: {
+      'courseId': data['courseId'],
+      'groupRoundId': widget.roundId,
+      'mode': data['scoringMode'],
+    });
+  }
+
+  Future<void> _startRound(Map<String, dynamic> data) async {
+    setState(() => _starting = true);
+    try {
+      await Supabase.instance.client.from('GroupRound').update({
+        'status': 'IN_PROGRESS',
+        'updatedAt': DateTime.now().toIso8601String(),
+      }).eq('id', widget.roundId);
+      _goScore(data);
+    } catch (e) {
+      if (mounted) TopNotification.showError(context, 'Couldn\'t start the round: $e');
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final groupSync = ref.read(groupSyncServiceProvider);
-    final user = ref.watch(authStateProvider).valueOrNull;
+    final me = ref.watch(authStateProvider).valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Group Lobby', style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w900)),
-      ),
-      body: StreamBuilder<Map<String, dynamic>>(
-        stream: groupSync.watchGroupRound(widget.roundId),
-        builder: (context, roundSnapshot) {
-          if (!roundSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.emerald700));
-          }
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: StreamBuilder<Map<String, dynamic>>(
+            stream: _round,
+            builder: (context, snap) {
+              if (!snap.hasData) {
+                return Column(children: [
+                  Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 0), child: ObTopBar('Lobby', onBack: () => context.pop())),
+                  const Expanded(child: Center(child: CupertinoActivityIndicator(color: Ob.lime))),
+                ]);
+              }
+              final data = snap.data!;
+              final captain = data['captainId'] == me?.id;
+              final code = data['roundCode'] as String? ?? '——';
+              // Players who joined get moved on when the captain starts.
+              if (!captain && data['status'] == 'IN_PROGRESS') {
+                scheduleMicrotask(() => _goScore(data));
+              }
 
-          final roundData = roundSnapshot.data!;
-          final isCaptain = roundData['captainId'] == user?.id;
-          final roundCode = roundData['roundCode'] as String? ?? 'UNKNOWN';
-
-          return StreamBuilder<List<Map<String, dynamic>>>(
-            stream: groupSync.watchParticipants(widget.roundId),
-            builder: (context, participantsSnapshot) {
-              final participants = participantsSnapshot.data ?? [];
-              
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    _buildCourseInfo(roundData),
-                    const SizedBox(height: 32),
-                    _buildQrSection(roundCode),
-                    const SizedBox(height: 32),
-                    _buildParticipantsList(participants),
-                    const SizedBox(height: 40),
-                    if (isCaptain)
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: participants.isNotEmpty ? () => _startRound(roundData) : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.emerald700,
-                            padding: const EdgeInsets.symmetric(vertical: 18),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              return StreamBuilder<List<Map<String, dynamic>>>(
+                stream: _players,
+                builder: (context, pSnap) {
+                  final players = pSnap.data ?? const [];
+                  return Column(children: [
+                    Expanded(
+                      child: ListView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                        children: [
+                          ObTopBar('Lobby', eyebrow: 'Group round', onBack: () => context.pop()),
+                          const SizedBox(height: 16),
+                          Row(children: [
+                            ObCrest(data['courseName']?.toString() ?? 'Course', size: 52),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(data['courseName']?.toString() ?? 'Course', style: Ob.display(22, height: 1.05)),
+                                Text(
+                                  data['scoringMode'] == 'INDIVIDUAL_DEVICES' ? 'Everyone scores on their own phone' : 'One phone scores for the group',
+                                  style: Ob.body(12, color: Ob.creamA(.6)),
+                                ),
+                              ]),
+                            ),
+                          ]),
+                          const SizedBox(height: 18),
+                          ObHeroCard(
+                            child: Column(children: [
+                              Text('FRIENDS SCAN THIS TO JOIN', style: Ob.eyebrow()),
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(color: Ob.cream, borderRadius: BorderRadius.circular(22)),
+                                child: QrImageView(
+                                  data: 'scorecaddie://round/join/$code',
+                                  version: QrVersions.auto,
+                                  size: 190,
+                                  eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: Ob.ink),
+                                  dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: Ob.ink),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              GestureDetector(
+                                onTap: () {
+                                  Clipboard.setData(ClipboardData(text: code));
+                                  TopNotification.showSuccess(context, 'Code copied');
+                                },
+                                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                  Text(code, style: Ob.display(30, color: Ob.lime).copyWith(letterSpacing: 5)),
+                                  const SizedBox(width: 8),
+                                  Icon(LucideIcons.copy, size: 16, color: Ob.creamA(.6)),
+                                ]),
+                              ),
+                            ]),
                           ),
-                          child: const Text('Start Round', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                        ),
-                      )
-                    else
-                      const Text('Waiting for captain to start...', style: TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w600)),
-                  ],
-                ),
+                          const SizedBox(height: 22),
+                          ObEyebrow('In the lobby · ${players.length}/8'),
+                          const SizedBox(height: 10),
+                          ObCard(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Column(children: [
+                              if (players.isEmpty)
+                                Padding(padding: const EdgeInsets.all(16), child: Text('Waiting for players…', style: Ob.body(13, color: Ob.creamA(.6)))),
+                              for (final (i, p) in players.indexed) ...[
+                                if (i > 0) const ObHair(),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                                  child: Row(children: [
+                                    ProfileImage(url: (p['user'] as Map?)?['avatarUrl'], name: (p['user'] as Map?)?['name'], size: 36, isCircle: true),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: Text('${(p['user'] as Map?)?['name'] ?? 'Golfer'}', style: Ob.body(14, weight: FontWeight.w700))),
+                                    if (p['role'] == 'CAPTAIN') const ObChip('Captain', on: true, color: Color(0xFFF5C531)),
+                                  ]),
+                                ),
+                              ],
+                            ]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
+                      child: captain
+                          ? SizedBox(
+                              width: double.infinity,
+                              child: ObButton(
+                                onPressed: players.isEmpty || _starting ? null : () => _startRound(data),
+                                child: Text(_starting ? 'Starting…' : 'Start the round', style: Ob.label(17, weight: FontWeight.w800)),
+                              ),
+                            )
+                          : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              const CupertinoActivityIndicator(color: Ob.lime),
+                              const SizedBox(width: 10),
+                              Text('Waiting for the captain to start', style: Ob.body(14, weight: FontWeight.w700, color: Ob.creamA(.7))),
+                            ]),
+                    ),
+                  ]);
+                },
               );
             },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCourseInfo(Map<String, dynamic> data) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 10))],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.emerald700.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child: const Icon(LucideIcons.mapPin, color: AppColors.emerald700),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(data['courseName'] ?? 'Selected Course', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-                Text(data['scoringMode'] == 'INDIVIDUAL_DEVICES' ? 'Individual Scoring' : 'Shared Device Scoring', 
-                     style: const TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQrSection(String roundCode) {
-    return Column(
-      children: [
-        const Text('Scan to Join Round', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.grey900)),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-          child: QrImageView(
-            data: 'scorecaddie://round/join/$roundCode',
-            version: QrVersions.auto,
-            size: 200.0,
-            eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: AppColors.grey900),
-            dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: AppColors.grey900),
           ),
         ),
-        const SizedBox(height: 12),
-        Text('ROUND CODE: $roundCode', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, letterSpacing: 2, color: AppColors.emerald700)),
-      ],
+      ),
     );
-  }
-
-  Widget _buildParticipantsList(List participants) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Participants (${participants.length}/8)', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-            const Icon(LucideIcons.users, color: AppColors.grey400, size: 20),
-          ],
-        ),
-        const SizedBox(height: 16),
-        ...participants.map((p) {
-          final userData = p['user'] as Map<String, dynamic>?;
-          final name = userData?['name'] ?? 'Golfer';
-          final avatar = userData?['avatarUrl'];
-          
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.grey100),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.grey100,
-                  backgroundImage: avatar != null ? NetworkImage(avatar) : null,
-                  child: avatar == null ? const Icon(LucideIcons.user, size: 20, color: AppColors.grey400) : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                      Text(p['role'] == 'CAPTAIN' ? 'Captain' : 'Player', style: const TextStyle(color: AppColors.grey500, fontSize: 11, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-                if (p['role'] == 'CAPTAIN')
-                  const Icon(LucideIcons.crown, color: Color(0xFFFFD700), size: 16),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  void _startRound(Map<String, dynamic> data) async {
-    // 1. Update status to IN_PROGRESS in Supabase
-    await Supabase.instance.client.from('GroupRound').update({
-      'status': 'IN_PROGRESS',
-      'updatedAt': DateTime.now().toIso8601String(),
-    }).eq('id', widget.roundId);
-
-    // 2. Navigate to scoring
-    if (mounted) {
-      context.pushReplacement('/scoring', extra: {
-        'courseId': data['courseId'],
-        'groupRoundId': widget.roundId,
-        'mode': data['scoringMode'],
-      });
-    }
   }
 }
