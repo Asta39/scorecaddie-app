@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/cloud/group_sync_service.dart';
+import '../../widgets/profile_image.dart';
 import '../../widgets/top_notification.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
 
 class GroupCertificationScreen extends ConsumerStatefulWidget {
   final String groupRoundId;
@@ -16,167 +19,194 @@ class GroupCertificationScreen extends ConsumerStatefulWidget {
 }
 
 class _GroupCertificationScreenState extends ConsumerState<GroupCertificationScreen> {
-  bool _isSubmitting = false;
+  // Subscribed once; building them in build() re-subscribed on every frame.
+  late final Stream<Map<String, dynamic>> _round = ref.read(groupSyncServiceProvider).watchGroupRound(widget.groupRoundId);
+  late final Stream<List<Map<String, dynamic>>> _players = ref.read(groupSyncServiceProvider).watchParticipants(widget.groupRoundId);
+  late final Stream<List<Map<String, dynamic>>> _scores = ref.read(groupSyncServiceProvider).watchAllScores(widget.groupRoundId);
+  bool _busy = false;
 
   @override
   Widget build(BuildContext context) {
-    final groupSync = ref.read(groupSyncServiceProvider);
-    final user = ref.watch(authStateProvider).valueOrNull;
+    final me = ref.watch(authStateProvider).valueOrNull;
+    return Scaffold(
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: StreamBuilder<Map<String, dynamic>>(
+            stream: _round,
+            builder: (context, rSnap) => StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _players,
+              builder: (context, pSnap) => StreamBuilder<List<Map<String, dynamic>>>(
+                stream: _scores,
+                builder: (context, sSnap) {
+                  if (!rSnap.hasData) return const Center(child: CupertinoActivityIndicator(color: Ob.lime));
+                  final round = rSnap.data!;
+                  final players = pSnap.data ?? const [];
+                  final scores = sSnap.data ?? const [];
+                  final keeper = round['captainId'] == me?.id;
+                  final mine = players.where((p) => p['userId'] == me?.id).firstOrNull;
+                  final holes = scores.map((s) => s['holeNumber'] as int).fold<int>(0, (a, b) => a > b ? a : b);
+                  final holeCount = holes <= 9 ? 9 : 18;
 
-    return StreamBuilder<Map<String, dynamic>>(
-      stream: groupSync.watchGroupRound(widget.groupRoundId),
-      builder: (ctx, roundSnapshot) {
-        if (!roundSnapshot.hasData) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        final roundData = roundSnapshot.data!;
-        final isKeeper = roundData['captainId'] == user?.id;
-
-        return StreamBuilder<List<Map<String, dynamic>>>(
-          stream: groupSync.watchParticipants(widget.groupRoundId),
-          builder: (ctx, participantsSnapshot) {
-            final participants = participantsSnapshot.data ?? [];
-
-            return StreamBuilder<List<Map<String, dynamic>>>(
-              stream: groupSync.watchAllScores(widget.groupRoundId),
-              builder: (ctx, scoresSnapshot) {
-                final allScores = scoresSnapshot.data ?? [];
-                
-                return Scaffold(
-                  backgroundColor: Colors.white,
-                  appBar: AppBar(
-                    backgroundColor: Colors.white,
-                    elevation: 0,
-                    title: const Text('Review & Certify', style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w900)),
-                    leading: IconButton(icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900), onPressed: () => context.pop()),
-                  ),
-                  body: Column(
-                    children: [
-                      Expanded(child: _buildScorecardTable(participants, allScores)),
-                      _buildActionBar(participants, isKeeper, user?.id),
-                    ],
-                  ),
-                );
-              }
-            );
-          }
-        );
-      }
-    );
-  }
-
-  Widget _buildScorecardTable(List<Map<String, dynamic>> participants, List<Map<String, dynamic>> allScores) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.vertical,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowHeight: 48,
-          columnSpacing: 24,
-          columns: [
-            const DataColumn(label: Text('HOLE', style: TextStyle(fontWeight: FontWeight.bold))),
-            ...participants.map((p) => DataColumn(label: Text(p['user']?['name']?.split(' ')[0] ?? 'Golfer', style: const TextStyle(fontWeight: FontWeight.bold)))),
-          ],
-          rows: List.generate(18, (holeIdx) {
-            final holeNum = holeIdx + 1;
-            return DataRow(cells: [
-              DataCell(Text('$holeNum', style: const TextStyle(color: AppColors.grey400, fontWeight: FontWeight.bold))),
-              ...participants.map((p) {
-                final score = allScores.firstWhere((s) => s['participantId'] == p['id'] && s['holeNumber'] == holeNum, orElse: () => {});
-                return DataCell(Text(score['strokes']?.toString() ?? '-'));
-              }),
-            ]);
-          }),
+                  return Column(children: [
+                    Expanded(
+                      child: ListView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                        children: [
+                          ObTopBar('Sign off', eyebrow: round['courseName']?.toString(), onBack: () => context.pop()),
+                          const SizedBox(height: 16),
+                          Text(
+                            keeper ? 'Check everyone\'s card, then send it for them to sign.' : 'Check your scores. Sign if they\'re right, or flag what\'s wrong.',
+                            style: Ob.body(14, height: 1.45, color: Ob.creamA(.75)),
+                          ),
+                          const SizedBox(height: 16),
+                          for (final p in players) Padding(padding: const EdgeInsets.only(bottom: 10), child: _card(p, scores, holeCount)),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
+                      child: _actions(keeper, mine),
+                    ),
+                  ]);
+                },
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildActionBar(List<Map<String, dynamic>> participants, bool isKeeper, String? myUid) {
-    final myParticipant = participants.firstWhere((p) => p['userId'] == myUid, orElse: () => {});
-    final isCertified = myParticipant['certifiedAt'] != null;
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20)]),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isKeeper) ...[
-              const Text('As scorekeeper, please submit the final scores for review.', style: TextStyle(color: AppColors.grey500), textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _isSubmitting ? null : _submitRound,
-                  style: FilledButton.styleFrom(backgroundColor: AppColors.emerald700, padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                  child: _isSubmitting ? const CircularProgressIndicator(color: Colors.white) : const Text('SUBMIT & NOTIFY PLAYERS', style: TextStyle(fontWeight: FontWeight.w900)),
-                ),
-              ),
-            ] else ...[
-              Text(isCertified ? '✓ YOU HAVE CERTIFIED THIS ROUND' : 'Review your scores and certify the round.', style: TextStyle(color: isCertified ? AppColors.emerald700 : AppColors.grey500, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: isCertified ? null : () => _showDisputeDialog(myParticipant['id']),
-                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                      child: const Text('DISPUTE', style: TextStyle(color: AppColors.doubleBogey, fontWeight: FontWeight.w900)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: isCertified ? null : () => _certify(myParticipant['id']),
-                      style: FilledButton.styleFrom(backgroundColor: AppColors.emerald700, padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                      child: const Text('CERTIFY SCORE', style: TextStyle(fontWeight: FontWeight.w900)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
+  Widget _card(Map<String, dynamic> p, List<Map<String, dynamic>> scores, int holeCount) {
+    final byHole = {for (final s in scores.where((s) => s['participantId'] == p['id'])) s['holeNumber'] as int: s['strokes'] as int?};
+    final total = byHole.values.whereType<int>().fold(0, (a, b) => a + b);
+    final signed = p['certifiedAt'] != null;
+    final disputed = p['disputed'] == true;
+    Widget nine(int from) => Row(children: [
+          for (var h = from; h < from + 9; h++)
+            Expanded(
+              child: Column(children: [
+                Text('$h', style: Ob.body(10, color: Ob.creamA(.45))),
+                const SizedBox(height: 2),
+                Text(byHole[h]?.toString() ?? '·', style: Ob.body(13, weight: FontWeight.w800, color: byHole[h] == null ? Ob.creamA(.3) : Ob.cream)),
+              ]),
+            ),
+        ]);
+    return ObCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          ProfileImage(url: p['user']?['avatarUrl'], name: p['user']?['name'], size: 38, isCircle: true),
+          const SizedBox(width: 10),
+          Expanded(child: Text('${p['user']?['name'] ?? 'Golfer'}', style: Ob.body(15, weight: FontWeight.w800))),
+          if (disputed)
+            const ObChip('Flagged', on: true, color: Ob.warn)
+          else if (signed)
+            const ObChip('Signed', on: true)
+          else
+            const ObChip('To sign'),
+          const SizedBox(width: 10),
+          Text('$total', style: Ob.display(24)),
+        ]),
+        const SizedBox(height: 12),
+        nine(1),
+        if (holeCount > 9) ...[const SizedBox(height: 10), nine(10)],
+      ]),
     );
   }
 
-  void _submitRound() async {
-    setState(() => _isSubmitting = true);
-    await ref.read(groupSyncServiceProvider).finalizeRound(widget.groupRoundId);
-    if (mounted) {
-       TopNotification.showSuccess(context, 'Round submitted! Players notified for certification.');
-       context.go('/');
+  Widget _actions(bool keeper, Map<String, dynamic>? mine) {
+    if (keeper) {
+      return SizedBox(
+        width: double.infinity,
+        child: ObButton(
+          onPressed: _busy ? null : _submitRound,
+          child: Text(_busy ? 'Sending…' : 'Send for signing', style: Ob.label(16, weight: FontWeight.w800)),
+        ),
+      );
+    }
+    if (mine == null) return Text('You\'re not on this card.', textAlign: TextAlign.center, style: Ob.body(14, color: Ob.creamA(.6)));
+    if (mine['disputed'] == true) {
+      return Text('You flagged this card. The scorekeeper will sort it.', textAlign: TextAlign.center, style: Ob.body(14, weight: FontWeight.w700, color: Ob.warn));
+    }
+    if (mine['certifiedAt'] != null) {
+      return Text('You\'ve signed this card.', textAlign: TextAlign.center, style: Ob.body(15, weight: FontWeight.w800, color: Ob.lime));
+    }
+    return Row(children: [
+      Expanded(
+        child: ObButton(
+          tone: ObButtonTone.dark,
+          onPressed: _busy ? null : () => _showDisputeDialog(mine['id']),
+          child: Text('Something\'s wrong', style: Ob.label(15, weight: FontWeight.w800)),
+        ),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: ObButton(onPressed: _busy ? null : () => _certify(mine['id']), child: Text('Sign', style: Ob.label(15, weight: FontWeight.w800))),
+      ),
+    ]);
+  }
+
+  Future<void> _submitRound() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(groupSyncServiceProvider).finalizeRound(widget.groupRoundId);
+      if (!mounted) return;
+      TopNotification.showSuccess(context, 'Sent. Everyone gets a nudge to sign.');
+      context.go('/');
+    } catch (e) {
+      if (mounted) TopNotification.showError(context, 'Couldn\'t send it: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
-  void _certify(String pId) async {
-    await ref.read(groupSyncServiceProvider).certifyParticipant(pId);
-    if (mounted) {
-       TopNotification.showSuccess(context, 'Round certified!');
+  Future<void> _certify(String pId) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(groupSyncServiceProvider).certifyParticipant(pId);
+      if (mounted) TopNotification.showSuccess(context, 'Signed');
+    } catch (e) {
+      if (mounted) TopNotification.showError(context, 'Couldn\'t sign: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   void _showDisputeDialog(String pId) {
     final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Dispute Scores'),
-        content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'Enter reason for dispute...'), maxLines: 3),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              ref.read(groupSyncServiceProvider).certifyParticipant(pId, dispute: true, note: controller.text);
-              Navigator.pop(ctx);
-              TopNotification.showSuccess(context, 'Dispute submitted.');
-            },
-            child: const Text('Submit Dispute'),
+    showObSheet(
+      context,
+      (ctx) => ObSheet(
+        title: 'What\'s wrong?',
+        subtitle: 'The scorekeeper sees your note.',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TextField(
+            controller: controller,
+            maxLines: 3,
+            autofocus: true,
+            cursorColor: Ob.lime,
+            style: Ob.body(15, weight: FontWeight.w600),
+            decoration: obInput(null, hint: 'I had a 5 on 7, not a 6'),
           ),
-        ],
+          const SizedBox(height: 16),
+          ObButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await ref.read(groupSyncServiceProvider).certifyParticipant(pId, dispute: true, note: controller.text);
+                if (mounted) TopNotification.showSuccess(context, 'Flagged for the scorekeeper');
+              } catch (e) {
+                if (mounted) TopNotification.showError(context, 'Couldn\'t send that: $e');
+              }
+            },
+            child: Text('Send', style: Ob.label(16, weight: FontWeight.w800)),
+          ),
+        ]),
       ),
-    );
+    ).whenComplete(controller.dispose);
   }
 }
