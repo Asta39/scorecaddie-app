@@ -161,7 +161,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(child: Text('NEXT UP · $when', style: Ob.body(12, weight: FontWeight.w800, color: coachGold).copyWith(letterSpacing: 1.6))),
-            ObChip(s.sessionType == 'private' ? 'Private' : 'Group'),
+            ObChip(s.sessionType),
           ]),
           const SizedBox(height: 8),
           Text(s.name, style: Ob.display(26, height: 1.05)),
