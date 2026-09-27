@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:screenshot/screenshot.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
 import '../../widgets/highlights/highlight_card_widget.dart';
 import '../../core/services/highlight_card_service.dart';
-import 'package:screenshot/screenshot.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
+import '../rounds/rounds_history_screen.dart' show toParColor, toParText;
 
 class RoundDetailScreen extends ConsumerWidget {
   final int roundId;
@@ -16,336 +22,264 @@ class RoundDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final roundAsync = ref.watch(singleRoundProvider(roundId));
-    final scoresAsync = ref.watch(holeScoresProvider(roundId));
+    final round = ref.watch(singleRoundProvider(roundId));
+    final scores = ref.watch(holeScoresProvider(roundId));
+    final ready = round.hasValue && scores.hasValue;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Round Summary', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-        scrolledUnderElevation: 0,
-        actions: [
-          roundAsync.when(
-            data: (round) => scoresAsync.when(
-              data: (scores) => IconButton(
-                icon: const Icon(LucideIcons.share2, color: AppColors.emerald700),
-                onPressed: () => _shareRoundHighlight(context, ref, round, scores),
-              ),
-              loading: () => const SizedBox(),
-              error: (_, _) => const SizedBox(),
-            ),
-            loading: () => const SizedBox(),
-            error: (_, _) => const SizedBox(),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
+            children: [
+              ObTopBar('Round', onBack: () => context.pop(), actions: [
+                if (ready)
+                  ObIconButton(
+                    icon: LucideIcons.share2,
+                    label: 'Share this round',
+                    onPressed: () => _share(context, ref, round.value!, scores.value!),
+                  ),
+              ]),
+              const SizedBox(height: 16),
+              if (round.hasError || scores.hasError)
+                ObCard(child: Text('Couldn\'t load this round.', style: Ob.body(14, color: Ob.creamA(.7))))
+              else if (!ready)
+                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+              else
+                ..._body(round.value!, scores.value!),
+            ],
           ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: roundAsync.when(
-        data: (round) => scoresAsync.when(
-          data: (scores) => _buildBody(context, round, scores),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context, Round round, List<HoleScore> scores) {
-    if (scores.isEmpty) return const Center(child: Text('No scores recorded.'));
-
-    final DateFormat formatter = DateFormat('MMMM d, yyyy • h:mm a');
-    final String formattedDate = formatter.format(round.playedAt);
-
-    // Calculate advanced stats totals
-    int totalPutts = 0;
-    int totalPenalties = 0;
-    int fairwaysHit = 0;
-    int fairwaysPossible = 0;
-
+  List<Widget> _body(Round round, List<HoleScore> scores) {
+    final toPar = round.totalScore - round.coursePar;
+    var putts = 0, penalties = 0, fwHit = 0, fwTotal = 0, gir = 0;
+    var birdies = 0, pars = 0, bogeys = 0, worse = 0;
     for (final s in scores) {
-      if (s.putts != null) totalPutts += s.putts!;
-      if (s.penalties != null) totalPenalties += s.penalties!;
+      putts += s.putts ?? 0;
+      penalties += s.penalties ?? 0;
       if (s.fairwayHit != null) {
-        fairwaysPossible++;
-        if (s.fairwayHit == 'Hit') fairwaysHit++;
+        fwTotal++;
+        if (s.fairwayHit == 'Hit') fwHit++;
+      }
+      if (s.gir == true) gir++;
+      final d = s.score - s.par;
+      if (d < 0) {
+        birdies++;
+      } else if (d == 0) {
+        pars++;
+      } else if (d == 1) {
+        bogeys++;
+      } else {
+        worse++;
       }
     }
+    final sorted = [...scores]..sort((a, b) => a.holeNumber.compareTo(b.holeNumber));
+    final front = sorted.where((s) => s.holeNumber <= 9).toList();
+    final back = sorted.where((s) => s.holeNumber > 9).toList();
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header Card
-          Container(
-            color: AppColors.white,
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(round.courseName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5), textAlign: TextAlign.center),
-                const SizedBox(height: 8),
-                Text(formattedDate, style: const TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 24),
-                
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildStatBox('SCORE', round.totalScore.toString(), color: AppColors.grey900),
-                    _buildStatBox('TO PAR', (round.totalScore - round.coursePar) == 0 ? 'E' : (round.totalScore - round.coursePar) > 0 ? '+${round.totalScore - round.coursePar}' : '${round.totalScore - round.coursePar}', color: _getScoreColor(round.totalScore - round.coursePar)),
-                    _buildStatBox('HOLES', round.holesPlayed.toString()),
-                  ],
-                ),
-                
-                if (totalPutts > 0 || fairwaysPossible > 0) ...[
-                  const SizedBox(height: 24),
-                  const Divider(color: AppColors.grey200),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      if (totalPutts > 0) _buildStatBox('PUTTS', '$totalPutts'),
-                      if (fairwaysPossible > 0) _buildStatBox('FAIRWAYS', '$fairwaysHit/$fairwaysPossible'),
-                      if (totalPenalties > 0) _buildStatBox('PENALTIES', '$totalPenalties', color: AppColors.doubleBogey),
-                    ],
-                  ),
-                ]
-              ],
-            ),
-          ),
-          
-          // Round Notes
-          if (round.notes.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.grey50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.grey100),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(LucideIcons.fileText, size: 20, color: AppColors.grey500),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Notes', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.grey500)),
-                          const SizedBox(height: 4),
-                          Text(round.notes, style: const TextStyle(color: AppColors.grey900, fontSize: 14)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-          
-          // Scorecard Title
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Text('Scorecard', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: AppColors.grey900)),
-          ),
-          const SizedBox(height: 12),
-          
-          // Scorecard DataTables
-          _buildScorecardTables(scores, round),
-          
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatBox(String label, String value, {Color color = AppColors.grey900}) {
-    return Column(
-      children: [
-        Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: color, letterSpacing: -1)),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.grey500, letterSpacing: 1)),
-      ],
-    );
-  }
-
-  Color _getScoreColor(int scoreVsPar) {
-    if (scoreVsPar < 0) return AppColors.birdie;
-    if (scoreVsPar > 0) return AppColors.bogey;
-    return AppColors.par;
-  }
-
-  Widget _buildScorecardTables(List<HoleScore> scores, Round round) {
-    final bool hasFront9 = scores.any((s) => s.holeNumber <= 9);
-    final bool hasBack9 = scores.any((s) => s.holeNumber > 9);
-    bool tracksPutts = scores.any((s) => s.putts != null);
-    bool tracksFairway = scores.any((s) => s.fairwayHit != null);
-    
-    List<Widget> tables = [];
-    
-    if (hasFront9) {
-      final front9 = scores.where((s) => s.holeNumber <= 9).toList();
-      tables.add(_buildHalfTable('FRONT 9', front9, tracksPutts, tracksFairway));
-    }
-    
-    if (hasBack9) {
-      final back9 = scores.where((s) => s.holeNumber > 9).toList();
-      tables.add(_buildHalfTable('BACK 9', back9, tracksPutts, tracksFairway));
-    }
-    
-    return Column(children: tables);
-  }
-  
-  Widget _buildHalfTable(String title, List<HoleScore> scores, bool tracksPutts, bool tracksFairway) {
-    int parTotal = scores.fold(0, (sum, item) => sum + item.par);
-    int scoreTotal = scores.fold(0, (sum, item) => sum + item.score);
-    int puttsTotal = scores.fold(0, (sum, item) => sum + (item.putts ?? 0));
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.grey200),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: DataTable(
-          columnSpacing: 24,
-          headingRowHeight: 48,
-          dataRowMinHeight: 48,
-          dataRowMaxHeight: 48,
-          columns: [
-            DataColumn(label: Text(title, style: const TextStyle(fontWeight: FontWeight.w800))),
-            for (var s in scores) DataColumn(label: Text('${s.holeNumber}', style: const TextStyle(fontWeight: FontWeight.w700))),
-            const DataColumn(label: Text('TOT', style: TextStyle(fontWeight: FontWeight.w800))),
-          ],
-          rows: [
-            DataRow(cells: [
-              const DataCell(Text('Par', style: TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w600))),
-              for (var s in scores) DataCell(Text('${s.par}', style: const TextStyle(color: AppColors.grey500))),
-              DataCell(Text('$parTotal', style: const TextStyle(fontWeight: FontWeight.w700))),
-            ]),
-            DataRow(cells: [
-              const DataCell(Text('Score', style: TextStyle(fontWeight: FontWeight.w700))),
-              for (var s in scores) DataCell(_scoreText(s.score, s.par)),
-              DataCell(Text('$scoreTotal', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
-            ]),
-            if (tracksPutts)
-              DataRow(cells: [
-                const DataCell(Text('Putts', style: TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w600))),
-                for (var s in scores) DataCell(Text(s.putts?.toString() ?? '-', style: const TextStyle(color: AppColors.grey700))),
-                DataCell(Text('$puttsTotal', style: const TextStyle(fontWeight: FontWeight.w700))),
-              ]),
-            if (tracksFairway)
-              DataRow(cells: [
-                const DataCell(Text('Fairway', style: TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w600))),
-                for (var s in scores) DataCell(_fairwayWidget(s.fairwayHit)),
-                const DataCell(Text('-')),
-              ]),
-          ],
+    return [
+      Row(children: [
+        ObCrest(round.courseName, size: 56, radius: 16),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(round.courseName, style: Ob.display(24, height: 1.05)),
+            const SizedBox(height: 4),
+            Text(DateFormat('EEEE d MMMM yyyy · HH:mm').format(round.playedAt), style: Ob.body(12, color: Ob.creamA(.6))),
+          ]),
         ),
-      ),
-    );
-  }
-  
-  Widget _scoreText(int score, int par) {
-    final diff = score - par;
-    Color c = AppColors.grey900;
-    if (diff < 0) c = AppColors.birdie;
-    if (diff > 0) c = diff > 1 ? AppColors.doubleBogey : AppColors.bogey;
-    
-    return Text('$score', style: TextStyle(fontWeight: FontWeight.w800, color: c, fontSize: 16));
-  }
-  
-  Widget _fairwayWidget(String? hit) {
-    if (hit == null) return const Text('-');
-    if (hit == 'Hit') return const Icon(LucideIcons.checkCircle2, color: AppColors.emerald700, size: 18);
-    if (hit == 'Left') return const Icon(LucideIcons.arrowDownLeft, color: AppColors.bogey, size: 18);
-    if (hit == 'Right') return const Icon(LucideIcons.arrowDownRight, color: AppColors.bogey, size: 18);
-    return Text(hit, style: const TextStyle(fontSize: 12));
+      ]).rise(),
+      const SizedBox(height: 16),
+      ObHeroCard(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('SCORE', style: Ob.eyebrow()),
+            Text('${round.totalScore}', style: Ob.display(60, height: 1)),
+          ]),
+          const SizedBox(width: 14),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(toParText(toPar), style: Ob.display(28, color: toParColor(toPar))),
+          ),
+          const Spacer(),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text('${round.holesPlayed} holes', style: Ob.body(13, weight: FontWeight.w700)),
+            Text('Par ${round.coursePar}', style: Ob.body(12, color: Ob.creamA(.6))),
+          ]),
+        ]),
+      ).rise(1),
+      const SizedBox(height: 12),
+      Row(children: [
+        _mini('Birdies+', birdies, Ob.lime),
+        _mini('Pars', pars, Ob.cream),
+        _mini('Bogeys', bogeys, const Color(0xFF7DD3FC)),
+        _mini('Worse', worse, Ob.warn),
+      ]),
+      if (putts > 0 || fwTotal > 0) ...[
+        const SizedBox(height: 12),
+        ObSplitCards(
+          left: ObStat('Putts', putts > 0 ? '$putts' : '—'),
+          right: ObStat('Fairways', fwTotal > 0 ? '$fwHit/$fwTotal' : '—'),
+        ),
+      ],
+      if (gir > 0 || penalties > 0) ...[
+        const SizedBox(height: 10),
+        ObSplitCards(
+          left: ObStat('Greens hit', '$gir'),
+          right: ObStat('Penalties', '$penalties', valueColor: penalties > 0 ? Ob.warn : null),
+        ),
+      ],
+      if (round.notes.isNotEmpty) ...[
+        const SizedBox(height: 22),
+        const ObEyebrow('Your notes'),
+        const SizedBox(height: 10),
+        ObCard(child: Text(round.notes, style: Ob.body(14, height: 1.5, color: Ob.creamA(.85)))),
+      ],
+      const SizedBox(height: 22),
+      const ObEyebrow('Scorecard'),
+      const SizedBox(height: 10),
+      if (scores.isEmpty)
+        ObCard(child: Text('No hole scores were saved for this round.', style: Ob.body(13, color: Ob.creamA(.6))))
+      else ...[
+        if (front.isNotEmpty) _nine('Out', front),
+        if (front.isNotEmpty && back.isNotEmpty) const SizedBox(height: 10),
+        if (back.isNotEmpty) _nine('In', back),
+        const SizedBox(height: 10),
+        Wrap(spacing: 14, runSpacing: 6, children: [
+          _legend(Ob.lime, 'Under par', circle: true),
+          _legend(Ob.cream, 'Par'),
+          _legend(const Color(0xFF7DD3FC), 'Bogey', square: true),
+          _legend(Ob.warn, 'Double+', square: true),
+        ]),
+      ],
+    ];
   }
 
-  void _shareRoundHighlight(BuildContext context, WidgetRef ref, Round round, List<HoleScore> scores) {
+  Widget _mini(String label, int n, Color c) => Expanded(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(18)),
+          child: Column(children: [
+            Text('$n', style: Ob.display(22, color: c)),
+            Text(label, style: Ob.body(11, color: Ob.creamA(.55))),
+          ]),
+        ),
+      );
+
+  Widget _nine(String label, List<HoleScore> holes) {
+    final par = holes.fold(0, (a, s) => a + s.par);
+    final total = holes.fold(0, (a, s) => a + s.score);
+    return ObCard(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      child: Column(children: [
+        Row(children: [
+          const SizedBox(width: 34),
+          for (final s in holes) Expanded(child: Text('${s.holeNumber}', textAlign: TextAlign.center, style: Ob.body(11, weight: FontWeight.w800, color: Ob.creamA(.5)))),
+          SizedBox(width: 36, child: Text(label, textAlign: TextAlign.center, style: Ob.body(11, weight: FontWeight.w800, color: Ob.creamA(.5)))),
+        ]),
+        const SizedBox(height: 6),
+        Row(children: [
+          SizedBox(width: 34, child: Text('Par', style: Ob.body(11, color: Ob.creamA(.5)))),
+          for (final s in holes) Expanded(child: Text('${s.par}', textAlign: TextAlign.center, style: Ob.body(12, color: Ob.creamA(.6)))),
+          SizedBox(width: 36, child: Text('$par', textAlign: TextAlign.center, style: Ob.body(12, weight: FontWeight.w700, color: Ob.creamA(.6)))),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          SizedBox(width: 34, child: Text('You', style: Ob.body(11, weight: FontWeight.w800))),
+          for (final s in holes) Expanded(child: Center(child: _scoreMark(s.score, s.par))),
+          SizedBox(width: 36, child: Text('$total', textAlign: TextAlign.center, style: Ob.display(16))),
+        ]),
+        if (holes.any((s) => s.putts != null)) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            SizedBox(width: 34, child: Text('Putts', style: Ob.body(11, color: Ob.creamA(.5)))),
+            for (final s in holes) Expanded(child: Text(s.putts?.toString() ?? '·', textAlign: TextAlign.center, style: Ob.body(12, color: Ob.creamA(.6)))),
+            SizedBox(width: 36, child: Text('${holes.fold(0, (a, s) => a + (s.putts ?? 0))}', textAlign: TextAlign.center, style: Ob.body(12, weight: FontWeight.w700, color: Ob.creamA(.6)))),
+          ]),
+        ],
+      ]),
+    );
+  }
+
+  /// Classic scorecard marks: circles under par, squares over.
+  Widget _scoreMark(int score, int par) {
+    final d = score - par;
+    final c = d < 0 ? Ob.lime : (d == 0 ? Ob.cream : (d == 1 ? const Color(0xFF7DD3FC) : Ob.warn));
+    return Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: d == 0
+          ? null
+          : BoxDecoration(
+              shape: d < 0 ? BoxShape.circle : BoxShape.rectangle,
+              borderRadius: d < 0 ? null : BorderRadius.circular(6),
+              border: Border.all(color: c, width: d <= -2 || d >= 2 ? 2.4 : 1.4),
+            ),
+      child: Text('$score', style: Ob.body(12, weight: FontWeight.w800, color: c)),
+    );
+  }
+
+  Widget _legend(Color c, String label, {bool circle = false, bool square = false}) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            shape: circle ? BoxShape.circle : BoxShape.rectangle,
+            borderRadius: square ? BorderRadius.circular(3) : null,
+            border: Border.all(color: c, width: 1.4),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: Ob.body(11, color: Ob.creamA(.6))),
+      ]);
+
+  void _share(BuildContext context, WidgetRef ref, Round round, List<HoleScore> scores) {
     final user = ref.read(authStateProvider).valueOrNull;
     final service = ref.read(highlightCardServiceProvider);
-    
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Share Highlight Card', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-            const SizedBox(height: 8),
-            const Text('Generate a beautiful summary of your round to share with friends.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.grey500)),
-            const SizedBox(height: 24),
-            
-            // Preview
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+    final name = user?.displayName ?? 'GOLFER';
+
+    showObSheet(
+      context,
+      (ctx) => ObSheet(
+        title: 'Share the round',
+        subtitle: 'A card with your score, ready for WhatsApp or Instagram.',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
               child: SizedBox(
-                width: 240,
-                height: 300,
+                width: 220,
+                height: 280,
                 child: FittedBox(
                   fit: BoxFit.contain,
-                  child: Screenshot(
-                    controller: service.controller,
-                    child: HighlightCardWidget(
-                      round: round,
-                      holeScores: scores,
-                      userName: user?.displayName ?? 'GOLFER',
-                    ),
-                  ),
+                  child: Screenshot(controller: service.controller, child: HighlightCardWidget(round: round, holeScores: scores, userName: name)),
                 ),
               ),
             ),
-            
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                icon: const Icon(LucideIcons.share2),
-                label: const Text('Share to Social Media', style: TextStyle(fontWeight: FontWeight.w800)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.emerald700,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  service.shareHighlight(
-                    cardWidget: HighlightCardWidget(
-                      round: round,
-                      holeScores: scores,
-                      userName: user?.displayName ?? 'GOLFER',
-                    ),
-                    context: context,
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Maybe Later', style: TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
+          ),
+          const SizedBox(height: 18),
+          ObButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              service.shareHighlight(cardWidget: HighlightCardWidget(round: round, holeScores: scores, userName: name), context: context);
+            },
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(LucideIcons.share2, size: 18, color: Ob.ink),
+              const SizedBox(width: 8),
+              Text('Share', style: Ob.label(16, weight: FontWeight.w800)),
+            ]),
+          ),
+        ]),
       ),
     );
   }

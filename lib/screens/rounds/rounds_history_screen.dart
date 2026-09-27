@@ -1,183 +1,110 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
-import '../../widgets/loading_spinner.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
+
+/// Colour for a score relative to par.
+Color toParColor(int toPar) => toPar < 0 ? Ob.lime : (toPar <= 5 ? Ob.cream : (toPar <= 15 ? const Color(0xFF7DD3FC) : Ob.warn));
+String toParText(int toPar) => toPar == 0 ? 'E' : (toPar > 0 ? '+$toPar' : '$toPar');
 
 class RoundsHistoryScreen extends ConsumerWidget {
   const RoundsHistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final roundsAsync = ref.watch(roundsProvider);
+    final async = ref.watch(roundsProvider);
+    final rounds = async.valueOrNull ?? const <Round>[];
+
+    // Group by month, newest first.
+    final byMonth = <String, List<Round>>{};
+    for (final r in [...rounds]..sort((a, b) => b.playedAt.compareTo(a.playedAt))) {
+      byMonth.putIfAbsent(DateFormat('MMMM yyyy').format(r.playedAt), () => []).add(r);
+    }
+    final full = rounds.where((r) => r.holesPlayed >= 18).toList();
+    final best = full.isEmpty ? null : full.map((r) => r.totalScore).reduce((a, b) => a < b ? a : b);
 
     return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Round History', style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w900, fontSize: 20)),
-      ),
-      body: roundsAsync.when(
-        loading: () => const LoadingSpinner(),
-        error: (err, stack) => Center(child: Text('Error: $err')),
-        data: (rounds) {
-          if (rounds.isEmpty) {
-            return _buildEmptyState(context);
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            itemCount: rounds.length,
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: ListView(
             physics: const BouncingScrollPhysics(),
-            itemBuilder: (context, index) => _HistoryRoundCard(round: rounds[index]),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: const BoxDecoration(
-              color: AppColors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(LucideIcons.flag, size: 48, color: AppColors.grey200),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
+            children: [
+              ObTopBar('Your rounds', onBack: () => context.pop()),
+              const SizedBox(height: 16),
+              if (async.isLoading && rounds.isEmpty)
+                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+              else if (rounds.isEmpty)
+                ObCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    ObGuideRow(botAsset: ObBot.ball.happy, botLabel: 'Your golf-ball avatar', text: 'No rounds yet. Your first one lands here.', size: 72, fontSize: 16),
+                    const SizedBox(height: 16),
+                    ObButton(
+                      onPressed: () => context.push('/select-course'),
+                      child: Text('Start a round', style: Ob.label(15, weight: FontWeight.w800)),
+                    ),
+                  ]),
+                )
+              else ...[
+                ObSplitCards(
+                  left: ObStat('Rounds', '${rounds.length}', valueColor: Ob.lime),
+                  right: ObStat('Best 18', best?.toString() ?? '—'),
+                ).rise(),
+                for (final e in byMonth.entries) ...[
+                  const SizedBox(height: 22),
+                  ObEyebrow(e.key),
+                  const SizedBox(height: 10),
+                  for (final r in e.value) Padding(padding: const EdgeInsets.only(bottom: 10), child: _RoundRow(round: r)),
+                ],
+              ],
+            ],
           ),
-          const SizedBox(height: 24),
-          const Text(
-            'No Rounds Yet',
-            style: TextStyle(color: AppColors.grey900, fontSize: 20, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Your scoring history will appear here.',
-            style: TextStyle(color: AppColors.grey500, fontSize: 16),
-          ),
-          const SizedBox(height: 32),
-          FilledButton(
-            onPressed: () => context.push('/select-course'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.emerald700,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: const Text('Start First Round', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _HistoryRoundCard extends StatelessWidget {
+class _RoundRow extends StatelessWidget {
+  const _RoundRow({required this.round});
   final Round round;
-  const _HistoryRoundCard({required this.round});
 
   @override
   Widget build(BuildContext context) {
-    final scoreVsPar = round.totalScore - round.coursePar;
-    final badgeColor = scoreVsPar < 0 ? AppColors.birdie
-        : scoreVsPar == 0 ? AppColors.par
-        : scoreVsPar <= 2 ? AppColors.bogey 
-        : AppColors.doubleBogey;
-    final badgeText = scoreVsPar == 0 ? 'E' : scoreVsPar > 0 ? '+$scoreVsPar' : '$scoreVsPar';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () => context.push('/round/${round.id}'),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                offset: const Offset(0, 4),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.grey50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    badgeText,
-                    style: TextStyle(color: badgeColor, fontWeight: FontWeight.w900, fontSize: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      round.courseName,
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.grey900),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      DateFormat('MMM d, yyyy').format(round.playedAt),
-                      style: const TextStyle(color: AppColors.grey400, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (round.notes.isNotEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 6),
-                          child: Icon(LucideIcons.fileText, size: 14, color: AppColors.grey400),
-                        ),
-                      Text(
-                        '${round.totalScore}',
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: AppColors.grey900),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    '${round.holesPlayed} Holes',
-                    style: const TextStyle(color: AppColors.grey400, fontSize: 11, fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 8),
-              const Icon(LucideIcons.chevronRight, size: 16, color: AppColors.grey300),
-            ],
-          ),
+    final toPar = round.totalScore - round.coursePar;
+    return ObCard(
+      onTap: () => context.push('/round/${round.id}'),
+      padding: const EdgeInsets.all(14),
+      child: Row(children: [
+        ObCrest(round.courseName, size: 46),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(round.courseName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w800)),
+            const SizedBox(height: 2),
+            Row(children: [
+              Text('${DateFormat('EEE d MMM').format(round.playedAt)} · ${round.holesPlayed} holes', style: Ob.body(12, color: Ob.creamA(.55))),
+              if (round.notes.isNotEmpty) ...[const SizedBox(width: 6), Icon(LucideIcons.fileText, size: 12, color: Ob.creamA(.45))],
+            ]),
+          ]),
         ),
-      ),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text('${round.totalScore}', style: Ob.display(26, height: 1)),
+          Text(toParText(toPar), style: Ob.body(13, weight: FontWeight.w800, color: toParColor(toPar))),
+        ]),
+      ]),
     );
   }
 }
