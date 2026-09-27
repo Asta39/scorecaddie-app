@@ -170,7 +170,7 @@ class _PlayerDashboardViewState extends ConsumerState<PlayerDashboardView> {
     final last = h?.lastIndex;
     final delta = (current != null && last != null) ? current - last : null;
     return ObHeroCard(
-      onTap: () => context.push('/analytics'),
+      onTap: () => context.go('/analytics'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

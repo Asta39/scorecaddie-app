@@ -435,7 +435,16 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
       }
     }
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
+    // go_router 14 ShellRoute doesn't see dialogs and sheets on the root
+    // navigator, so Android back would close the app instead of them.
+    return BackButtonListener(
+      onBackButtonPressed: () async {
+        final root = Navigator.of(context, rootNavigator: true);
+        if (!root.canPop()) return false;
+        root.pop();
+        return true;
+      },
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
       value: Ob.overlay,
       child: Scaffold(
         backgroundColor: Ob.bg,
@@ -498,6 +507,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
           ),
         ),
       ),
+    ),
     );
   }
 }
