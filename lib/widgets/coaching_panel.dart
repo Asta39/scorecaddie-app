@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme/app_theme.dart';
 import '../screens/onboarding/ob_style.dart';
-import '../screens/onboarding/ob_widgets.dart';
 import '../core/models/coaching_summary.dart';
 import '../providers/app_providers.dart';
 import '../core/utils/calendar_helper.dart';

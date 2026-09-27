@@ -1,408 +1,135 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import '../../core/theme/app_theme.dart';
 import '../../providers/app_providers.dart';
 import '../../core/models/coaching_model.dart';
+import '../../widgets/profile_image.dart';
+import '../../widgets/top_notification.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
+import 'coach_dashboard_screen.dart' show coachGold;
 
-// ─── Resolved enrollment (enriched with session info) ─────────────────────────
+final _kes = NumberFormat('#,###');
+
+/// An enrollment with the price of the session it belongs to.
 class _RE {
   final SessionEnrollment e;
-  final String sessionName;
-  final double sessionPrice;
-  _RE({required this.e, required this.sessionName, required this.sessionPrice});
-  double get outstanding => (sessionPrice - e.amountPaid).clamp(0, double.infinity);
+  final CoachingSession session;
+  _RE(this.e, this.session);
+  double get outstanding => (session.pricePerSession - e.amountPaid).clamp(0, double.infinity).toDouble();
   bool get isPaid => e.paymentStatus == 'fully_paid';
   bool get isOverdue => !isPaid && DateTime.now().difference(e.enrolledAt).inDays > 14;
 }
 
-// ─── All-enrollments provider (safe: empty list on error/no sessions) ──────────
 final _allEnrollmentsProvider = FutureProvider<List<_RE>>((ref) async {
   final sessions = await ref.watch(coachSessionsProvider.future);
-  if (sessions.isEmpty) return [];
   final service = ref.watch(coachingServiceProvider);
-  final result = <_RE>[];
-  for (final s in sessions) {
+  final lists = await Future.wait(sessions.map((s) async {
     try {
-      final enrollments = await service.getSessionEnrollments(s.id);
-      for (final e in enrollments) {
-        result.add(_RE(e: e, sessionName: s.name, sessionPrice: s.pricePerSession));
-      }
+      return [for (final e in await service.getSessionEnrollments(s.id)) _RE(e, s)];
     } catch (_) {
-      // skip sessions that fail to load enrollments
+      return <_RE>[]; // one session failing shouldn't blank the whole screen
     }
-  }
-  return result;
+  }));
+  return lists.expand((l) => l).toList();
 });
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+enum _View { owed, bySession, paid }
+
 class CoachPaymentManagementScreen extends ConsumerStatefulWidget {
   const CoachPaymentManagementScreen({super.key});
 
   @override
-  ConsumerState<CoachPaymentManagementScreen> createState() =>
-      _CoachPaymentManagementScreenState();
+  ConsumerState<CoachPaymentManagementScreen> createState() => _CoachPaymentManagementScreenState();
 }
 
-class _CoachPaymentManagementScreenState
-    extends ConsumerState<CoachPaymentManagementScreen> {
-  int _tabIndex = 0;
-  CoachingSession? _selectedSession;
+class _CoachPaymentManagementScreenState extends ConsumerState<CoachPaymentManagementScreen> {
+  _View _view = _View.owed;
+  String? _sessionId;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppColors.grey900 : const Color(0xFFFBFBF9);
-    final sessionsAsync = ref.watch(coachSessionsProvider);
-    final allEnrollAsync = ref.watch(_allEnrollmentsProvider);
+    final async = ref.watch(_allEnrollmentsProvider);
+    final all = async.valueOrNull ?? const <_RE>[];
+    final collected = all.fold<double>(0, (a, r) => a + r.e.amountPaid);
+    final owed = all.fold<double>(0, (a, r) => a + r.outstanding);
+    final sessions = ref.watch(coachSessionsProvider).valueOrNull ?? const <CoachingSession>[];
+    final picked = sessions.where((s) => s.id == _sessionId).firstOrNull ?? sessions.firstOrNull;
 
-    return Material(
-      color: bg,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Header ──────────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Payments',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            color: isDark ? Colors.white : AppColors.grey900,
-                            letterSpacing: -1,
-                          ),
-                        ),
-                        Text(
-                          'Manage student payments',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDark ? AppColors.grey400 : AppColors.grey500,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.emerald700.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(LucideIcons.creditCard, color: AppColors.emerald700, size: 22),
-                  ),
-                ],
-              ),
-            ),
+    final rows = switch (_view) {
+      _View.owed => all.where((r) => !r.isPaid).toList()..sort((a, b) => b.outstanding.compareTo(a.outstanding)),
+      _View.paid => all.where((r) => r.isPaid).toList(),
+      _View.bySession => all.where((r) => r.session.id == picked?.id).toList(),
+    };
 
-            const SizedBox(height: 20),
-
-            // ── Analytics ───────────────────────────────────────────────────
-            allEnrollAsync.when(
-              data: (all) => _AnalyticsRow(all: all, isDark: isDark),
-              loading: () => const SizedBox(height: 88, child: Center(child: CupertinoActivityIndicator())),
-              error: (_, _) => const SizedBox(),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Tab Picker ──────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: CupertinoSlidingSegmentedControl<int>(
-                groupValue: _tabIndex,
-                backgroundColor: isDark ? AppColors.grey800 : AppColors.grey100,
-                thumbColor: AppColors.emerald700,
-                children: {
-                  0: _segTab('By Session', 0),
-                  1: _segTab('Outstanding', 1),
-                },
-                onValueChanged: (v) => setState(() => _tabIndex = v ?? 0),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Tab Content ─────────────────────────────────────────────────
-            Expanded(
-              child: _tabIndex == 0
-                  ? sessionsAsync.when(
-                      data: (sessions) => _SessionTab(
-                        sessions: sessions,
-                        selected: _selectedSession ?? (sessions.isNotEmpty ? sessions.first : null),
-                        onSelect: (s) => setState(() => _selectedSession = s),
-                        isDark: isDark,
-                      ),
-                      loading: () => const Center(child: CupertinoActivityIndicator()),
-                      error: (e, _) => _ErrorView(message: e.toString()),
-                    )
-                  : allEnrollAsync.when(
-                      data: (all) => _OutstandingTab(all: all.where((r) => !r.isPaid).toList(), isDark: isDark),
-                      loading: () => const Center(child: CupertinoActivityIndicator()),
-                      error: (e, _) => _ErrorView(message: e.toString()),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _segTab(String label, int index) {
-    final selected = _tabIndex == index;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-          color: selected ? Colors.white : AppColors.grey500,
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Analytics Row ────────────────────────────────────────────────────────────
-class _AnalyticsRow extends StatelessWidget {
-  final List<_RE> all;
-  final bool isDark;
-  const _AnalyticsRow({required this.all, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final collected = all.fold<double>(0, (s, r) => s + r.e.amountPaid);
-    final outstanding = all.fold<double>(0, (s, r) => s + r.outstanding);
-    final overdue = all.where((r) => r.isOverdue).length;
-    final paid = all.where((r) => r.isPaid).length;
-    final rate = all.isEmpty ? 0.0 : paid / all.length * 100;
-    final fmt = NumberFormat('#,###');
-
-    return SizedBox(
-      height: 100,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          _StatCard('Collected', 'KES ${fmt.format(collected)}', LucideIcons.trendingUp, AppColors.emerald700, isDark),
-          _StatCard('Outstanding', 'KES ${fmt.format(outstanding)}', LucideIcons.alertCircle, Colors.orange, isDark),
-          _StatCard('Rate', '${rate.toStringAsFixed(0)}%', LucideIcons.pieChart, AppColors.blue600, isDark),
-          _StatCard('Overdue', '$overdue', LucideIcons.clock, AppColors.doubleBogey, isDark),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final bool isDark;
-  const _StatCard(this.label, this.value, this.icon, this.color, this.isDark);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 140,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.grey800 : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(children: [
-            Icon(icon, size: 13, color: color),
-            const SizedBox(width: 6),
-            Text(label.toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color, letterSpacing: 0.4)),
-          ]),
-          Text(value, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: isDark ? Colors.white : AppColors.grey900, letterSpacing: -0.5)),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Tab 1: By Session ─────────────────────────────────────────────────────────
-class _SessionTab extends ConsumerWidget {
-  final List<CoachingSession> sessions;
-  final CoachingSession? selected;
-  final ValueChanged<CoachingSession> onSelect;
-  final bool isDark;
-
-  const _SessionTab({required this.sessions, required this.selected, required this.onSelect, required this.isDark});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (sessions.isEmpty) {
-      return _EmptyState(icon: LucideIcons.calendar, message: 'No sessions yet.\nCreate a session to manage payments.', isDark: isDark);
-    }
-
-    final session = selected ?? sessions.first;
-
-    return Column(
-      children: [
-        // Session picker
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: GestureDetector(
-            onTap: () => _pickSession(context, session),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.grey800 : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? AppColors.grey700 : AppColors.grey200),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 8, height: 8,
-                    decoration: BoxDecoration(
-                      color: session.status == 'active' ? AppColors.emerald500 : AppColors.grey400,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      session.name,
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: isDark ? Colors.white : AppColors.grey900),
-                    ),
-                  ),
-                  Icon(LucideIcons.chevronsUpDown, size: 16, color: AppColors.grey400),
-                ],
-              ),
-            ),
-          ),
-        ),
-        // Price tag
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-          child: Row(
+    return Scaffold(
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: RefreshIndicator(
+          color: Ob.ink,
+          backgroundColor: coachGold,
+          onRefresh: () async {
+            ref.invalidate(coachSessionsProvider);
+            ref.invalidate(_allEnrollmentsProvider);
+          },
+          child: ListView(
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
             children: [
-              Icon(LucideIcons.tag, size: 11, color: AppColors.grey400),
-              const SizedBox(width: 6),
-              Text(
-                'KES ${NumberFormat('#,###').format(session.pricePerSession)} · ${session.paymentTerms}',
-                style: const TextStyle(fontSize: 11, color: AppColors.grey500, fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-        ),
-        Expanded(child: _EnrollmentList(session: session, isDark: isDark)),
-      ],
-    );
-  }
-
-  void _pickSession(BuildContext context, CoachingSession current) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 400, maxHeight: 450),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.grey800 : Colors.white,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Select Session', style: TextStyle(
-                    fontSize: 20, 
-                    fontWeight: FontWeight.w900, 
-                    color: isDark ? Colors.white : AppColors.grey900,
-                    letterSpacing: -0.5,
-                  )),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(LucideIcons.x, size: 20),
-                    color: AppColors.grey400,
-                  ),
-                ],
-              ),
+              const ObTabHeader('Payments').rise(),
               const SizedBox(height: 16),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: sessions.length,
-                  itemBuilder: (context, index) {
-                    final s = sessions[index];
-                    final isSelected = s.id == current.id;
-                    
-                    return GestureDetector(
-                      onTap: () {
-                        onSelect(s);
-                        Navigator.pop(context);
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: isSelected 
-                            ? AppColors.emerald700.withValues(alpha: 0.1) 
-                            : (isDark ? AppColors.grey900 : AppColors.grey50),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected ? AppColors.emerald700 : Colors.transparent,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 8, height: 8,
-                              decoration: BoxDecoration(
-                                color: s.status == 'active' ? AppColors.emerald500 : AppColors.grey400,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                s.name,
-                                style: TextStyle(
-                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                  color: isSelected 
-                                    ? AppColors.emerald700 
-                                    : (isDark ? Colors.white : AppColors.grey900),
-                                ),
-                              ),
-                            ),
-                            if (isSelected)
-                              const Icon(LucideIcons.check, size: 16, color: AppColors.emerald700),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+              ObSplitCards(
+                left: ObStat('Collected', 'KES ${_kes.format(collected)}', valueSize: 22, valueColor: Ob.lime),
+                right: ObStat('Still owed', 'KES ${_kes.format(owed)}', valueSize: 22, valueColor: coachGold),
+              ).rise(1),
+              const SizedBox(height: 16),
+              ObGooSegmented<_View>(
+                options: const [(_View.owed, 'Owe'), (_View.bySession, 'By session'), (_View.paid, 'Paid')],
+                selected: _view,
+                onChanged: (v) => setState(() => _view = v),
+                accent: coachGold,
+              ).rise(2),
+              const SizedBox(height: 14),
+              if (_view == _View.bySession && sessions.isNotEmpty) ...[
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: sessions.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) => GestureDetector(
+                      onTap: () => setState(() => _sessionId = sessions[i].id),
+                      child: ObChip(sessions[i].name, on: sessions[i].id == picked?.id, color: coachGold),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 14),
+              ],
+              if (async.isLoading && all.isEmpty)
+                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: coachGold)))
+              else if (async.hasError && all.isEmpty)
+                ObCard(child: Text('Couldn\'t load payments. Pull down to try again.', style: Ob.body(14, color: Ob.creamA(.7))))
+              else if (rows.isEmpty)
+                ObCard(
+                  padding: const EdgeInsets.all(20),
+                  child: ObGuideRow(
+                    botAsset: ObBot.star.happy,
+                    botLabel: 'Your star avatar',
+                    text: switch (_view) {
+                      _View.owed => all.isEmpty ? 'Payments show up once players book.' : 'Everyone\'s paid up.',
+                      _View.paid => 'Nobody has paid in full yet.',
+                      _View.bySession => 'No players in this session yet.',
+                    },
+                    size: 72,
+                    fontSize: 16,
+                  ),
+                )
+              else
+                for (final r in rows) Padding(padding: const EdgeInsets.only(bottom: 10), child: _PayRow(r: r, showSession: _view != _View.bySession)),
             ],
           ),
         ),
@@ -411,641 +138,185 @@ class _SessionTab extends ConsumerWidget {
   }
 }
 
-class _EnrollmentList extends ConsumerWidget {
-  final CoachingSession session;
-  final bool isDark;
-  const _EnrollmentList({required this.session, required this.isDark});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final enrollAsync = ref.watch(sessionEnrollmentsProvider(session.id));
-
-    return enrollAsync.when(
-      data: (enrollments) {
-        if (enrollments.isEmpty) {
-          return _EmptyState(icon: LucideIcons.users, message: 'No students enrolled yet.', isDark: isDark);
-        }
-
-        final totalPaid = enrollments.fold<double>(0, (s, e) => s + e.amountPaid);
-        final totalExp = session.pricePerSession * enrollments.length;
-        final fmt = NumberFormat('#,###');
-
-        return Column(
-          children: [
-            // Mini summary
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.emerald700.withValues(alpha: isDark ? 0.15 : 0.06),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.emerald700.withValues(alpha: 0.15)),
-                ),
-                child: Row(
-                  children: [
-                    _MiniStat('COLLECTED', 'KES ${fmt.format(totalPaid)}', AppColors.emerald700, isDark),
-                    _Divider(),
-                    _MiniStat('EXPECTED', 'KES ${fmt.format(totalExp)}', isDark ? AppColors.grey300 : AppColors.grey700, isDark),
-                    _Divider(),
-                    _MiniStat('STUDENTS', '${enrollments.length}', isDark ? Colors.white : AppColors.grey900, isDark),
-                  ],
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                physics: const BouncingScrollPhysics(),
-                itemCount: enrollments.length,
-                itemBuilder: (_, i) => _EnrollmentTile(
-                  enrollment: enrollments[i],
-                  sessionPrice: session.pricePerSession,
-                  isDark: isDark,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-      loading: () => const Center(child: CupertinoActivityIndicator()),
-      error: (e, _) => _ErrorView(message: e.toString()),
-    );
-  }
-}
-
-// ─── Tab 2: Outstanding ────────────────────────────────────────────────────────
-class _OutstandingTab extends StatelessWidget {
-  final List<_RE> all;
-  final bool isDark;
-  const _OutstandingTab({required this.all, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    if (all.isEmpty) {
-      return _EmptyState(icon: LucideIcons.checkCircle, message: 'All students are fully paid! 🎉', isDark: isDark, color: AppColors.emerald700);
-    }
-
-    final sorted = [...all]..sort((a, b) => b.outstanding.compareTo(a.outstanding));
-
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-      physics: const BouncingScrollPhysics(),
-      itemCount: sorted.length,
-      itemBuilder: (_, i) => _OutstandingTile(r: sorted[i], isDark: isDark),
-    );
-  }
-}
-
-// ─── Enrollment Tile ──────────────────────────────────────────────────────────
-class _EnrollmentTile extends ConsumerWidget {
-  final SessionEnrollment enrollment;
-  final double sessionPrice;
-  final bool isDark;
-  const _EnrollmentTile({required this.enrollment, required this.sessionPrice, required this.isDark});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final avatarUrl = enrollment.playerAvatar;
-    final name = enrollment.playerName ?? 'Student';
-
-    final outstanding = (sessionPrice - enrollment.amountPaid).clamp(0, double.infinity);
-    final isPaid = enrollment.paymentStatus == 'fully_paid';
-    final isPartial = enrollment.paymentStatus == 'partial';
-    final Color statusColor = isPaid ? AppColors.emerald700 : (isPartial ? Colors.orange : AppColors.doubleBogey);
-    final String statusLabel = isPaid ? 'PAID' : (isPartial ? 'PARTIAL' : 'UNPAID');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.grey800 : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? AppColors.grey700 : AppColors.grey100),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: AppColors.emerald700.withValues(alpha: 0.1),
-                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl == null ? Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : 'S',
-                    style: const TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.w900),
-                  ) : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: isDark ? Colors.white : AppColors.grey900)),
-                      Text(
-                        'Enrolled ${DateFormat('MMM d, yyyy').format(enrollment.enrolledAt)}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.grey400, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-                _Badge(statusLabel, statusColor),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              children: [
-                _PayStat('PAID', enrollment.amountPaid, AppColors.emerald700, isDark),
-                _PayStat('OWED', outstanding.toDouble(), outstanding > 0 ? Colors.orange : AppColors.grey400, isDark),
-                _PayStat('TOTAL', sessionPrice, isDark ? AppColors.grey300 : AppColors.grey700, isDark),
-              ],
-            ),
-          ),
-          if (!isPaid)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: CupertinoButton(
-                  color: AppColors.emerald700,
-                  borderRadius: BorderRadius.circular(14),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  onPressed: () => _showSheet(context, ref, name),
-                  child: const Text('Record Payment', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showSheet(BuildContext context, WidgetRef ref, String playerName) {
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: _PaymentSheet(
-          enrollment: enrollment,
-          sessionPrice: sessionPrice,
-          playerName: playerName,
-          isDark: isDark,
-          onSaved: () {
-            ref.invalidate(sessionEnrollmentsProvider(enrollment.sessionId));
-            ref.invalidate(_allEnrollmentsProvider);
-          },
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Outstanding Tile ─────────────────────────────────────────────────────────
-class _OutstandingTile extends ConsumerWidget {
+class _PayRow extends ConsumerWidget {
+  const _PayRow({required this.r, required this.showSession});
   final _RE r;
-  final bool isDark;
-  const _OutstandingTile({required this.r, required this.isDark});
+  final bool showSession;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final avatarUrl = r.e.playerAvatar;
     final name = r.e.playerName ?? 'Student';
-    final days = DateTime.now().difference(r.e.enrolledAt).inDays;
-    final fmt = NumberFormat('#,###');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+    final partial = r.e.paymentStatus == 'partial';
+    final price = r.session.pricePerSession;
+    final paidShare = price <= 0 ? 1.0 : (r.e.amountPaid / price).clamp(0.0, 1.0);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.grey800 : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: r.isOverdue ? AppColors.doubleBogey.withValues(alpha: 0.3) : (isDark ? AppColors.grey700 : AppColors.grey100)),
+        color: r.isPaid ? Ob.roleFill : Ob.cardFill,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: r.isPaid ? Ob.lime.withValues(alpha: .35) : (r.isOverdue ? Ob.warn.withValues(alpha: .5) : Ob.creamA(.06))),
       ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: (r.isOverdue ? AppColors.doubleBogey : Colors.orange).withValues(alpha: 0.1),
-                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl == null ? Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : 'S',
-                    style: TextStyle(color: r.isOverdue ? AppColors.doubleBogey : Colors.orange, fontWeight: FontWeight.w900),
-                  ) : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: isDark ? Colors.white : AppColors.grey900)),
-                      Text(r.sessionName, style: const TextStyle(color: AppColors.grey500, fontSize: 12, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-                if (r.isOverdue) _Badge('${days}d overdue', AppColors.doubleBogey),
-              ],
-            ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          ProfileImage(url: r.e.playerAvatar, name: name, size: 40, isCircle: true),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, style: Ob.body(15, weight: FontWeight.w800)),
+              Text(
+                showSession ? r.session.name : 'Joined ${DateFormat('d MMM').format(r.e.enrolledAt)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Ob.body(12, color: Ob.creamA(.55)),
+              ),
+            ]),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('OUTSTANDING', style: TextStyle(fontSize: 9, color: AppColors.grey400, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-                      Text(
-                        'KES ${fmt.format(r.outstanding)}',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: r.isOverdue ? AppColors.doubleBogey : Colors.orange,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      Text(
-                        'of KES ${fmt.format(r.sessionPrice)} · paid KES ${fmt.format(r.e.amountPaid)}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.grey400, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                CupertinoButton(
-                  color: AppColors.emerald700,
-                  borderRadius: BorderRadius.circular(14),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  onPressed: () => _showSheet(context, ref, name),
-                  child: const Text('Clear', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSheet(BuildContext context, WidgetRef ref, String name) {
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: _PaymentSheet(
-          enrollment: r.e,
-          sessionPrice: r.sessionPrice,
-          playerName: name,
-          isDark: isDark,
-          onSaved: () {
-            ref.invalidate(sessionEnrollmentsProvider(r.e.sessionId));
-            ref.invalidate(_allEnrollmentsProvider);
-          },
+          if (r.isPaid)
+            ObChip('Paid', on: true)
+          else if (r.isOverdue)
+            ObChip('${DateTime.now().difference(r.e.enrolledAt).inDays}d late', on: true, color: Ob.warn)
+          else
+            ObChip(partial ? 'Part paid' : 'Unpaid', on: true, color: coachGold),
+        ]),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(value: paidShare, minHeight: 6, backgroundColor: Ob.creamA(.08), color: Ob.lime),
         ),
-      ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: Text.rich(TextSpan(children: [
+              TextSpan(text: 'KES ${_kes.format(r.e.amountPaid)}', style: Ob.body(13, weight: FontWeight.w800, color: Ob.lime)),
+              TextSpan(text: ' of ${_kes.format(price)}', style: Ob.body(13, color: Ob.creamA(.6))),
+              if (!r.isPaid) TextSpan(text: '  ·  owes ${_kes.format(r.outstanding)}', style: Ob.body(13, weight: FontWeight.w700, color: coachGold)),
+            ])),
+          ),
+          if (!r.isPaid)
+            ObButton(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              onPressed: () => showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => _RecordSheet(r: r),
+              ),
+              child: Text('Record', style: Ob.label(13, weight: FontWeight.w800)),
+            ),
+        ]),
+      ]),
     );
   }
 }
 
-// ─── Payment Modal (Refactored from Bottom Sheet) ───────────────────────────
-class _PaymentSheet extends ConsumerStatefulWidget {
-  final SessionEnrollment enrollment;
-  final double sessionPrice;
-  final String playerName;
-  final bool isDark;
-  final VoidCallback onSaved;
-
-  const _PaymentSheet({
-    required this.enrollment,
-    required this.sessionPrice,
-    required this.playerName,
-    required this.isDark,
-    required this.onSaved,
-  });
+class _RecordSheet extends ConsumerStatefulWidget {
+  const _RecordSheet({required this.r});
+  final _RE r;
 
   @override
-  ConsumerState<_PaymentSheet> createState() => _PaymentSheetState();
+  ConsumerState<_RecordSheet> createState() => _RecordSheetState();
 }
 
-class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
-  final _controller = TextEditingController();
+class _RecordSheetState extends ConsumerState<_RecordSheet> {
+  late final _amount = TextEditingController(text: widget.r.outstanding.toStringAsFixed(0));
   String _method = 'MPESA';
-  bool _loading = false;
-
-  double get outstanding =>
-      (widget.sessionPrice - widget.enrollment.amountPaid).clamp(0, double.infinity);
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.text = outstanding.toStringAsFixed(0);
-  }
+  bool _saving = false;
 
   @override
   void dispose() {
-    _controller.dispose();
+    _amount.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final avatarUrl = widget.enrollment.playerAvatar;
-
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 400),
-      decoration: BoxDecoration(
-        color: widget.isDark ? AppColors.grey800 : Colors.white,
-        borderRadius: BorderRadius.circular(28),
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.emerald700.withValues(alpha: 0.1),
-                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                child: avatarUrl == null ? const Icon(LucideIcons.user, color: AppColors.emerald700, size: 20) : null,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Record Payment', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: widget.isDark ? Colors.white : AppColors.grey900)),
-                    Text(widget.playerName, style: TextStyle(color: widget.isDark ? AppColors.grey400 : AppColors.grey500, fontWeight: FontWeight.w600, fontSize: 13)),
-                  ],
-                ),
-              ),
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(LucideIcons.x, size: 20),
-                color: AppColors.grey400,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Amount to pay', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.grey500)),
-              Text('Outstanding: KES ${NumberFormat('#,###').format(outstanding)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.orange)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          CupertinoTextField(
-            controller: _controller,
-            keyboardType: TextInputType.number,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: widget.isDark ? AppColors.grey900 : AppColors.grey50,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: widget.isDark ? AppColors.grey700 : AppColors.grey200),
-            ),
-            prefix: const Padding(
-              padding: EdgeInsets.only(left: 14),
-              child: Text('KES', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.grey600)),
-            ),
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: widget.isDark ? Colors.white : AppColors.grey900),
-            placeholder: '0',
-          ),
-          const SizedBox(height: 20),
-          const Text('Payment Method', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.grey500)),
-          const SizedBox(height: 8),
-          Row(
-            children: ['CASH', 'MPESA', 'BANK'].map((m) {
-              final sel = _method == m;
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: m != 'BANK' ? 10 : 0),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _method = m),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: sel ? AppColors.emerald700 : (widget.isDark ? AppColors.grey700 : AppColors.grey100),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        m,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: sel ? Colors.white : (widget.isDark ? AppColors.grey400 : AppColors.grey600),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: CupertinoButton(
-              color: AppColors.emerald700,
-              borderRadius: BorderRadius.circular(16),
-              onPressed: _loading ? null : _submit,
-              child: _loading
-                  ? const CupertinoActivityIndicator(color: Colors.white)
-                  : const Text('Save Payment', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _submit() async {
-    final amount = double.tryParse(_controller.text.trim());
-    if (amount == null || amount <= 0) return;
-    setState(() => _loading = true);
+  Future<void> _save() async {
+    final amount = double.tryParse(_amount.text.trim());
+    if (amount == null || amount <= 0) {
+      TopNotification.showError(context, 'Enter an amount');
+      return;
+    }
+    setState(() => _saving = true);
     try {
       await ref.read(coachingServiceProvider).recordPayment(
-        enrollmentId: widget.enrollment.id,
-        amount: amount,
-        method: _method,
-        sessionId: widget.enrollment.sessionId,
-      );
-      widget.onSaved();
-      if (mounted) Navigator.pop(context);
+            enrollmentId: widget.r.e.id,
+            amount: amount,
+            method: _method,
+            sessionId: widget.r.e.sessionId,
+          );
+      HapticFeedback.mediumImpact();
+      ref.invalidate(sessionEnrollmentsProvider(widget.r.e.sessionId));
+      ref.invalidate(_allEnrollmentsProvider);
+      ref.invalidate(coachRevenueBreakdownProvider);
+      ref.invalidate(coachStudentsProvider);
+      if (!mounted) return;
+      Navigator.pop(context);
+      TopNotification.showSuccess(context, 'KES ${_kes.format(amount)} recorded');
     } catch (e) {
-      setState(() => _loading = false);
-      if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (_) => CupertinoAlertDialog(
-            title: const Text('Error'),
-            content: Text(e.toString()),
-            actions: [CupertinoDialogAction(child: const Text('OK'), onPressed: () => Navigator.pop(context))],
-          ),
-        );
-      }
+      if (mounted) TopNotification.showError(context, 'Couldn\'t record the payment: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
-}
-
-// ─── Shared Helpers ───────────────────────────────────────────────────────────
-class _Badge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Badge(this.label, this.color);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.4)),
-    );
-  }
-}
-
-class _PayStat extends StatelessWidget {
-  final String label;
-  final double value;
-  final Color color;
-  final bool isDark;
-  const _PayStat(this.label, this.value, this.color, this.isDark);
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 9, color: AppColors.grey400, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-          const SizedBox(height: 2),
-          Text(
-            'KES ${NumberFormat('#,###').format(value)}',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  final bool isDark;
-  const _MiniStat(this.label, this.value, this.color, this.isDark);
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 9, color: AppColors.grey400, fontWeight: FontWeight.w900, letterSpacing: 0.4)),
-          const SizedBox(height: 3),
-          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: color)),
-        ],
-      ),
-    );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 32, color: AppColors.grey200, margin: const EdgeInsets.symmetric(horizontal: 12));
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String message;
-  final bool isDark;
-  final Color color;
-  const _EmptyState({required this.icon, required this.message, required this.isDark, this.color = AppColors.grey300});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 60, color: color),
-          const SizedBox(height: 16),
-          Text(message, textAlign: TextAlign.center, style: TextStyle(color: isDark ? AppColors.grey400 : AppColors.grey500, fontSize: 14, fontWeight: FontWeight.w600, height: 1.5)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorView extends StatefulWidget {
-  final String message;
-  const _ErrorView({required this.message});
-
-  @override
-  State<_ErrorView> createState() => _ErrorViewState();
-}
-
-class _ErrorViewState extends State<_ErrorView> {
-  bool _showTech = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(LucideIcons.alertTriangle, size: 48, color: Colors.orange),
+    final r = widget.r;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(22, 12, 22, 22 + MediaQuery.of(context).padding.bottom),
+        decoration: const BoxDecoration(color: Ob.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+        child: DefaultTextStyle(
+          style: Ob.textBase,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Ob.creamA(.2), borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 16),
-            Text('Could not load data', style: TextStyle(
-              fontWeight: FontWeight.w800, fontSize: 16, 
-              color: isDark ? Colors.white : AppColors.grey700
-            )),
-            const SizedBox(height: 8),
-            Text(
-              'A sync or data error occurred. Please try again or check your connection.',
-              style: TextStyle(color: isDark ? AppColors.grey400 : AppColors.grey500, fontSize: 13, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center
-            ),
-            const SizedBox(height: 24),
-            CupertinoButton(
-              child: Text(_showTech ? 'Hide Diagnostics' : 'Show Technical Info',
-                style: TextStyle(fontSize: 13, color: AppColors.grey400, fontWeight: FontWeight.w600)),
-              onPressed: () => setState(() => _showTech = !_showTech),
-            ),
-            if (_showTech)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(top: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.grey800.withValues(alpha: 0.5) : AppColors.grey50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isDark ? AppColors.grey700 : AppColors.grey200),
-                ),
-                child: Text(
-                  widget.message,
-                  style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: isDark ? AppColors.grey400 : AppColors.grey600),
-                ),
+            Row(children: [
+              ProfileImage(url: r.e.playerAvatar, name: r.e.playerName, size: 44, isCircle: true),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Record a payment', style: Ob.display(22)),
+                  Text('${r.e.playerName ?? 'Student'} · owes KES ${_kes.format(r.outstanding)}', style: Ob.body(13, color: Ob.creamA(.6))),
+                ]),
               ),
-          ],
+            ]),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(20)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                Text('KES ', style: Ob.body(16, weight: FontWeight.w700, color: Ob.creamA(.6))),
+                Expanded(
+                  child: TextField(
+                    controller: _amount,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    cursorColor: coachGold,
+                    style: Ob.display(40, color: Ob.cream),
+                    decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 14),
+            ObGooSegmented<String>(
+              options: const [('MPESA', 'M-Pesa'), ('CASH', 'Cash'), ('BANK', 'Bank')],
+              selected: _method,
+              onChanged: (m) => setState(() => _method = m),
+              accent: coachGold,
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ObButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? 'Saving…' : 'Save payment', style: Ob.label(16, weight: FontWeight.w800)),
+              ),
+            ),
+          ]),
         ),
       ),
     );

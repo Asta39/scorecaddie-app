@@ -7,7 +7,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:go_router/go_router.dart';
-import '../../core/theme/app_theme.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
 import '../onboarding/ob_widgets.dart';
