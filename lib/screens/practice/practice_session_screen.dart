@@ -8,6 +8,9 @@ import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart' as db;
 import 'caddie_orb_screen.dart';
@@ -23,7 +26,6 @@ class PracticeSessionScreen extends ConsumerStatefulWidget {
 
 class _PracticeSessionScreenState extends ConsumerState<PracticeSessionScreen> {
   db.PracticeSession? _session;
-  db.Drill? _drill;
   String? _drillName;
   List<db.DrillStep> _steps = [];
   int _currentStepIndex = 0;
@@ -100,7 +102,6 @@ class _PracticeSessionScreenState extends ConsumerState<PracticeSessionScreen> {
     if (mounted) {
       setState(() {
         _session = session;
-        _drill = drill;
         _drillName = drillName;
         _steps = steps;
         _clubs = clubs;
@@ -226,294 +227,226 @@ class _PracticeSessionScreenState extends ConsumerState<PracticeSessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_session == null) return const Scaffold(body: Center(child: CupertinoActivityIndicator()));
+    if (_session == null) return const Scaffold(backgroundColor: Ob.bg, body: Center(child: CupertinoActivityIndicator(color: Ob.lime)));
     final formatter = ref.watch(unitFormatterProvider);
+    final selected = _clubs.where((c) => c.id == _selectedClubId).firstOrNull;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: Ob.overlay,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF2F2F7),
-        appBar: AppBar(
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          backgroundColor: Colors.transparent,
-          title: Text(_drillName ?? '${_session!.sessionType} Session', 
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.grey900, letterSpacing: -0.5)),
-          leading: IconButton(
-            icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900),
-            onPressed: () => context.pop(),
-          ),
-          actions: [
-            if (widget.isVoice)
-               const Padding(
-                 padding: EdgeInsets.only(right: 12),
-                 child: Center(
-                   child: Row(
-                     children: [
-                       Icon(LucideIcons.sparkles, color: AppColors.emerald700, size: 14),
-                       SizedBox(width: 4),
-                       Text('AI ACTIVE', style: TextStyle(color: AppColors.emerald700, fontSize: 10, fontWeight: FontWeight.w900)),
-                     ],
-                   ),
-                 ),
-               ),
-            if (_sessionShots.isNotEmpty)
-              IconButton(
-                onPressed: _undoLastShot,
-                icon: const Icon(LucideIcons.undo2, color: AppColors.doubleBogey),
+        backgroundColor: Ob.bg,
+        body: DefaultTextStyle(
+          style: Ob.textBase,
+          child: SafeArea(
+            bottom: false,
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Row(children: [
+                  ObIconButton(icon: LucideIcons.chevronLeft, label: 'Back', onPressed: () => context.pop()),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(widget.isVoice ? 'WITH DANIEL' : 'TYPED SESSION', style: Ob.eyebrow()),
+                      Text(_drillName ?? 'Free practice', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.display(22)),
+                    ]),
+                  ),
+                  if (_sessionShots.isNotEmpty) ObIconButton(icon: LucideIcons.undo2, label: 'Undo last shot', onPressed: _undoLastShot),
+                ]),
               ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        body: Column(
-          children: [
-            _buildSessionStatsHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: ObSplitCards(
+                  left: ObStat('Time', _formatDuration(_elapsedTime), valueSize: 26),
+                  right: ObStat(_steps.isEmpty ? 'Balls hit' : 'Balls · done', _steps.isEmpty ? '$_shotCount' : '$_shotCount · ${_progress()}%', valueSize: 26, valueColor: Ob.lime),
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                   children: [
-                    if (_steps.isNotEmpty) ...[
-                      _buildDrillContextCard(),
-                      const SizedBox(height: 32),
+                    if (_steps.isNotEmpty) ...[_buildDrillContextCard(), const SizedBox(height: 20)],
+                    if (_clubs.isEmpty)
+                      _noClubs()
+                    else ...[
+                      ObEyebrow('Club'),
+                      const SizedBox(height: 10),
+                      _buildClubGrid(formatter),
+                      const SizedBox(height: 20),
+                      if (widget.isVoice)
+                        _voiceCard(selected)
+                      else
+                        _buildShotRecorder(formatter),
                     ],
-                    _buildSectionLabel('SELECT CLUB'),
-                    const SizedBox(height: 16),
-                    _buildClubGrid(formatter),
-                    if (!widget.isVoice) ...[
-                      const SizedBox(height: 32),
-                      _buildSectionLabel('SHOT ENTRY'),
-                      const SizedBox(height: 16),
-                      _buildShotRecorder(formatter),
-                    ],
-                    const SizedBox(height: 40),
                   ],
                 ),
               ),
-            ),
-            _buildBottomActionArea(),
-          ],
+              _buildBottomActionArea(),
+            ]),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSectionLabel(String text) {
-    return Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5));
+  int _progress() {
+    final total = _steps.fold(0, (sum, s) => sum + s.ballsRequired);
+    return total > 0 ? ((_shotCount / total) * 100).clamp(0, 100).toInt() : 0;
   }
 
-  Widget _buildSessionStatsHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFE5E5EA))),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _buildHeaderStat(LucideIcons.timer, _formatDuration(_elapsedTime)),
-          _buildHeaderStat(LucideIcons.target, '$_shotCount BALLS', color: AppColors.emerald700),
-          if (_steps.isNotEmpty)
-            Builder(
-              builder: (context) {
-                final totalBallsRequired = _steps.fold(0, (sum, s) => sum + s.ballsRequired);
-                final progress = totalBallsRequired > 0 ? ((_shotCount / totalBallsRequired) * 100).toInt() : 0;
-                return _buildHeaderStat(LucideIcons.checkCircle2, '$progress% DONE');
-              }
-            ),
-        ],
-      ),
+  Widget _noClubs() {
+    return ObCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const ObGuideRow(botAsset: 'assets/bots/cast_blob.webp', botLabel: 'Daniel', text: 'Add your clubs first so I know what you\'re hitting.', size: 72, fontSize: 16),
+        const SizedBox(height: 16),
+        ObButton(
+          onPressed: () async {
+            await context.push('/profile/bag');
+            _loadData();
+          },
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(LucideIcons.briefcase, size: 18, color: Ob.ink),
+            const SizedBox(width: 8),
+            Text('Set up my bag', style: Ob.label(15, weight: FontWeight.w800)),
+          ]),
+        ),
+      ]),
     );
   }
 
-  Widget _buildHeaderStat(IconData icon, String label, {Color? color}) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: color ?? AppColors.grey400),
-        const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontWeight: FontWeight.w900, color: color ?? AppColors.grey900, fontSize: 12, letterSpacing: 0.5)),
-      ],
+  Widget _voiceCard(db.Club? club) {
+    return ObHeroCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Hit, then tell Daniel how it went.', style: Ob.display(20, height: 1.15)),
+        const SizedBox(height: 6),
+        Text('He logs the club, distance and quality for you.', style: Ob.body(13, color: Ob.creamA(.6))),
+        const SizedBox(height: 16),
+        ObButton(
+          onPressed: club == null ? null : () => _openCaddieOrb(club.type),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(LucideIcons.mic, size: 18, color: Ob.ink),
+            const SizedBox(width: 8),
+            Text('Talk to Daniel', style: Ob.label(15, weight: FontWeight.w800)),
+          ]),
+        ),
+      ]),
     );
   }
 
   Widget _buildDrillContextCard() {
-    final step = _steps.isNotEmpty ? _steps[_currentStepIndex] : null;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.grey900,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [BoxShadow(color: AppColors.grey900.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-               const Icon(LucideIcons.sparkles, color: AppColors.golfLime, size: 16),
-               const SizedBox(width: 8),
-               Text('ACTIVE GOAL', style: TextStyle(color: AppColors.golfLime.withValues(alpha: 0.7), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(step?.instruction ?? 'Grind your swing', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-          const SizedBox(height: 24),
-          Row(
-            children: List.generate(step?.ballsRequired ?? 0, (i) => Expanded(
-              child: Container(
-                margin: const EdgeInsets.only(right: 4),
-                height: 6,
-                decoration: BoxDecoration(
-                  color: i < _stepShotCount ? AppColors.golfLime : Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-            )),
-          ),
-        ],
-      ),
+    final step = _steps[_currentStepIndex];
+    return ObHeroCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('STEP ${_currentStepIndex + 1} OF ${_steps.length}', style: Ob.eyebrow()),
+        const SizedBox(height: 8),
+        Text(step.instruction, style: Ob.display(20, height: 1.15)),
+        const SizedBox(height: 16),
+        Row(
+          children: List.generate(step.ballsRequired, (i) => Expanded(
+            child: Container(
+              margin: const EdgeInsets.only(right: 4),
+              height: 6,
+              decoration: BoxDecoration(color: i < _stepShotCount ? Ob.lime : Ob.creamA(.1), borderRadius: BorderRadius.circular(3)),
+            ),
+          )),
+        ),
+      ]),
     );
   }
 
   Widget _buildClubGrid(UnitFormatter formatter) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.1,
-      ),
-      itemCount: _clubs.length,
-      itemBuilder: (context, index) {
-        final club = _clubs[index];
-        final isSelected = _selectedClubId == club.id;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _clubs.map((club) {
+        final on = _selectedClubId == club.id;
         return GestureDetector(
           onTap: () {
             setState(() => _selectedClubId = club.id);
             _updateDistanceForClub(club.id);
             if (widget.isVoice) _openCaddieOrb(club.type);
           },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.emerald700 : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: isSelected ? AppColors.emerald700 : AppColors.grey100, width: 2),
-              boxShadow: isSelected ? [BoxShadow(color: AppColors.emerald700.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4))] : null,
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(club.type, style: TextStyle(color: isSelected ? Colors.white : AppColors.grey900, fontWeight: FontWeight.w900, fontSize: 16)),
-                  const SizedBox(height: 2),
-                  Text(formatter.units.toUpperCase(), style: TextStyle(color: isSelected ? Colors.white.withValues(alpha: 0.6) : AppColors.grey400, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
-                ],
-              ),
-            ),
-          ),
+          child: ObChip(club.type, on: on),
         );
-      },
+      }).toList(),
     );
   }
 
   Widget _buildShotRecorder(UnitFormatter formatter) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 20, offset: const Offset(0, 10))]),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('EST. DISTANCE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1)),
-                    TextField(
-                      controller: _distanceController,
-                      keyboardType: TextInputType.number,
-                      style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: AppColors.grey900, letterSpacing: -1),
-                      decoration: InputDecoration(border: InputBorder.none, suffixText: formatter.units.toLowerCase(), suffixStyle: const TextStyle(fontSize: 16, color: AppColors.grey300, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ),
+    return ObCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('DISTANCE', style: Ob.eyebrow()),
+              TextField(
+                controller: _distanceController,
+                keyboardType: TextInputType.number,
+                cursorColor: Ob.lime,
+                style: Ob.display(38, color: Ob.cream),
+                decoration: InputDecoration(border: InputBorder.none, isDense: true, suffixText: formatter.units.toLowerCase(), suffixStyle: Ob.body(14, color: Ob.creamA(.5))),
               ),
-              Container(height: 50, width: 1, color: const Color(0xFFF2F2F7), margin: const EdgeInsets.symmetric(horizontal: 20)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('DISPERSION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1)),
-                    const SizedBox(height: 8),
-                    DropdownButton<String>(
-                      value: _dispersion,
-                      isExpanded: true,
-                      underline: const SizedBox(),
-                      icon: const Icon(LucideIcons.chevronDown, size: 16, color: AppColors.grey300),
-                      items: ['Left', 'Straight', 'Right'].map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.grey900)))).toList(),
-                      onChanged: (v) => setState(() => _dispersion = v!),
-                    ),
-                  ],
-                ),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('DIRECTION', style: Ob.eyebrow()),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: 180,
+              child: ObGooSegmented<String>(
+                options: const [('Left', 'Left'), ('Straight', 'Str.'), ('Right', 'Right')],
+                selected: _dispersion,
+                onChanged: (v) => setState(() => _dispersion = v),
+                height: 38,
+                fontSize: 12,
               ),
-            ],
-          ),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Divider(height: 1, color: Color(0xFFF2F2F7))),
-          const Text('LOG SHOT QUALITY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              _buildQualityIOSButton('GREAT', AppColors.emerald500),
-              const SizedBox(width: 10),
-              _buildQualityIOSButton('GOOD', AppColors.birdie),
-              const SizedBox(width: 10),
-              _buildQualityIOSButton('OKAY', AppColors.bogey),
-              const SizedBox(width: 10),
-              _buildQualityIOSButton('MISS', AppColors.doubleBogey),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ]),
+        ]),
+        const SizedBox(height: 18),
+        Text('HOW WAS IT?', style: Ob.eyebrow()),
+        const SizedBox(height: 10),
+        Row(children: [
+          _buildQualityIOSButton('GREAT', Ob.lime),
+          const SizedBox(width: 8),
+          _buildQualityIOSButton('GOOD', const Color(0xFF7DD3FC)),
+          const SizedBox(width: 8),
+          _buildQualityIOSButton('OKAY', const Color(0xFFF5C531)),
+          const SizedBox(width: 8),
+          _buildQualityIOSButton('MISS', Ob.warn),
+        ]),
+      ]),
     );
   }
 
   Widget _buildQualityIOSButton(String label, Color color) {
     return Expanded(
-      child: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () => _logShot(label),
+      child: GestureDetector(
+        onTap: () => _logShot(label),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withValues(alpha: 0.15), width: 1.5)),
-          child: Center(child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5))),
+          height: 56,
+          decoration: BoxDecoration(color: color.withValues(alpha: .14), borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withValues(alpha: .35))),
+          child: Center(child: Text(label[0] + label.substring(1).toLowerCase(), style: Ob.body(14, weight: FontWeight.w800, color: color))),
         ),
       ),
     );
   }
 
   Widget _buildBottomActionArea() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFE5E5EA)))),
-      child: Row(
-        children: [
-          Expanded(
-            child: CupertinoButton(
-              onPressed: _endSession,
-              color: AppColors.grey900,
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              borderRadius: BorderRadius.circular(20),
-              child: const Text('Finish Grinding', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white)),
-            ),
-          ),
-        ],
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + MediaQuery.of(context).padding.bottom),
+      child: SizedBox(
+        width: double.infinity,
+        child: ObButton(
+          tone: _shotCount > 0 ? ObButtonTone.lime : ObButtonTone.dark,
+          onPressed: _isEnding ? null : _endSession,
+          child: Text(_isEnding ? 'Saving…' : 'Finish session', style: Ob.label(16, weight: FontWeight.w800)),
+        ),
       ),
     );
   }
