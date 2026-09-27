@@ -5,6 +5,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
+import 'package:add_2_calendar/add_2_calendar.dart';
+import '../onboarding/ob_widgets.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/booking_providers.dart';
 import '../../widgets/profile_image.dart';
@@ -138,7 +140,7 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
     }
   }
 
-  static const _stepTitles = ['Where are you playing?', 'When?', 'Who\'s playing?', 'All good?'];
+  static const _stepTitles = ['Where are you playing?', 'When do you want to play?', 'Who\'s playing?', 'Look right?'];
 
   void _back() {
     if (_currentStep > 0) {
@@ -164,7 +166,7 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
             child: Column(children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                child: ObTopBar('Book a tee time', eyebrow: 'Step ${_currentStep + 1} of 4', onBack: _back),
+                child: ObTopBar('Book a tee time', onBack: _back, actions: [Text('${_currentStep + 1}/4', style: Ob.display(18, color: Ob.creamA(.6)))]),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -312,56 +314,128 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
     ]);
   }
 
+  // Inline player search (step 3).
+  final _playerSearch = TextEditingController();
+  List<Map<String, dynamic>> _found = [];
+  bool _searching = false;
+
+  Future<void> _search(String q) async {
+    if (q.trim().length < 2) {
+      setState(() => _found = []);
+      return;
+    }
+    setState(() => _searching = true);
+    try {
+      final res = await supabase.from('User').select('id, name, avatarUrl').eq('role', 'PLAYER').ilike('name', '%${q.trim()}%').limit(6);
+      final me = supabase.auth.currentUser?.id;
+      if (mounted) {
+        setState(() => _found = List<Map<String, dynamic>>.from(res).where((u) => u['id'] != me && !_guestPlayers.any((g) => g['id'] == u['id'])).toList());
+      }
+    } catch (e) {
+      debugPrint('Player search: $e');
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _playerSearch.dispose();
+    super.dispose();
+  }
+
   Widget _buildPlayerSelection() {
     final me = ref.watch(userProfileProvider).valueOrNull;
-    Widget row(String name, String sub, {VoidCallback? onRemove, bool host = false}) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: ObSelectTile(
-            selected: host,
-            onTap: null,
+    final full = _guestPlayers.length >= 3;
+    final q = _playerSearch.text.trim();
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text('Add up to 3 more to your group.', style: Ob.body(14, color: Ob.creamA(.62))),
+      const SizedBox(height: 12),
+      ObCard(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(children: [
-              ProfileImage(url: host ? me?.avatarUrl : null, name: name, size: 38, isCircle: true),
+              Image.asset(ObBot.ball.idle, width: 44, height: 44),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, style: Ob.body(15, weight: FontWeight.w800)),
-                  Text(sub, style: Ob.body(12, color: Ob.creamA(.55))),
+                  Text(me?.name ?? 'You', style: Ob.body(15, weight: FontWeight.w700)),
+                  Text('You · booking', style: Ob.body(12, color: Ob.creamA(.55))),
                 ]),
               ),
-              if (onRemove != null)
-                IconButton(tooltip: 'Remove $name', onPressed: onRemove, icon: Icon(LucideIcons.x, size: 18, color: Ob.creamA(.6))),
             ]),
           ),
-        );
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('Up to 3 more. They get the booking in their app.', style: Ob.body(14, color: Ob.creamA(.65))),
-      const SizedBox(height: 14),
-      row(me?.name ?? 'You', 'You · booking', host: true),
-      for (final (i, g) in _guestPlayers.indexed)
-        row(g['name'], g['type'] == 'guest' ? 'Guest' : 'On ScoreCaddie', onRemove: () => setState(() => _guestPlayers.removeAt(i))),
-      if (_guestPlayers.length < 3)
-        GestureDetector(
-          onTap: _showPlayerSearchModal,
-          child: Container(
-            height: 56,
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: Ob.lime.withValues(alpha: .4))),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(LucideIcons.userPlus, size: 18, color: Ob.lime),
-              const SizedBox(width: 8),
-              Text('Add a player', style: Ob.body(14, weight: FontWeight.w800, color: Ob.lime)),
-            ]),
+          for (final (i, g) in _guestPlayers.indexed) ...[
+            const ObHair(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(children: [
+                ProfileImage(url: g['avatarUrl'], name: g['name'], size: 40, isCircle: true),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${g['name']}', style: Ob.body(15, weight: FontWeight.w700)),
+                    Text(g['type'] == 'guest' ? 'Guest' : 'On ScoreCaddie', style: Ob.body(12, color: Ob.creamA(.55))),
+                  ]),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() => _guestPlayers.removeAt(i)),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(color: Ob.creamA(.08), shape: BoxShape.circle),
+                    child: const Icon(LucideIcons.x, size: 15, color: Ob.cream),
+                  ),
+                ),
+              ]),
+            ),
+          ],
+        ]),
+      ),
+      if (!full) ...[
+        const SizedBox(height: 12),
+        TextField(
+          controller: _playerSearch,
+          onChanged: _search,
+          cursorColor: Ob.lime,
+          style: Ob.body(15, weight: FontWeight.w600),
+          decoration: obInput(null, hint: 'Search ScoreCaddie players', prefix: Icon(LucideIcons.search, size: 18, color: Ob.creamA(.5))).copyWith(
+            fillColor: Ob.creamA(.05),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Ob.creamA(.14), width: 2)),
           ),
         ),
-      const SizedBox(height: 18),
+        const SizedBox(height: 8),
+        if (_searching) const Padding(padding: EdgeInsets.all(12), child: Center(child: CupertinoActivityIndicator(color: Ob.lime))),
+        for (final u in _found)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _addRow(u['name'] ?? 'Golfer', 'On ScoreCaddie', u['avatarUrl'], () {
+              setState(() {
+                _guestPlayers.add({'id': u['id'], 'name': u['name'] ?? 'Golfer', 'avatarUrl': u['avatarUrl'], 'type': 'app_user'});
+                _found = [];
+                _playerSearch.clear();
+              });
+            }),
+          ),
+        if (q.length >= 2 && !_searching)
+          _addRow('Add "$q" as a guest', 'Not on ScoreCaddie', null, () {
+            setState(() {
+              _guestPlayers.add({'id': null, 'name': q, 'type': 'guest'});
+              _found = [];
+              _playerSearch.clear();
+            });
+          }),
+      ],
+      const SizedBox(height: 12),
       ObCard(
+        padding: const EdgeInsets.fromLTRB(16, 6, 10, 6),
         child: Row(children: [
-          const Icon(LucideIcons.bellRing, color: Ob.lime, size: 20),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Remind me', style: Ob.body(15, weight: FontWeight.w800)),
-              Text('30 minutes before you tee off', style: Ob.body(12, color: Ob.creamA(.55))),
+              Text('Remind me 30 minutes before', style: Ob.body(15, weight: FontWeight.w700)),
+              Text('A push notification before you tee off', style: Ob.body(12, color: Ob.creamA(.55))),
             ]),
           ),
           Switch.adaptive(value: _beNotified, activeTrackColor: Ob.lime, activeThumbColor: Ob.ink, onChanged: (v) => setState(() => _beNotified = v)),
@@ -370,17 +444,36 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
     ]);
   }
 
-  void _showPlayerSearchModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _PlayerSearchSheet(
-        onAddAppUser: (user) => setState(() => _guestPlayers.add({'id': user['id'], 'name': user['name'] ?? 'Golfer', 'type': 'app_user'})),
-        onAddCustomGuest: (name) => setState(() => _guestPlayers.add({'id': null, 'name': name, 'type': 'guest'})),
-      ),
-    );
+  Widget _addRow(String name, String sub, String? avatar, VoidCallback onTap) => ObCard(
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(children: [
+          ProfileImage(url: avatar, name: name, size: 40, isCircle: true),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700)),
+              Text(sub, style: Ob.body(12, color: Ob.creamA(.55))),
+            ]),
+          ),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(color: Ob.lime, shape: BoxShape.circle),
+            child: const Icon(LucideIcons.plus, size: 16, color: Ob.ink),
+          ),
+        ]),
+      );
+
+  String _whenLabel() {
+    if (_selectedDate == null || _selectedTimeSlot == null) return '';
+    final d = _selectedDate!;
+    final today = DateUtils.dateOnly(DateTime.now());
+    final day = DateUtils.isSameDay(d, today) ? 'Today' : (DateUtils.isSameDay(d, today.add(const Duration(days: 1))) ? 'Tomorrow' : DateFormat('EEE d MMM').format(d));
+    return '$day, $_selectedTimeSlot';
   }
+
+  String _whoLabel() => _guestPlayers.isEmpty ? 'Just you' : 'You and ${_guestPlayers.map((g) => (g['name'] as String).split(' ').first).join(', ')}';
 
   Widget _buildConfirmation() {
     final course = _courses.where((c) => c['id'].toString() == _selectedCourseId).firstOrNull;
@@ -388,34 +481,39 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
       return ObCard(child: Text('Something\'s missing. Go back a step.', style: Ob.body(14, color: Ob.creamA(.7))));
     }
     final home = _homeClubs.contains(_selectedCourseId);
+    Widget row(IconData icon, String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, size: 18, color: Ob.lime),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(label, style: Ob.body(12, weight: FontWeight.w700, color: Ob.creamA(.55))),
+                Text(value, style: Ob.body(16, weight: FontWeight.w800)),
+              ]),
+            ),
+          ]),
+        );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ObHeroCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            ObCrest(course['name'].toString(), size: 52),
-            const SizedBox(width: 12),
-            Expanded(child: Text(course['name'].toString(), style: Ob.display(22, height: 1.05))),
-          ]),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: ObStat('Day', DateFormat('EEE d MMM').format(_selectedDate!), valueSize: 20)),
-            Expanded(child: ObStat('Tee off', _selectedTimeSlot!, valueSize: 20, valueColor: Ob.lime)),
-            Expanded(child: ObStat('Players', '${1 + _guestPlayers.length}', valueSize: 20)),
-          ]),
+      ObCard(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(children: [
+          row(LucideIcons.flag, 'Course', course['name'].toString()),
+          const ObHair(),
+          row(LucideIcons.calendar, 'Date and time', _whenLabel()),
+          const ObHair(),
+          row(LucideIcons.users, 'Players', _whoLabel()),
         ]),
       ),
       const SizedBox(height: 12),
-      ObCard(
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(LucideIcons.info, size: 18, color: home ? Ob.lime : const Color(0xFFF5C531)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              home ? 'You pay at the pro shop when you arrive.' : 'Not your home club, so guest rates may apply at the pro shop.',
-              style: Ob.body(13, height: 1.45, color: Ob.creamA(.8)),
-            ),
-          ),
-        ]),
+      Text(
+        home ? 'Green fees are paid at the pro shop.' : 'Green fees are paid at the pro shop. It isn\'t your home club, so guest rates may apply.',
+        style: Ob.body(13, height: 1.5, color: Ob.creamA(.6)),
       ),
     ]);
   }
@@ -440,7 +538,7 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
                   }
                 }
               : null,
-          child: Text(_isLoading ? 'Booking…' : (_currentStep == 3 ? 'Book it' : 'Continue'), style: Ob.label(17, weight: FontWeight.w800)),
+          child: Text(_isLoading ? 'Booking…' : (_currentStep == 3 ? 'Book it' : (_currentStep == 2 ? 'Review booking' : 'Continue')), style: Ob.label(17, weight: FontWeight.w800)),
         ),
       ),
     );
@@ -486,131 +584,76 @@ class _CasualBookingScreenState extends ConsumerState<CasualBookingScreen> {
       
       if (mounted) {
         ref.invalidate(casualTeeTimeBookingsProvider);
-        TopNotification.showSuccess(context, 'You\'re booked in');
-        context.pop();
+        final course = _courses.where((c) => c['id'].toString() == _selectedCourseId).firstOrNull?['name']?.toString() ?? 'the course';
+        final start = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, int.parse(_selectedTimeSlot!.split(':')[0]), int.parse(_selectedTimeSlot!.split(':')[1]));
+        await Navigator.of(context).pushReplacement(MaterialPageRoute(
+          builder: (_) => _BookedScreen(when: _whenLabel(), course: course, who: _whoLabel(), start: start),
+        ));
       }
     } catch (e) {
       debugPrint('Booking Error: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) TopNotification.showError(context, 'Couldn\'t book that slot. Try another time.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 }
 
-class _PlayerSearchSheet extends StatefulWidget {
-  final Function(Map<String, dynamic>) onAddAppUser;
-  final Function(String) onAddCustomGuest;
-
-  const _PlayerSearchSheet({required this.onAddAppUser, required this.onAddCustomGuest});
-
-  @override
-  State<_PlayerSearchSheet> createState() => _PlayerSearchSheetState();
-}
-
-class _PlayerSearchSheetState extends State<_PlayerSearchSheet> {
-  final _searchController = TextEditingController();
-  List<Map<String, dynamic>> _searchResults = [];
-  bool _isSearching = false;
-
-  void _performSearch(String query) async {
-    if (query.isEmpty) {
-      setState(() => _searchResults = []);
-      return;
-    }
-    setState(() => _isSearching = true);
-    
-    try {
-      final supabase = Supabase.instance.client;
-      final res = await supabase
-          .from('User')
-          .select('id, name, avatarUrl')
-          .eq('role', 'PLAYER')
-          .ilike('name', '%$query%')
-          .limit(10);
-          
-      if (mounted) {
-        setState(() {
-          _searchResults = List<Map<String, dynamic>>.from(res);
-          _isSearching = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Search error: $e');
-      if (mounted) setState(() => _isSearching = false);
-    }
-  }
-
-  final _guestController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _guestController.dispose();
-    super.dispose();
-  }
-
-  void _addGuest() {
-    final name = _guestController.text.trim();
-    if (name.isEmpty) return;
-    widget.onAddCustomGuest(name);
-    Navigator.pop(context);
-  }
+class _BookedScreen extends StatelessWidget {
+  const _BookedScreen({required this.when, required this.course, required this.who, required this.start});
+  final String when, course, who;
+  final DateTime start;
 
   @override
   Widget build(BuildContext context) {
-    return ObSheet(
-      title: 'Add a player',
-      height: MediaQuery.of(context).size.height * .8,
-      child: ListView(children: [
-        TextField(
-          controller: _searchController,
-          onChanged: _performSearch,
-          cursorColor: Ob.lime,
-          style: Ob.body(15, weight: FontWeight.w600),
-          decoration: obInput(null, hint: 'Search ScoreCaddie players', prefix: Icon(LucideIcons.search, size: 18, color: Ob.creamA(.5))),
-        ),
-        const SizedBox(height: 12),
-        if (_isSearching)
-          const Padding(padding: EdgeInsets.all(20), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
-        else if (_searchResults.isEmpty && _searchController.text.isNotEmpty)
-          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text('Nobody by that name. Add them as a guest below.', style: Ob.body(13, color: Ob.creamA(.6))))
-        else
-          for (final u in _searchResults)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: ObSelectTile(
-                selected: false,
-                onTap: () {
-                  widget.onAddAppUser(u);
-                  Navigator.pop(context);
-                },
-                child: Row(children: [
-                  ProfileImage(url: u['avatarUrl'], name: u['name'], size: 38, isCircle: true),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text('${u['name'] ?? 'Golfer'}', style: Ob.body(15, weight: FontWeight.w700))),
-                  const Icon(LucideIcons.plus, size: 18, color: Ob.lime),
+    return Scaffold(
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Column(children: [
+              const Spacer(),
+              SizedBox(
+                width: 220,
+                height: 200,
+                child: Stack(alignment: Alignment.center, children: [
+                  Container(width: 140, height: 140, decoration: const BoxDecoration(color: Ob.roleFill, shape: BoxShape.circle)),
+                  Image.asset(ObBot.ball.happy, width: 160, height: 160),
                 ]),
               ),
-            ),
-        const SizedBox(height: 16),
-        const ObEyebrow('Not on ScoreCaddie?'),
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(
-            child: TextField(
-              controller: _guestController,
-              cursorColor: Ob.lime,
-              textCapitalization: TextCapitalization.words,
-              style: Ob.body(15, weight: FontWeight.w600),
-              decoration: obInput(null, hint: 'Guest\'s name'),
-              onSubmitted: (_) => _addGuest(),
-            ),
+              Text('YOU\'RE BOOKED', style: Ob.eyebrow()),
+              const SizedBox(height: 8),
+              Text(when, textAlign: TextAlign.center, style: Ob.display(38, height: 1.05)),
+              const SizedBox(height: 10),
+              Text('$course, 1st tee. ${who == 'Just you' ? '' : 'We\'ve told the others.'}', textAlign: TextAlign.center, style: Ob.body(15, height: 1.5, color: Ob.creamA(.7))),
+              const Spacer(),
+              Row(children: [
+                Expanded(
+                  child: ObButton(
+                    tone: ObButtonTone.dark,
+                    onPressed: () => Add2Calendar.addEvent2Cal(Event(title: 'Golf at $course', location: course, startDate: start, endDate: start.add(const Duration(hours: 4, minutes: 30)))),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(LucideIcons.calendarPlus, size: 18, color: Ob.cream),
+                      const SizedBox(width: 6),
+                      Flexible(child: Text('Add to calendar', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.label(15, weight: FontWeight.w800))),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ObButton(
+                    onPressed: () => context.pushReplacement('/tee-times'),
+                    child: Text('My tee times', style: Ob.label(16, weight: FontWeight.w800)),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 16),
+            ]),
           ),
-          const SizedBox(width: 8),
-          ObButton(height: 50, padding: const EdgeInsets.symmetric(horizontal: 16), onPressed: _addGuest, child: Text('Add', style: Ob.label(15, weight: FontWeight.w800))),
-        ]),
-      ]),
+        ),
+      ),
     );
   }
 }

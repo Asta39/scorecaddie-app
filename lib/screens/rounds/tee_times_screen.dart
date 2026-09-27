@@ -18,27 +18,16 @@ DateTime teeDateTime(CasualTeeTimeBooking b) {
   return DateTime(b.bookingDate.year, b.bookingDate.month, b.bookingDate.day, h, m);
 }
 
-enum _When { upcoming, past }
-
-class TeeTimesScreen extends ConsumerStatefulWidget {
+class TeeTimesScreen extends ConsumerWidget {
   const TeeTimesScreen({super.key});
 
   @override
-  ConsumerState<TeeTimesScreen> createState() => _TeeTimesScreenState();
-}
-
-class _TeeTimesScreenState extends ConsumerState<TeeTimesScreen> {
-  _When _when = _When.upcoming;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(casualTeeTimeBookingsProvider);
     final now = DateTime.now();
     final all = async.valueOrNull ?? const <CasualTeeTimeBooking>[];
     final upcoming = all.where((b) => teeDateTime(b).isAfter(now) && b.status != 'CANCELLED').toList()..sort((a, b) => teeDateTime(a).compareTo(teeDateTime(b)));
     final past = all.where((b) => !upcoming.contains(b)).toList()..sort((a, b) => teeDateTime(b).compareTo(teeDateTime(a)));
-    final shown = _when == _When.upcoming ? upcoming : past;
-    final next = upcoming.firstOrNull;
 
     return Scaffold(
       backgroundColor: Ob.bg,
@@ -54,47 +43,60 @@ class _TeeTimesScreenState extends ConsumerState<TeeTimesScreen> {
               physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
               children: [
-                ObTopBar('Tee times', onBack: () => context.pop(), actions: [
+                ObTopBar('My tee times', onBack: () => context.pop(), actions: [
                   ObIconButton(icon: LucideIcons.plus, label: 'Book a tee time', onPressed: () => context.push('/book-tee-time')),
                 ]),
-                const SizedBox(height: 16),
-                if (next != null) ...[
-                  _NextCard(booking: next).rise(),
-                  const SizedBox(height: 16),
-                ],
-                ObGooSegmented<_When>(
-                  options: [(_When.upcoming, 'Upcoming · ${upcoming.length}'), (_When.past, 'Past · ${past.length}')],
-                  selected: _when,
-                  onChanged: (v) => setState(() => _when = v),
-                ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 18),
+                const ObEyebrow('Coming up'),
+                const SizedBox(height: 10),
                 if (async.isLoading && all.isEmpty)
                   const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
                 else if (async.hasError && all.isEmpty)
                   ObCard(child: Text('Couldn\'t load your tee times. Pull down to try again.', style: Ob.body(14, color: Ob.creamA(.7))))
-                else if (shown.isEmpty)
+                else if (upcoming.isEmpty)
                   ObCard(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(18),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      ObGuideRow(
-                        botAsset: ObBot.ball.idle,
-                        botLabel: 'Your golf-ball avatar',
-                        text: _when == _When.upcoming ? 'Nothing booked. Grab a slot?' : 'Tee times you\'ve played show up here.',
-                        size: 72,
-                        fontSize: 16,
-                      ),
-                      if (_when == _When.upcoming) ...[
-                        const SizedBox(height: 16),
-                        ObButton(
-                          onPressed: () => context.push('/book-tee-time'),
-                          child: Text('Book a tee time', style: Ob.label(15, weight: FontWeight.w800)),
-                        ),
-                      ],
+                      ObGuideRow(botAsset: ObBot.ball.idle, botLabel: 'Your golf-ball avatar', text: 'Nothing booked. Grab a slot?', size: 72, fontSize: 16),
+                      const SizedBox(height: 14),
+                      ObButton(onPressed: () => context.push('/book-tee-time'), child: Text('Book a tee time', style: Ob.label(15, weight: FontWeight.w800))),
                     ]),
                   )
                 else
-                  for (final b in shown.where((b) => b != next || _when == _When.past))
-                    Padding(padding: const EdgeInsets.only(bottom: 10), child: _Row(booking: b)),
+                  for (final b in upcoming) Padding(padding: const EdgeInsets.only(bottom: 10), child: _Upcoming(booking: b).rise()),
+                if (past.isNotEmpty) ...[
+                  const SizedBox(height: 22),
+                  const ObEyebrow('Past and cancelled'),
+                  const SizedBox(height: 10),
+                  ObCard(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(children: [
+                      for (final (i, b) in past.indexed) ...[
+                        if (i > 0) const ObHair(),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Row(children: [
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(
+                                  DateFormat('EEE d MMM · HH:mm').format(teeDateTime(b)),
+                                  style: Ob.body(14, weight: FontWeight.w700, color: b.status == 'CANCELLED' ? Ob.creamA(.45) : Ob.cream).copyWith(
+                                    decoration: b.status == 'CANCELLED' ? TextDecoration.lineThrough : null,
+                                  ),
+                                ),
+                                Text(b.courseName, style: Ob.body(12, color: Ob.creamA(.55))),
+                              ]),
+                            ),
+                            Text(
+                              b.status == 'CANCELLED' ? 'Cancelled' : 'Played',
+                              style: Ob.body(12, weight: FontWeight.w800, color: b.status == 'CANCELLED' ? Ob.warn : Ob.creamA(.55)),
+                            ),
+                          ]),
+                        ),
+                      ],
+                    ]),
+                  ),
+                ],
               ],
             ),
           ),
@@ -104,58 +106,35 @@ class _TeeTimesScreenState extends ConsumerState<TeeTimesScreen> {
   }
 }
 
-class _NextCard extends StatelessWidget {
-  const _NextCard({required this.booking});
+class _Upcoming extends StatelessWidget {
+  const _Upcoming({required this.booking});
   final CasualTeeTimeBooking booking;
 
   @override
   Widget build(BuildContext context) {
     final at = teeDateTime(booking);
-    final days = DateUtils.dateOnly(at).difference(DateUtils.dateOnly(DateTime.now())).inDays;
-    final when = days == 0 ? 'TODAY' : (days == 1 ? 'TOMORROW' : 'IN $days DAYS');
-    return ObHeroCard(
-      child: Row(children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('NEXT UP · $when', style: Ob.eyebrow()),
-            const SizedBox(height: 6),
-            Text(DateFormat.Hm().format(at), style: Ob.display(48, color: Ob.lime, height: 1)),
-            const SizedBox(height: 4),
-            Text(DateFormat('EEEE d MMMM').format(at), style: Ob.body(14, weight: FontWeight.w700)),
-            Text(booking.courseName, style: Ob.body(13, color: Ob.creamA(.6))),
-          ]),
-        ),
-        ObCrest(booking.courseName, size: 64, radius: 18),
-      ]),
-    );
-  }
-}
-
-class _Row extends StatelessWidget {
-  const _Row({required this.booking});
-  final CasualTeeTimeBooking booking;
-
-  @override
-  Widget build(BuildContext context) {
-    final at = teeDateTime(booking);
-    final cancelled = booking.status == 'CANCELLED';
     return ObCard(
       padding: const EdgeInsets.all(14),
       child: Row(children: [
-        ObCrest(booking.courseName, size: 46),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(booking.courseName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w800, color: cancelled ? Ob.creamA(.5) : Ob.cream)),
-            Text(DateFormat('EEE d MMM · HH:mm').format(at), style: Ob.body(12, color: Ob.creamA(.55))),
+        Container(
+          width: 56,
+          height: 62,
+          decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(16)),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(DateFormat('EEE').format(at).toUpperCase(), style: Ob.body(11, weight: FontWeight.w800, color: Ob.lime)),
+            Text('${at.day}', style: Ob.display(26, height: 1, color: Ob.lime)),
           ]),
         ),
-        if (cancelled)
-          const ObChip('Cancelled', on: true, color: Ob.warn)
-        else if (booking.paymentStatus.toUpperCase() == 'PAID')
-          const ObChip('Paid', on: true)
-        else
-          ObChip(booking.status.isEmpty ? 'Booked' : booking.status[0] + booking.status.substring(1).toLowerCase()),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(DateFormat.Hm().format(at), style: Ob.display(22, height: 1)),
+            const SizedBox(height: 3),
+            Text(booking.courseName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(13, weight: FontWeight.w700)),
+            Text(booking.paymentStatus.toUpperCase() == 'PAID' ? 'Paid' : 'Pay at the pro shop', style: Ob.body(12, color: Ob.creamA(.55))),
+          ]),
+        ),
+        ObCrest(booking.courseName, size: 40),
       ]),
     );
   }
