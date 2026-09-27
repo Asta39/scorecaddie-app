@@ -1609,309 +1609,153 @@ class _WHSAuditContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final roundsAsync = ref.watch(last20RoundsProvider);
+    final async = ref.watch(last20RoundsProvider);
+    final rounds = async.valueOrNull ?? const <RoundWithTee>[];
+    final best = status.bestRoundIds;
+    final bestDiffs = [for (final r in rounds) if (best.contains(r.round.id) && r.round.scoreDifferential != null) r.round.scoreDifferential!];
+    final toBeat = bestDiffs.isEmpty ? null : bestDiffs.reduce((a, b) => a > b ? a : b);
+    final df = DateFormat('d MMM');
 
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: roundsAsync.when(
-        data: (rounds) => ListView(
+      decoration: const BoxDecoration(color: Ob.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+      child: DefaultTextStyle(
+        style: Ob.textBase,
+        child: ListView(
           controller: scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
           children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: AppColors.grey200,
-                  borderRadius: BorderRadius.circular(2.5),
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Ob.creamA(.2), borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Text('How your index works', style: Ob.display(26)),
+            const SizedBox(height: 14),
+            ObHeroCard(
+              child: Row(children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('HANDICAP INDEX', style: Ob.eyebrow()),
+                    Text(status.currentIndex?.toStringAsFixed(1) ?? '—', style: Ob.display(52, color: Ob.lime, height: 1)),
+                  ]),
                 ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildAuditHeader(status),
-            const SizedBox(height: 32),
-            _buildFormulaBlock(),
-            const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('ROUNDS USED IN CALCULATION (8 of 20)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.grey500, letterSpacing: 1.0)),
-              ],
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text('Low, last year', style: Ob.body(11, color: Ob.creamA(.55))),
+                  Text(status.lowIndex?.toStringAsFixed(1) ?? '—', style: Ob.display(24)),
+                ]),
+              ]),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildLegendItem(true, 'Used in calc'),
-                const SizedBox(width: 16),
-                _buildLegendItem(false, 'Not used'),
-              ],
+            ObCard(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                ObEyebrow('Best ${best.length} of your last ${rounds.length}'),
+                const SizedBox(height: 12),
+                if (async.isLoading && rounds.isEmpty)
+                  const Center(child: CupertinoActivityIndicator(color: Ob.lime))
+                else if (rounds.isEmpty)
+                  Text('Finish a round with a marker and its differential lands here.', style: Ob.body(13, color: Ob.creamA(.6)))
+                else
+                  GridView.count(
+                    crossAxisCount: 5,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1.25,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      for (final r in rounds)
+                        Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: best.contains(r.round.id) ? Ob.lime : Ob.creamA(.06),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            r.round.scoreDifferential?.toStringAsFixed(1) ?? '—',
+                            style: Ob.display(15, color: best.contains(r.round.id) ? Ob.ink : Ob.creamA(.55)),
+                          ),
+                        ),
+                    ],
+                  ),
+                if (toBeat != null) ...[
+                  const SizedBox(height: 12),
+                  Text.rich(
+                    TextSpan(children: [
+                      TextSpan(text: 'Your index comes from the lime differentials. Beat '),
+                      TextSpan(text: toBeat.toStringAsFixed(1), style: Ob.body(13, weight: FontWeight.w800, color: Ob.lime)),
+                      const TextSpan(text: ' and one of them drops out.'),
+                    ]),
+                    style: Ob.body(13, height: 1.45, color: Ob.creamA(.62)),
+                  ),
+                ],
+              ]),
             ),
-            const SizedBox(height: 24),
-            ...rounds.map((r) => _buildRoundRow(r, status.bestRoundIds.contains(r.round.id))),
-            const SizedBox(height: 32),
-            _buildArithmeticBreakdown(rounds, status),
-            const SizedBox(height: 40),
-          ],
-        ),
-        loading: () => const Center(child: CupertinoActivityIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-      ),
-    );
-  }
-
-  Widget _buildAuditHeader(HandicapStatus status) {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: AppColors.emerald900,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.emerald900.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('CURRENT INDEX', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
-                const SizedBox(height: 6),
-                Text(
-                  status.currentIndex?.toStringAsFixed(1) ?? '—', 
-                  style: const TextStyle(color: AppColors.golfLime, fontSize: 42, fontWeight: FontWeight.w900, letterSpacing: -1.5)
-                ),
-              ],
-            ),
-          ),
-          Container(width: 1, height: 50, color: Colors.white10),
-          const SizedBox(width: 24),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text('LOW (365 DAYS)', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
-              const SizedBox(height: 6),
-              Text(
-                status.lowIndex?.toStringAsFixed(1) ?? '—', 
-                style: const TextStyle(color: AppColors.golfLime, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)
+            if (status.bestSum != null) ...[
+              const SizedBox(height: 12),
+              ObCard(
+                child: Column(children: [
+                  _line('Sum of the best ${best.length}', status.bestSum!.toStringAsFixed(1)),
+                  _line('Average', status.bestAverage!.toStringAsFixed(2)),
+                  _line('× 0.96', status.bestAverageWithMultiplier!.toStringAsFixed(2)),
+                  _line('Capped for a big jump?', (status.currentIndex ?? 0) != status.bestAverageWithMultiplier ? 'Yes' : 'No'),
+                  const ObHair(),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: Text('Handicap index', style: Ob.body(16, weight: FontWeight.w800))),
+                    Text(status.currentIndex?.toStringAsFixed(1) ?? '—', style: Ob.display(26, color: Ob.lime)),
+                  ]),
+                ]),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFormulaBlock() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('WHS FORMULA', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.grey500, letterSpacing: 1.0)),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: AppColors.grey50,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: AppColors.grey100),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Diff = (Gross - Course Rating) × 113 / Slope',
-                style: TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w900, color: AppColors.emerald700, fontSize: 12),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Index = avg of best 8 of 20 diffs × 0.96',
-                style: TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w900, color: AppColors.emerald700, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                '20 most recent rounds are ranked by score differential. The best 8 are averaged, then multiplied by 0.96 to produce your handicap index.',
-                style: TextStyle(color: AppColors.grey600, fontSize: 13, height: 1.5, fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLegendItem(bool isUsed, String label) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: isUsed ? AppColors.emerald500 : Colors.transparent,
-            shape: BoxShape.circle,
-            border: isUsed ? null : Border.all(color: AppColors.grey400, width: 1.5),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(color: AppColors.grey500, fontSize: 11, fontWeight: FontWeight.w600)),
-      ],
-    );
-  }
-
-  Widget _buildRoundRow(RoundWithTee item, bool isBest) {
-    final round = item.round;
-    final tee = item.tee;
-    final df = DateFormat('d MMM yyyy');
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: isBest ? AppColors.emerald500 : Colors.transparent,
-              shape: BoxShape.circle,
-              border: isBest ? null : Border.all(color: AppColors.grey400, width: 1.5),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(round.courseName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.grey900)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(df.format(round.playedAt), style: const TextStyle(color: AppColors.grey400, fontSize: 12, fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 8),
-                    Container(width: 3, height: 3, decoration: const BoxDecoration(color: AppColors.grey300, shape: BoxShape.circle)),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Par ${tee?.par ?? 72} · Slope ${tee?.slopeRating ?? '—'}', 
-                      style: const TextStyle(color: AppColors.grey400, fontSize: 12, fontWeight: FontWeight.w600)
+            if (rounds.isNotEmpty) ...[
+              const SizedBox(height: 22),
+              const ObEyebrow('The rounds'),
+              const SizedBox(height: 10),
+              ObCard(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(children: [
+                  for (final (i, r) in rounds.indexed) ...[
+                    if (i > 0) const ObHair(),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: best.contains(r.round.id) ? Ob.lime : Colors.transparent,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: best.contains(r.round.id) ? Ob.lime : Ob.creamA(.35), width: 1.5),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(r.round.courseName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(14, weight: FontWeight.w700)),
+                            Text('${df.format(r.round.playedAt)} · ${r.round.adjustedGrossScore ?? r.round.totalScore} adj. gross · slope ${r.tee?.slopeRating ?? '—'}',
+                                style: Ob.body(11, color: Ob.creamA(.5))),
+                          ]),
+                        ),
+                        Text(r.round.scoreDifferential?.toStringAsFixed(1) ?? '—',
+                            style: Ob.display(18, color: best.contains(r.round.id) ? Ob.lime : Ob.creamA(.6))),
+                      ]),
                     ),
                   ],
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    '${round.adjustedGrossScore ?? round.totalScore}',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.grey500),
-                  ),
-                  const SizedBox(width: 4),
-                  const Text('gross', style: TextStyle(color: AppColors.grey400, fontSize: 10, fontWeight: FontWeight.w600)),
-                ],
+                ]),
               ),
             ],
-          ),
-          const SizedBox(width: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: isBest ? const Color(0xFFE0F2F1) : AppColors.grey50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              children: [
-                const Text('DIFF', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: AppColors.grey400)),
-                Text(
-                  (round.scoreDifferential != null) 
-                    ? (round.scoreDifferential! > 0 ? '+' : '') + round.scoreDifferential!.toStringAsFixed(1)
-                    : '—',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900, 
-                    fontSize: 14, 
-                    color: isBest ? const Color(0xFF00796B) : AppColors.grey900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text('Each differential: (adjusted gross − course rating) × 113 ÷ slope.', style: Ob.body(12, height: 1.45, color: Ob.creamA(.5))),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildArithmeticBreakdown(List<RoundWithTee> rounds, HandicapStatus status) {
-    if (status.bestSum == null) return const SizedBox.shrink();
-    
-    final bestCount = status.bestRoundIds.length;
-
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: AppColors.grey900,
-        borderRadius: BorderRadius.circular(32),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _breakdownRow('Sum of $bestCount best diffs', status.bestSum!.toStringAsFixed(1)),
-          _breakdownDivider(),
-          _breakdownRow('Average (÷ $bestCount)', status.bestAverage!.toStringAsFixed(2)),
-          _breakdownDivider(),
-          _breakdownRow('× 0.96 multiplier', status.bestAverageWithMultiplier!.toStringAsFixed(2)),
-          _breakdownDivider(),
-          _breakdownRow('Soft cap applied?', (status.currentIndex ?? 0) != status.bestAverageWithMultiplier ? 'Yes' : 'No'),
-          _breakdownDivider(),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Handicap index', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
-              Text(
-                status.currentIndex?.toStringAsFixed(1) ?? '—', 
-                style: const TextStyle(color: AppColors.golfLime, fontSize: 24, fontWeight: FontWeight.w900)
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _breakdownRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white60, fontSize: 14, fontWeight: FontWeight.w600)),
-          Text(
-            value, 
-            style: const TextStyle(
-              color: AppColors.golfLime, 
-              fontSize: 16, 
-              fontWeight: FontWeight.w900,
-            )
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _breakdownDivider() => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 16),
-    child: Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
-  );
+  Widget _line(String k, String v) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(children: [
+          Expanded(child: Text(k, style: Ob.body(14, color: Ob.creamA(.65)))),
+          Text(v, style: Ob.body(15, weight: FontWeight.w800)),
+        ]),
+      );
 }
 
 class _CaddieProfileSection extends StatelessWidget {
