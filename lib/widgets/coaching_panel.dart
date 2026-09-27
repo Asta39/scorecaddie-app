@@ -5,6 +5,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme/app_theme.dart';
+import '../screens/onboarding/ob_style.dart';
+import '../screens/onboarding/ob_widgets.dart';
 import '../core/models/coaching_summary.dart';
 import '../providers/app_providers.dart';
 import '../core/utils/calendar_helper.dart';
@@ -45,7 +47,7 @@ class _CoachingPanelState extends ConsumerState<CoachingPanel> with SingleTicker
         }
 
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -76,15 +78,13 @@ class _CoachingPanelState extends ConsumerState<CoachingPanel> with SingleTicker
           children: [
             Text(
               'Coaching',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Ob.display(22),
             ),
             if (summary.upcomingCount > 0)
               Text(
                 '${summary.upcomingCount} sessions booked',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.grey500,
+                      color: Ob.creamA(.55),
                     ),
               ),
           ],
@@ -95,7 +95,7 @@ class _CoachingPanelState extends ConsumerState<CoachingPanel> with SingleTicker
           },
           icon: const Icon(LucideIcons.calendar, size: 20),
           style: IconButton.styleFrom(
-            backgroundColor: AppColors.grey100,
+            backgroundColor: Ob.cardFill,
             padding: const EdgeInsets.all(8),
           ),
         ),
@@ -245,14 +245,14 @@ class _CoachingPanelState extends ConsumerState<CoachingPanel> with SingleTicker
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: AppColors.grey100,
+        color: Ob.cardFill,
         borderRadius: BorderRadius.circular(12),
       ),
       child: TabBar(
         controller: _tabController,
         dividerColor: Colors.transparent,
         indicator: BoxDecoration(
-          color: Theme.of(context).cardTheme.color ?? Colors.white,
+          color: Ob.bg,
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
@@ -264,7 +264,7 @@ class _CoachingPanelState extends ConsumerState<CoachingPanel> with SingleTicker
         ),
         indicatorSize: TabBarIndicatorSize.tab,
         labelColor: AppColors.golfLime,
-        unselectedLabelColor: AppColors.grey500,
+        unselectedLabelColor: Ob.creamA(.55),
         labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         tabs: const [
           Tab(text: 'Upcoming'),
@@ -361,11 +361,11 @@ class _CoachingPanelState extends ConsumerState<CoachingPanel> with SingleTicker
           ),
           title: Text(
             item.sessionName,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Ob.cream),
           ),
           subtitle: Text(
             '${DateFormat('MMM d').format(item.date)} • ${item.startTime}',
-            style: const TextStyle(color: AppColors.grey500, fontSize: 13),
+            style: TextStyle(color: Ob.creamA(.55), fontSize: 13),
           ),
           trailing: trailingWidget,
           onTap: () => context.push('/coaching/session/${item.sessionId}'),
@@ -384,9 +384,9 @@ class _CoachingPanelState extends ConsumerState<CoachingPanel> with SingleTicker
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.grey50,
+          color: Ob.cardFill,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.grey200),
+          border: Border.all(color: Ob.cardFill),
         ),
         child: Row(
           children: [
@@ -399,17 +399,17 @@ class _CoachingPanelState extends ConsumerState<CoachingPanel> with SingleTicker
               child: const Icon(LucideIcons.search, color: AppColors.golfLime, size: 18),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Book a New Lesson',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Ob.cream),
                   ),
                   Text(
                     'Explore pros at your local club',
-                    style: TextStyle(color: AppColors.grey500, fontSize: 12),
+                    style: TextStyle(color: Ob.creamA(.55), fontSize: 12),
                   ),
                 ],
               ),
@@ -449,44 +449,32 @@ class _EmptyState extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.grey50,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.grey200, style: BorderStyle.solid),
-      ),
-      child: Column(
-        children: [
-          const Icon(LucideIcons.graduationCap, size: 48, color: AppColors.grey300),
-          const SizedBox(height: 16),
-          const Text(
-            'Start Professional Coaching',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Improve your game with expert guidance. Book your first session today.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.grey500, fontSize: 14),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              ref.read(marketplaceRoleFilterProvider.notifier).state = 'coach';
-              context.go('/caddie', extra: {'role': 'coach'});
-            },
-            icon: const Icon(LucideIcons.search, size: 18),
-            label: const Text('Find a Coach'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.golfLime,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(24)),
+      child: Row(children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)),
+          child: const Icon(LucideIcons.graduationCap, color: Ob.lime, size: 22),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Get a coach', style: Ob.body(16, weight: FontWeight.w800)),
+            Text('Book a session and see it here.', style: Ob.body(12, color: Ob.creamA(.6))),
+          ]),
+        ),
+        ObButton(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          onPressed: () {
+            ref.read(marketplaceRoleFilterProvider.notifier).state = 'coach';
+            context.go('/caddie', extra: {'role': 'coach'});
+          },
+          child: Text('Find', style: Ob.label(14, weight: FontWeight.w800)),
+        ),
+      ]),
     );
   }
 }
@@ -497,10 +485,10 @@ class _LoadingShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(vertical: 8),
       height: 200,
       decoration: BoxDecoration(
-        color: AppColors.grey100,
+        color: Ob.cardFill,
         borderRadius: BorderRadius.circular(24),
       ),
       child: const Center(child: CircularProgressIndicator()),

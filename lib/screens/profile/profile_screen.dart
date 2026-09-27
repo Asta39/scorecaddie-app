@@ -21,6 +21,9 @@ import '../../widgets/profile_image.dart';
 import '../../widgets/top_notification.dart';
 import '../../widgets/coaching_panel.dart';
 import '../../widgets/loading_spinner.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -82,6 +85,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(userProfileProvider);
     final statsAsync = ref.watch(advancedStatsProvider);
+    final role = profileAsync.valueOrNull?.role;
+    if (profileAsync.hasValue && role != 'coach' && role != 'caddie') {
+      return _buildDarkPlayer(context, profileAsync.valueOrNull, statsAsync.valueOrNull);
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -653,6 +660,174 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     padding: EdgeInsets.only(left: 64),
     child: Divider(height: 1),
   );
+
+  // ── Player profile (dark goo design) ──────────────────────────────────────
+
+  Widget _buildDarkPlayer(BuildContext context, UserProfile? profile, AdvancedStats? stats) {
+    final hs = ref.watch(handicapProvider).valueOrNull;
+    final index = hs?.currentIndex ?? profile?.handicap;
+    final earned = _parseBadges(profile?.badgesJson);
+    final all = Achievement.allAchievements;
+    final shown = [...all.where((a) => earned.contains(a.id)), ...all.where((a) => !earned.contains(a.id))].take(8).toList();
+
+    return Scaffold(
+      backgroundColor: Ob.bg,
+      body: AnnotatedRegion(
+        value: Ob.overlay,
+        child: DefaultTextStyle(
+          style: Ob.textBase,
+          child: ListView(
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            children: [
+              ObTabHeader('Profile', actions: [
+                ObIconButton(icon: LucideIcons.qrCode, label: 'My friend code', onPressed: () => _showQRCodeDialog(profile)),
+                ObIconButton(icon: LucideIcons.settings, label: 'Settings', onPressed: () => context.push('/profile/settings')),
+              ]).rise(),
+              const SizedBox(height: 20),
+              Row(children: [
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: Stack(children: [
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(color: Ob.lime, shape: BoxShape.circle),
+                      child: ProfileImage(url: _imageFile?.path ?? profile?.avatarUrl, name: profile?.name, size: 84, isCircle: true),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: Ob.cardFill, shape: BoxShape.circle, border: Border.all(color: Ob.bg, width: 2)),
+                        child: const Icon(LucideIcons.camera, size: 14, color: Ob.cream),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(profile?.name ?? 'Golfer', maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.display(28, height: 1.05)),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: _showCoursePicker,
+                      child: Row(children: [
+                        Icon(LucideIcons.mapPin, size: 14, color: Ob.creamA(.6)),
+                        const SizedBox(width: 4),
+                        Flexible(child: Text(profile?.homeCourseName ?? 'Set home course', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(13, color: Ob.creamA(.6)))),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]).rise(),
+              const SizedBox(height: 20),
+              ObHeroCard(
+                onTap: hs == null ? null : () => _showWHSAuditSheet(context, hs),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('HANDICAP INDEX', style: Ob.eyebrow()),
+                      const SizedBox(height: 6),
+                      Text(index == null ? 'Pending' : index.toStringAsFixed(1), style: Ob.display(52, color: Ob.lime, height: 1)),
+                      if (hs?.lowIndex != null)
+                        Text('Low ${hs!.lowIndex!.toStringAsFixed(1)} · last 365 days', style: Ob.body(12, color: Ob.creamA(.6))),
+                    ]),
+                  ),
+                  Column(children: [
+                    Icon((hs?.trend ?? 0) <= 0 ? LucideIcons.trendingDown : LucideIcons.trendingUp, color: (hs?.trend ?? 0) <= 0 ? Ob.lime : Ob.warn, size: 26),
+                    const SizedBox(height: 4),
+                    Text((hs?.trend ?? 0) < 0 ? 'Improving' : 'Steady', style: Ob.body(12, weight: FontWeight.w700)),
+                    const SizedBox(height: 8),
+                    Text('WHS audit ›', style: Ob.body(11, color: Ob.creamA(.5))),
+                  ]),
+                ]),
+              ).rise(),
+              const SizedBox(height: 12),
+              ObSplitCards(
+                left: ObStat('Rounds', stats?.roundsPlayed.toString() ?? '0'),
+                right: ObStat('Best · Avg', '${stats?.bestScoreString ?? '—'} · ${stats?.avgScoreString ?? '—'}', valueSize: 24),
+              ).rise(),
+              const SizedBox(height: 24),
+              ObEyebrow('Achievements · ${earned.length}/${all.length}', action: 'See all', onAction: () => context.push('/achievements')),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 128,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  clipBehavior: Clip.none,
+                  itemCount: shown.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                  itemBuilder: (_, i) {
+                    final a = shown[i];
+                    final on = earned.contains(a.id);
+                    return GestureDetector(
+                      onTap: () => context.push('/achievements'),
+                      child: SizedBox(
+                        width: 88,
+                        child: Column(children: [
+                          Image.asset(on ? a.avatarAsset : a.lockedAvatarAsset, width: 80, height: 80, errorBuilder: (_, _, _) => Icon(a.icon, size: 40, color: Ob.creamA(.4))),
+                          const SizedBox(height: 6),
+                          Text(a.title, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: Ob.body(11, weight: FontWeight.w700, color: on ? Ob.cream : Ob.creamA(.45), height: 1.2)),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              const CoachingPanel(),
+              const SizedBox(height: 16),
+              ObEyebrow('Account'),
+              const SizedBox(height: 10),
+              ObCard(
+                padding: EdgeInsets.zero,
+                child: Column(children: [
+                  _darkRow(LucideIcons.briefcase, 'My bag', 'Clubs and distances', () => context.push('/profile/bag')),
+                  const ObHair(),
+                  _darkRow(LucideIcons.users, 'Friends', 'Connect with others', () => context.push('/profile/friends')),
+                  const ObHair(),
+                  _darkRow(LucideIcons.award, 'Achievements', '${earned.length} earned', () => context.push('/achievements')),
+                  const ObHair(),
+                  _darkRow(LucideIcons.settings, 'Settings', 'Privacy, notifications, units', () => context.push('/profile/settings')),
+                  const ObHair(),
+                  _darkRow(LucideIcons.logOut, 'Sign out', null, () async {
+                    await ref.read(supabaseAuthServiceProvider).signOut();
+                    if (context.mounted) context.go('/auth');
+                  }, color: Ob.warn),
+                ]),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _darkRow(IconData icon, String title, String? sub, VoidCallback onTap, {Color? color}) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(color: (color ?? Ob.lime).withValues(alpha: .12), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, size: 18, color: color ?? Ob.lime),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: Ob.body(15, weight: FontWeight.w700, color: color ?? Ob.cream)),
+              if (sub != null) Text(sub, style: Ob.body(12, color: Ob.creamA(.55))),
+            ]),
+          ),
+          Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
+        ]),
+      ),
+    );
+  }
 
   Widget _buildPlayerProfile(BuildContext context, UserProfile? profile, AdvancedStats? stats) {
     return SingleChildScrollView(
