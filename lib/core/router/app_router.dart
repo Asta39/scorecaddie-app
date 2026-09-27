@@ -26,6 +26,7 @@ import '../../screens/rounds/casual_booking_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 import '../../screens/profile/settings_screen.dart';
 import '../../screens/profile/clubs_screen.dart';
+import '../../screens/profile/memberships_screen.dart';
 import '../../screens/rounds/tee_times_screen.dart';
 import '../../screens/social/friends_screen.dart';
 import '../../screens/restaurant/restaurant_screen.dart';
@@ -370,6 +371,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/practice/drills/new',
         builder: (context, state) => const CustomDrillBuilderScreen(),
+      ),
+      GoRoute(
+        path: '/profile/clubs',
+        builder: (context, state) => const MembershipsScreen(),
       ),
       GoRoute(
         path: '/profile/bag',

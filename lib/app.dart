@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'providers/app_providers.dart';
 import 'widgets/offline_pill.dart';
+import 'screens/onboarding/ob_style.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class ScoreCaddieApp extends ConsumerWidget {
@@ -52,13 +53,8 @@ class ScoreCaddieApp extends ConsumerWidget {
 
   Widget _scaled(BuildContext context, Widget? child) {
         return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: const SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.dark,
-            statusBarBrightness: Brightness.light,
-            systemNavigationBarColor: Colors.white,
-            systemNavigationBarIconBrightness: Brightness.dark,
-          ),
+          // The app is dark throughout; light status/nav icons everywhere.
+          value: Ob.overlay,
           child: child != null
               ? LayoutBuilder(
                   builder: (context, constraints) {

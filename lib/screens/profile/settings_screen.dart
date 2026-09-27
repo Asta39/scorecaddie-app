@@ -8,13 +8,17 @@ import 'package:go_router/go_router.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart' as db;
 import '../../core/models/auth_user.dart';
 import '../../widgets/profile_image.dart';
 import '../../widgets/top_notification.dart';
-import '../../widgets/loading_spinner.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -53,40 +57,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  bool _notifs = true;
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((p) {
+      if (mounted) setState(() => _notifs = p.getBool('notifications_on') ?? true);
+    });
+  }
+
+  Future<void> _setNotifs(bool on) async {
+    setState(() => _notifs = on);
+    try {
+      (await SharedPreferences.getInstance()).setBool('notifications_on', on);
+      on ? OneSignal.User.pushSubscription.optIn() : OneSignal.User.pushSubscription.optOut();
+    } catch (e) {
+      debugPrint('Notifications toggle: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(userProfileProvider);
     final user = ref.watch(authStateProvider).valueOrNull;
 
     return Scaffold(
-      backgroundColor: AppColors.grey25,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppColors.grey25,
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => context.pop(),
-          child: const Icon(CupertinoIcons.back, color: AppColors.grey900),
-        ),
-        title: const Text(
-          'Settings',
-          style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.grey900, fontSize: 17),
-        ),
-      ),
-      body: Stack(
-        children: [
-          profileAsync.when(
-            data: (profile) => _buildContent(context, profile, user),
-            loading: () => const LoadingSpinner(),
-            error: (e, s) => Center(child: Text('Error: $e')),
-          ),
-          if (_isProcessing)
-            Container(
-              color: Colors.black26,
-              child: const LoadingSpinner(size: 60),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: Stack(children: [
+            profileAsync.when(
+              data: (profile) => _buildContent(context, profile, user),
+              loading: () => const Center(child: CupertinoActivityIndicator(color: Ob.lime)),
+              error: (e, s) => Center(child: Text('Couldn\'t load your profile.', style: Ob.body(14, color: Ob.creamA(.7)))),
             ),
-        ],
+            if (_isProcessing) Container(color: Colors.black54, child: const Center(child: CupertinoActivityIndicator(color: Ob.lime))),
+          ]),
+        ),
       ),
     );
   }
@@ -94,271 +104,235 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildContent(BuildContext context, db.UserProfile? profile, AuthUser? user) {
     final bool isGoogleUser = user?.metadata?['iss']?.contains('google') ?? false;
     final bool isCaddie = profile?.role == 'caddie';
+    final bool isPro = profile?.role == 'coach' || isCaddie;
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
       children: [
-        // Centered Profile Picture
-        Center(
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: _pickImage,
-                child: Stack(
-                  children: [
-                    ProfileImage(
-                      url: profile?.avatarUrl,
-                      name: profile?.name,
-                      size: 100,
-                      isCircle: true,
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(color: AppColors.grey900, shape: BoxShape.circle),
-                        child: const Icon(CupertinoIcons.camera_fill, color: AppColors.golfLime, size: 14),
-                      ),
-                    ),
-                  ],
+        ObTopBar('Settings', onBack: () => context.pop()),
+        const SizedBox(height: 18),
+        Row(children: [
+          GestureDetector(
+            onTap: _pickImage,
+            child: Stack(clipBehavior: Clip.none, children: [
+              ProfileImage(url: profile?.avatarUrl, name: profile?.name, size: 72, isCircle: true),
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(color: Ob.lime, shape: BoxShape.circle, border: Border.all(color: Ob.bg, width: 3)),
+                  child: const Icon(LucideIcons.camera, size: 13, color: Ob.ink),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Change Profile Picture',
-                style: TextStyle(
-                  color: profile?.role == 'caddie' ? AppColors.grey900 : AppColors.emerald700, 
-                  fontWeight: FontWeight.w700, 
-                  fontSize: 14
-                ),
-              ),
-            ],
+            ]),
           ),
-        ),
-        const SizedBox(height: 32),
-
-        _buildSectionHeader('ACCOUNT'),
-        _buildGroupedCard([
-          _buildiOSActionTile(
-            icon: LucideIcons.user,
-            label: 'Name',
-            trailingText: profile?.name ?? 'Not set',
-            onTap: () => _showEditNameDialog(context, profile?.name),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(profile?.name ?? 'Golfer', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.display(24, height: 1.05)),
+              Text(user?.email ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(13, color: Ob.creamA(.6))),
+            ]),
           ),
-          _buildiOSActionTile(
-            icon: LucideIcons.mail,
-            label: 'Email',
-            trailingText: user?.email ?? 'Not set',
-            onTap: () => _showEditEmailDialog(context, user?.email ?? ''),
-          ),
+        ]).rise(),
+        const SizedBox(height: 22),
+        const ObEyebrow('Account'),
+        const SizedBox(height: 10),
+        _group([
+          _row(LucideIcons.user, 'Name', profile?.name ?? 'Not set', () => _showEditNameDialog(context, profile?.name)),
+          _row(LucideIcons.mail, 'Email', user?.email ?? 'Not set', () => _showEditEmailDialog(context, user?.email ?? '')),
+          _row(LucideIcons.lock, isGoogleUser ? 'Set a password' : 'Password', null, () => _showChangePasswordDialog(context)),
+          if (!isPro) _row(LucideIcons.flag, 'Home club', profile?.homeCourseName ?? 'Not set', () => _pickHomeCourse()),
+          if (!isPro) _row(LucideIcons.users, 'My clubs', 'Memberships and joining', () => context.push('/profile/clubs')),
         ]),
-
-        if (profile?.role == 'coach' || profile?.role == 'caddie') ...[
-          _buildSectionHeader('PROFESSIONAL PROFILE'),
+        if (isPro) ...[
+          const SizedBox(height: 22),
+          const ObEyebrow('Your professional profile'),
+          const SizedBox(height: 10),
           _buildProviderSettings(profile),
         ],
-
-        _buildSectionHeader('SECURITY'),
-        _buildGroupedCard([
-          _buildiOSActionTile(
-            icon: LucideIcons.lock,
-            label: isGoogleUser ? 'Set Account Password' : 'Change Password',
-            onTap: () => _showChangePasswordDialog(context),
-          ),
-          _buildiOSActionTile(
-            icon: LucideIcons.logOut,
-            label: 'Logout',
-            textColor: isCaddie ? AppColors.grey900 : AppColors.emerald700,
-            onTap: () => _showLogoutConfirmation(context),
-          ),
-          _buildiOSActionTile(
-            icon: LucideIcons.trash2,
-            label: 'Delete Account',
-            textColor: AppColors.doubleBogey,
-            onTap: () => _showDeleteConfirmation(context),
-          ),
+        const SizedBox(height: 22),
+        const ObEyebrow('Privacy and alerts'),
+        const SizedBox(height: 10),
+        _group([
+          if (!isCaddie)
+            _toggle('Public profile', 'Other golfers can find you and see your index', profile?.privacyLevel == 'Public',
+                (v) => _updateProfile(db.UserProfilesCompanion(privacyLevel: drift.Value(v ? 'Public' : 'Private')))),
+          _toggle('Notifications', 'Tee times, drills, results and friend requests', _notifs, _setNotifs),
+          _row(LucideIcons.database, 'How we use your data', null, () => _showDataUsageInfo(context, isCaddie)),
         ]),
-
-        if (!isCaddie) ...[
-          _buildSectionHeader('PRIVACY AND DATA'),
-          _buildGroupedCard([
-            _buildiOSSwitchTile(
-              icon: LucideIcons.eye,
-              label: 'Public Profile',
-              value: profile?.privacyLevel == 'Public',
-              onChanged: (v) => _updateProfile(db.UserProfilesCompanion(privacyLevel: drift.Value(v ? 'Public' : 'Private'))),
-            ),
-            _buildiOSActionTile(
-              icon: LucideIcons.database,
-              label: 'Data Usage',
-              onTap: () => _showDataUsageInfo(context, isCaddie),
-            ),
-          ]),
-
-          _buildSectionHeader('NOTIFICATIONS'),
-          _buildGroupedCard([
-            _buildiOSSwitchTile(
-              icon: LucideIcons.bell,
-              label: 'Enable All Notifications',
-              value: true, // Placeholder for state
-              onChanged: (v) {},
-            ),
-          ]),
-        ] else ...[
-          _buildSectionHeader('DATA & PRIVACY'),
-          _buildGroupedCard([
-            _buildiOSActionTile(
-              icon: LucideIcons.database,
-              label: 'Data Usage',
-              onTap: () => _showDataUsageInfo(context, isCaddie),
-            ),
-          ]),
-        ],
-
-        _buildSectionHeader('SUPPORT'),
-        _buildGroupedCard([
-          _buildiOSActionTile(
-            icon: LucideIcons.helpCircle,
-            label: 'Help & FAQs',
-            onTap: () => context.push('/help', extra: profile?.role),
-          ),
-          _buildiOSActionTile(
-            icon: LucideIcons.messageCircle,
-            label: 'Contact Support',
-            trailingText: 'WhatsApp',
-            onTap: _launchWhatsApp,
-          ),
-          _buildiOSActionTile(
-            icon: LucideIcons.alertCircle,
-            label: 'Report a Problem',
-            onTap: _launchEmail,
-          ),
+        const SizedBox(height: 22),
+        const ObEyebrow('Help'),
+        const SizedBox(height: 10),
+        _group([
+          _row(LucideIcons.circleHelp, 'Help and questions', null, () => context.push('/help', extra: profile?.role)),
+          _row(LucideIcons.messageCircle, 'Talk to support', 'WhatsApp', _launchWhatsApp),
+          _row(LucideIcons.circleAlert, 'Report a problem', null, _launchEmail),
         ]),
-        
-        const SizedBox(height: 100),
+        const SizedBox(height: 24),
+        ObButton(
+          tone: ObButtonTone.dark,
+          onPressed: () => _showLogoutConfirmation(context),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(LucideIcons.logOut, size: 18, color: Ob.warn),
+            const SizedBox(width: 8),
+            Text('Log out', style: Ob.label(15, weight: FontWeight.w800).copyWith(color: Ob.warn)),
+          ]),
+        ),
+        const SizedBox(height: 6),
+        Center(
+          child: TextButton(
+            onPressed: () => _showDeleteConfirmation(context),
+            child: Text('Delete my account', style: Ob.body(13, weight: FontWeight.w700, color: Ob.creamA(.45))),
+          ),
+        ),
       ],
     );
   }
 
-  // --- Widget Builders ---
+  Future<void> _pickHomeCourse() async {
+    final courses = await ref.read(databaseProvider).getAllCourses(null);
+    if (!mounted) return;
+    final picked = await showObSheet<db.Course>(
+      context,
+      (ctx) => ObSheet(
+        title: 'Home club',
+        height: MediaQuery.of(context).size.height * .7,
+        child: ListView(children: [
+          for (final c in courses)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: ObSelectTile(
+                selected: false,
+                onTap: () => Navigator.pop(ctx, c),
+                child: Row(children: [
+                  ObCrest(c.name, size: 40),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(c.name, style: Ob.body(15, weight: FontWeight.w700))),
+                ]),
+              ),
+            ),
+        ]),
+      ),
+    );
+    if (picked != null) {
+      _updateProfile(db.UserProfilesCompanion(homeCourseId: drift.Value(picked.id), homeCourseName: drift.Value(picked.name)));
+    }
+  }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _group(List<Widget> rows) => ObCard(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(children: [
+          for (final (i, r) in rows.indexed) ...[if (i > 0) const ObHair(), r],
+        ]),
+      );
+
+  Widget _row(IconData icon, String label, String? value, VoidCallback onTap, {Color? color}) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(children: [
+          Icon(icon, size: 18, color: color ?? Ob.lime),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label, style: Ob.body(15, weight: FontWeight.w700, color: color ?? Ob.cream))),
+          if (value != null)
+            Flexible(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end, style: Ob.body(13, color: Ob.creamA(.55)))),
+          const SizedBox(width: 6),
+          Icon(LucideIcons.chevronRight, size: 16, color: Ob.creamA(.35)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _toggle(String label, String sub, bool value, ValueChanged<bool> onChanged) {
     return Padding(
-      padding: const EdgeInsets.only(left: 32, bottom: 8, top: 16),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.grey500, letterSpacing: -0.1),
-      ),
-    );
-  }
-
-  Widget _buildGroupedCard(List<Widget> children) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: children.asMap().entries.map((entry) {
-          final isLast = entry.key == children.length - 1;
-          return Column(
-            children: [
-              entry.value,
-              if (!isLast)
-                const Padding(
-                  padding: EdgeInsets.only(left: 56),
-                  child: Divider(height: 1, color: Color(0xFFE5E5EA)),
-                ),
-            ],
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildiOSActionTile({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    String? trailingText,
-    Color? textColor,
-  }) {
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      onPressed: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: textColor == AppColors.doubleBogey ? AppColors.doubleBogey.withValues(alpha: 0.1) : AppColors.grey50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, size: 20, color: textColor ?? AppColors.grey700),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: textColor ?? AppColors.grey900,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-            if (trailingText != null)
-              Text(
-                trailingText,
-                style: const TextStyle(color: AppColors.grey500, fontSize: 15),
-              ),
-            const SizedBox(width: 8),
-            const Icon(CupertinoIcons.chevron_forward, size: 16, color: AppColors.grey300),
-          ],
+      padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: Ob.body(15, weight: FontWeight.w700)),
+            Text(sub, style: Ob.body(12, color: Ob.creamA(.55))),
+          ]),
         ),
-      ),
+        Switch.adaptive(value: value, activeTrackColor: Ob.lime, activeThumbColor: Ob.ink, onChanged: onChanged),
+      ]),
     );
   }
 
-  Widget _buildiOSSwitchTile({
-    required IconData icon,
-    required String label,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.grey50,
-              borderRadius: BorderRadius.circular(8),
+  /// A dark sheet with one text field; returns the text on Save.
+  Future<String?> _askText(String title, {String? initial, String? hint, String? note, bool obscure = false, bool long = false, TextInputType? keyboard}) {
+    final c = TextEditingController(text: initial);
+    return showObSheet<String>(
+      context,
+      (ctx) => ObSheet(
+        title: title,
+        subtitle: note,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TextField(
+            controller: c,
+            autofocus: true,
+            obscureText: obscure,
+            keyboardType: keyboard,
+            maxLines: long ? 5 : 1,
+            cursorColor: Ob.lime,
+            style: Ob.body(15, weight: FontWeight.w700),
+            decoration: obInput(null, hint: hint),
+          ),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(child: ObButton(tone: ObButtonTone.dark, onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: Ob.label(15, weight: FontWeight.w800)))),
+            const SizedBox(width: 10),
+            Expanded(child: ObButton(onPressed: () => Navigator.pop(ctx, c.text), child: Text('Save', style: Ob.label(15, weight: FontWeight.w800)))),
+          ]),
+        ]),
+      ),
+    ).whenComplete(c.dispose);
+  }
+
+  Future<bool> _confirm(String title, String body, String yes, {bool danger = false}) async {
+    final ok = await showObSheet<bool>(
+      context,
+      (ctx) => ObSheet(
+        title: title,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(body, style: Ob.body(14, height: 1.5, color: Ob.creamA(.75))),
+          const SizedBox(height: 18),
+          Row(children: [
+            Expanded(child: ObButton(tone: ObButtonTone.dark, onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: Ob.label(15, weight: FontWeight.w800)))),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ObButton(
+                tone: danger ? ObButtonTone.light : ObButtonTone.lime,
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(yes, style: Ob.label(15, weight: FontWeight.w800).copyWith(color: danger ? Ob.warn : null)),
+              ),
             ),
-            child: Icon(icon, size: 20, color: AppColors.grey700),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 16, color: AppColors.grey900, fontWeight: FontWeight.w400),
-            ),
-          ),
-          CupertinoSwitch(
-            value: value,
-            onChanged: onChanged,
-            activeTrackColor: AppColors.emerald700,
-          ),
-        ],
+          ]),
+        ]),
       ),
     );
+    return ok == true;
   }
+
+  Future<T?> _pickOne<T>(String title, List<(T, String)> options, {String? note}) => showObSheet<T>(
+        context,
+        (ctx) => ObSheet(
+          title: title,
+          subtitle: note,
+          height: options.length > 6 ? MediaQuery.of(context).size.height * .7 : null,
+          child: options.length > 6
+              ? ListView(children: [for (final o in options) _pickTile(ctx, o)])
+              : Column(children: [for (final o in options) _pickTile(ctx, o)]),
+        ),
+      );
+
+  Widget _pickTile<T>(BuildContext ctx, (T, String) o) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: ObSelectTile(selected: false, onTap: () => Navigator.pop(ctx, o.$1), child: Text(o.$2, style: Ob.body(15, weight: FontWeight.w700))),
+      );
 
   Widget _buildProviderSettings(db.UserProfile? profile) {
     final provider = ref.watch(currentProviderProvider).valueOrNull;
@@ -372,45 +346,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (courses.isNotEmpty) currentCourse = courses[0];
     } catch (_) {}
 
-    return _buildGroupedCard([
-      _buildiOSActionTile(
-        icon: LucideIcons.mapPin,
-        label: 'Home Club',
-        trailingText: currentCourse,
-        onTap: () => _showCoursePicker(provider),
-      ),
-      _buildiOSActionTile(
-        icon: LucideIcons.banknote,
-        label: isCaddie ? 'Caddie Fee' : 'Hourly Rate',
-        trailingText: 'KES ${provider.price?.toInt() ?? 0}',
-        onTap: isCaddie 
+    return _group([
+      _row(LucideIcons.mapPin, 'Home Club', currentCourse, () => _showCoursePicker(provider)),
+      _row(LucideIcons.banknote, isCaddie ? 'Caddie Fee' : 'Hourly Rate', 'KES ${provider.price?.toInt() ?? 0}', isCaddie 
           ? () => _showError('Caddie fees are set by the golf club.')
-          : () => _showEditProviderFieldDialog('Rate', provider.price?.toString(), (v) => _updateProvider(db.ProvidersCompanion(price: drift.Value(double.tryParse(v))))),
-      ),
-      _buildiOSActionTile(
-        icon: LucideIcons.calendar,
-        label: 'Experience',
-        trailingText: '${provider.experience} Years',
-        onTap: () => _showEditProviderFieldDialog('Experience', provider.experience.toString(), (v) => _updateProvider(db.ProvidersCompanion(experience: drift.Value(int.tryParse(v) ?? 0)))),
-      ),
+          : () => _showEditProviderFieldDialog('Rate', provider.price?.toString(), (v) => _updateProvider(db.ProvidersCompanion(price: drift.Value(double.tryParse(v)))))),
+      _row(LucideIcons.calendar, 'Experience', '${provider.experience} Years', () => _showEditProviderFieldDialog('Experience', provider.experience.toString(), (v) => _updateProvider(db.ProvidersCompanion(experience: drift.Value(int.tryParse(v) ?? 0))))),
       if (isCaddie)
-        _buildiOSActionTile(
-          icon: LucideIcons.smile,
-          label: 'Personality',
-          trailingText: provider.personalityType ?? 'Not set',
-          onTap: () => _showPersonalityPicker(provider),
-        ),
-      _buildiOSActionTile(
-        icon: LucideIcons.fileText,
-        label: 'Professional Bio',
-        onTap: () => _showEditProviderFieldDialog('Bio', provider.bio, (v) => _updateProvider(db.ProvidersCompanion(bio: drift.Value(v))), isLongText: true),
-      ),
-      _buildiOSActionTile(
-        icon: LucideIcons.award,
-        label: 'Certifications',
-        trailingText: '${_parseCertificates(provider.certificatesJson).length} total',
-        onTap: () => _showCertificatesManager(provider),
-      ),      ]);
+        _row(LucideIcons.smile, 'Personality', provider.personalityType ?? 'Not set', () => _showPersonalityPicker(provider)),
+      _row(LucideIcons.fileText, 'Professional Bio', null, () => _showEditProviderFieldDialog('Bio', provider.bio, (v) => _updateProvider(db.ProvidersCompanion(bio: drift.Value(v))), isLongText: true)),
+      _row(LucideIcons.award, 'Certifications', '${_parseCertificates(provider.certificatesJson).length} total', () => _showCertificatesManager(provider)),      ]);
       }
   List<Map<String, dynamic>> _parseCertificates(String? json) {
     if (json == null || json.isEmpty) return [];
@@ -432,50 +377,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _showCoursePicker(db.Provider provider) async {
     final courses = await ref.read(databaseProvider).getAllCourses(null);
     if (!mounted) return;
-
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text('Select Home Club'),
-        message: const Text('Changing your home club will update your rates accordingly.'),
-        actions: courses.map((c) => CupertinoActionSheetAction(
-          onPressed: () {
-            final isCaddie = provider.role == 'caddie';
-            _updateProvider(db.ProvidersCompanion(
-              coursesJson: drift.Value(jsonEncode([c.name])),
-              price: isCaddie ? drift.Value(c.caddieFee) : const drift.Value.absent(),
-            ));
-            Navigator.pop(context);
-          },
-          child: Text(c.name, style: const TextStyle(color: AppColors.grey900)),
-        )).toList(),
-        cancelButton: CupertinoActionSheetAction(
-          child: const Text('Cancel'),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-    );
+    final c = await _pickOne<db.Course>('Home club', [for (final c in courses) (c, c.name)], note: 'Your rates follow your home club.');
+    if (c == null) return;
+    final isCaddie = provider.role == 'caddie';
+    _updateProvider(db.ProvidersCompanion(
+      coursesJson: drift.Value(jsonEncode([c.name])),
+      price: isCaddie ? drift.Value(c.caddieFee) : const drift.Value.absent(),
+    ));
   }
 
-  void _showPersonalityPicker(db.Provider provider) {
-    final personalities = ['Quiet & Focused', 'Talkative & Fun', 'Strategic', 'Laid-back'];
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text('Personality Type'),
-        actions: personalities.map((p) => CupertinoActionSheetAction(
-          onPressed: () {
-            _updateProvider(db.ProvidersCompanion(personalityType: drift.Value(p)));
-            Navigator.pop(context);
-          },
-          child: Text(p, style: const TextStyle(color: AppColors.grey900)),
-        )).toList(),
-        cancelButton: CupertinoActionSheetAction(
-          child: const Text('Cancel'),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-    );
+  void _showPersonalityPicker(db.Provider provider) async {
+    const personalities = ['Quiet & Focused', 'Talkative & Fun', 'Strategic', 'Laid-back'];
+    final p = await _pickOne<String>('Personality', [for (final p in personalities) (p, p)]);
+    if (p != null) _updateProvider(db.ProvidersCompanion(personalityType: drift.Value(p)));
   }
 
   // --- Logic Methods ---
@@ -508,131 +422,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // --- Dialogs ---
 
-  void _showEditNameDialog(BuildContext context, String? currentName) {
-    final controller = TextEditingController(text: currentName);
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Edit Name'),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: CupertinoTextField(controller: controller, placeholder: 'Enter name', autofocus: true),
-        ),
-        actions: [
-          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('Save'),
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                _updateProfile(db.UserProfilesCompanion(name: drift.Value(controller.text)));
-                Navigator.pop(context);
-              }
-            },
-          ),
-        ],
-      ),
-    );
+  Future<void> _showEditNameDialog(BuildContext context, String? currentName) async {
+    final v = await _askText('Your name', initial: currentName, hint: 'Name');
+    if (v != null && v.trim().isNotEmpty) _updateProfile(db.UserProfilesCompanion(name: drift.Value(v.trim())));
   }
 
-  void _showEditEmailDialog(BuildContext context, String currentEmail) {
-    final controller = TextEditingController(text: currentEmail);
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Update Email'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            const Text('We will send a verification link to your new email address.'),
-            const SizedBox(height: 12),
-            CupertinoTextField(controller: controller, placeholder: 'New email address', keyboardType: TextInputType.emailAddress, autofocus: true),
-          ],
-        ),
-        actions: [
-          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('Update'),
-            onPressed: () async {
-              if (controller.text.isNotEmpty && controller.text != currentEmail) {
-                try {
-                  setState(() => _isProcessing = true);
-                  Navigator.pop(context);
-                  await ref.read(supabaseAuthServiceProvider).updateEmail(controller.text.trim());
-                  _updateProfile(db.UserProfilesCompanion(email: drift.Value(controller.text.trim())));
-                  _showSuccess('Verification email sent. Please check your inbox.');
-                } catch (e) {
-                  _showError(e.toString());
-                } finally {
-                  setState(() => _isProcessing = false);
-                }
-              }
-            },
-          ),
-        ],
-      ),
-    );
+  Future<void> _showEditEmailDialog(BuildContext context, String currentEmail) async {
+    final v = (await _askText('Email', initial: currentEmail, keyboard: TextInputType.emailAddress, note: 'We\'ll send a link to the new address to confirm it.'))?.trim();
+    if (v == null || v.isEmpty || v == currentEmail) return;
+    setState(() => _isProcessing = true);
+    try {
+      await ref.read(supabaseAuthServiceProvider).updateEmail(v);
+      _updateProfile(db.UserProfilesCompanion(email: drift.Value(v)));
+      _showSuccess('Check your inbox to confirm the new email.');
+    } catch (e) {
+      _showError(e.toString());
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
-  void _showChangePasswordDialog(BuildContext context) {
-    final controller = TextEditingController();
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Update Password'),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: CupertinoTextField(controller: controller, placeholder: 'New password', obscureText: true, autofocus: true),
-        ),
-        actions: [
-          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('Save'),
-            onPressed: () async {
-              if (controller.text.length >= 6) {
-                try {
-                  setState(() => _isProcessing = true);
-                  Navigator.pop(context);
-                  await ref.read(supabaseAuthServiceProvider).updatePassword(controller.text.trim());
-                  _showSuccess('Password updated successfully!');
-                } catch (e) {
-                  _showError(e.toString());
-                } finally {
-                  setState(() => _isProcessing = false);
-                }
-              } else {
-                _showError('Password must be at least 6 characters.');
-              }
-            },
-          ),
-        ],
-      ),
-    );
+  Future<void> _showChangePasswordDialog(BuildContext context) async {
+    final v = (await _askText('New password', obscure: true, note: 'At least 6 characters.'))?.trim();
+    if (v == null) return;
+    if (v.length < 6) {
+      _showError('Password must be at least 6 characters.');
+      return;
+    }
+    setState(() => _isProcessing = true);
+    try {
+      await ref.read(supabaseAuthServiceProvider).updatePassword(v);
+      _showSuccess('Password updated');
+    } catch (e) {
+      _showError(e.toString());
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
-  void _showDeleteConfirmation(BuildContext context) {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Delete Account?'),
-        content: const Text('This is irreversible. You will lose all rounds, stats, caddie history, and achievements. Are you absolutely sure?'),
-        actions: [
-          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-          CupertinoDialogAction(
-            isDestructiveAction: true,
-            child: const Text('Delete Permanently'),
-            onPressed: () => _handleDeleteAccount(),
-          ),
-        ],
-      ),
-    );
+  Future<void> _showDeleteConfirmation(BuildContext context) async {
+    final ok = await _confirm('Delete your account?', 'You lose every round, stat, caddie booking and achievement. This can\'t be undone.', 'Delete', danger: true);
+    if (ok) _handleDeleteAccount();
   }
 
   Future<void> _handleDeleteAccount() async {
-    Navigator.pop(context); // Close dialog
     setState(() => _isProcessing = true);
     
     try {
@@ -696,266 +529,151 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  void _showLogoutConfirmation(BuildContext context) {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text('Logout'),
-        message: const Text('Are you sure you want to log out?'),
-        actions: [
-          CupertinoActionSheetAction(
-            isDestructiveAction: true,
-            onPressed: () async {
-              await ref.read(supabaseAuthServiceProvider).signOut();
-              if (context.mounted) context.go('/auth');
-            },
-            child: const Text('Logout'),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          child: const Text('Cancel'),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-    );
+  Future<void> _showLogoutConfirmation(BuildContext context) async {
+    final ok = await _confirm('Log out?', 'Your rounds stay saved to your account.', 'Log out', danger: true);
+    if (!ok) return;
+    await ref.read(supabaseAuthServiceProvider).signOut();
+    if (mounted) this.context.go('/auth');
   }
 
   void _showCertificatesManager(db.Provider provider) {
-    final certs = _parseCertificates(provider.certificatesJson);
-
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => Material(
-        color: Colors.transparent,
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Certifications', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.grey900, letterSpacing: -0.5)),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _showAddCertificateDialog(provider);
-                    },
-                    child: const Text('Add New', style: TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Expanded(
-                child: certs.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(LucideIcons.award, size: 64, color: AppColors.grey100),
-                          const SizedBox(height: 16),
-                          const Text('No certificates added yet', style: TextStyle(color: AppColors.grey400, fontSize: 15, fontWeight: FontWeight.w500)),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: certs.length,
-                      itemBuilder: (context, index) {
-                        final cert = certs[index];
-                        final String? imagePath = cert['imagePath'];
-                        
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.grey50,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.grey100),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: AppColors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.grey100),
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                child: imagePath != null
-                                  ? (imagePath.startsWith('http') 
-                                      ? Image.network(imagePath, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(LucideIcons.image, color: AppColors.grey200))
-                                      : Image.file(File(imagePath), fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(LucideIcons.image, color: AppColors.grey200)))
-                                  : const Icon(LucideIcons.image, color: AppColors.grey200),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Text(
-                                  cert['name'] ?? 'Certification',
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.grey900),
+    showObSheet(
+      context,
+      (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        final certs = _parseCertificates(ref.read(currentProviderProvider).valueOrNull?.certificatesJson ?? provider.certificatesJson);
+        return ObSheet(
+          title: 'Certifications',
+          subtitle: 'Players see these on your profile.',
+          height: MediaQuery.of(context).size.height * .7,
+          child: Column(children: [
+            Expanded(
+              child: certs.isEmpty
+                  ? Center(child: Text('Nothing added yet.', style: Ob.body(14, color: Ob.creamA(.6))))
+                  : ListView(children: [
+                      for (final (i, cert) in certs.indexed)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: ObCard(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: SizedBox(
+                                  width: 52,
+                                  height: 52,
+                                  child: _certImage(cert['imagePath'] as String?),
                                 ),
                               ),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text('${cert['name'] ?? 'Certification'}', style: Ob.body(15, weight: FontWeight.w700))),
                               IconButton(
-                                icon: const Icon(LucideIcons.trash2, color: AppColors.doubleBogey, size: 20),
+                                tooltip: 'Remove',
+                                icon: const Icon(LucideIcons.trash2, color: Ob.warn, size: 18),
                                 onPressed: () {
-                                  final newCerts = List<Map<String, dynamic>>.from(certs);
-                                  newCerts.removeAt(index);
-                                  _updateProvider(db.ProvidersCompanion(certificatesJson: drift.Value(jsonEncode(newCerts))));
-                                  Navigator.pop(context);
-                                  _showCertificatesManager(provider);
+                                  final next = List<Map<String, dynamic>>.from(certs)..removeAt(i);
+                                  _updateProvider(db.ProvidersCompanion(certificatesJson: drift.Value(jsonEncode(next))));
+                                  Future.delayed(const Duration(milliseconds: 400), () => setSheet(() {}));
                                 },
                               ),
-                            ],
+                            ]),
                           ),
-                        );
-                      },
-                    ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 64,
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.grey900,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+                        ),
+                    ]),
+            ),
+            const SizedBox(height: 12),
+            ObButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showAddCertificateDialog(provider);
+              },
+              child: Text('Add a certification', style: Ob.label(15, weight: FontWeight.w800)),
+            ),
+          ]),
+        );
+      }),
     );
+  }
+
+  Widget _certImage(String? path) {
+    final fallback = Container(color: Ob.creamA(.06), child: Icon(LucideIcons.award, color: Ob.creamA(.4)));
+    if (path == null) return fallback;
+    return path.startsWith('http')
+        ? Image.network(path, fit: BoxFit.cover, errorBuilder: (_, _, _) => fallback)
+        : Image.file(File(path), fit: BoxFit.cover, errorBuilder: (_, _, _) => fallback);
   }
 
   void _showAddCertificateDialog(db.Provider provider) {
     final controller = TextEditingController();
-    File? pickedImage;
-
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => CupertinoAlertDialog(
-          title: const Text('Add Certification'),
-          content: Column(
-            children: [
-              const SizedBox(height: 16),
-              CupertinoTextField(
-                controller: controller,
-                placeholder: 'Certificate Name (e.g. PGA Certified)',
-                autofocus: true,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.extraLightBackgroundGray,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: () async {
-                  final picker = ImagePicker();
-                  final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-                  if (image != null) {
-                    setDialogState(() => pickedImage = File(image.path));
-                  }
-                },
-                child: Container(
-                  width: double.infinity,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.extraLightBackgroundGray,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.grey100),
-                  ),
-                  child: pickedImage == null
-                      ? const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(LucideIcons.image, color: AppColors.grey300),
-                            SizedBox(height: 4),
-                            Text('Tap to add photo', style: TextStyle(color: AppColors.grey400, fontSize: 12)),
-                          ],
-                        )
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(pickedImage!, fit: BoxFit.cover),
-                        ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            CupertinoDialogAction(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.pop(context),
+    File? picked;
+    showObSheet(
+      context,
+      (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => ObSheet(
+          title: 'Add a certification',
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              cursorColor: Ob.lime,
+              style: Ob.body(15, weight: FontWeight.w700),
+              decoration: obInput('Name', hint: 'PGA Kenya Level 2'),
             ),
-            CupertinoDialogAction(
-              isDefaultAction: true,
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: () async {
+                final image = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
+                if (image != null) setSheet(() => picked = File(image.path));
+              },
+              child: Container(
+                height: 110,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(18), border: Border.all(color: Ob.creamA(.12))),
+                child: picked == null
+                    ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(LucideIcons.image, color: Ob.creamA(.5)),
+                        const SizedBox(height: 6),
+                        Text('Add a photo of it', style: Ob.body(13, color: Ob.creamA(.6))),
+                      ])
+                    : Image.file(picked!, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ObButton(
               onPressed: () {
-                if (controller.text.isNotEmpty) {
-                  final certs = _parseCertificates(provider.certificatesJson);
-                  certs.add({
-                    'name': controller.text.trim(),
-                    'imagePath': pickedImage?.path,
-                  });
+                if (controller.text.trim().isNotEmpty) {
+                  final certs = _parseCertificates(provider.certificatesJson)..add({'name': controller.text.trim(), 'imagePath': picked?.path});
                   _updateProvider(db.ProvidersCompanion(certificatesJson: drift.Value(jsonEncode(certs))));
                 }
-                Navigator.pop(context);
+                Navigator.pop(ctx);
               },
-              child: const Text('Add'),
+              child: Text('Add', style: Ob.label(15, weight: FontWeight.w800)),
             ),
-          ],
+          ]),
         ),
       ),
-    );
+    ).whenComplete(controller.dispose);
   }
 
-  void _showEditProviderFieldDialog(String label, String? currentValue, Function(String) onSave, {bool isLongText = false}) {
-    final controller = TextEditingController(text: currentValue);
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: Text('Edit $label'),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: CupertinoTextField(controller: controller, placeholder: 'Enter $label', autofocus: true, maxLines: isLongText ? 5 : 1),
-        ),
-        actions: [
-          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('Save'),
-            onPressed: () {
-              onSave(controller.text);
-              Navigator.pop(context);
-            },
-          ),
-        ],
-      ),
-    );
+  Future<void> _showEditProviderFieldDialog(String label, String? currentValue, Function(String) onSave, {bool isLongText = false}) async {
+    final v = await _askText(label, initial: currentValue, long: isLongText, keyboard: isLongText ? null : TextInputType.number);
+    if (v != null) onSave(v);
   }
 
   void _showDataUsageInfo(BuildContext context, bool isCaddie) {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Data Usage'),
-        content: Text(isCaddie 
-          ? 'ScoreCaddie uses your data to manage bookings, track earnings, and showcase your professional profile to golfers. Your professional information is shared on the marketplace to help you find more work.'
-          : 'ScoreCaddie uses your data to sync rounds, track handicaps, and provide AI swing analysis. Your data is stored securely and never sold to third parties.'),
-        actions: [
-          CupertinoDialogAction(child: const Text('Close'), onPressed: () => Navigator.pop(context)),
-        ],
+    showObSheet(
+      context,
+      (ctx) => ObSheet(
+        title: 'How we use your data',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(
+            isCaddie
+                ? 'We use your details to manage bookings, track earnings and show your profile to golfers looking for a caddie.'
+                : 'We use your data to sync your rounds, work out your handicap and power Daniel\'s practice notes. It\'s stored securely and never sold.',
+            style: Ob.body(14, height: 1.55, color: Ob.creamA(.8)),
+          ),
+          const SizedBox(height: 16),
+          ObButton(onPressed: () => Navigator.pop(ctx), child: Text('Got it', style: Ob.label(15, weight: FontWeight.w800))),
+        ]),
       ),
     );
   }

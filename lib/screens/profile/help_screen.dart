@@ -1,192 +1,137 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 
-class HelpScreen extends StatelessWidget {
+class HelpScreen extends StatefulWidget {
   final String? role;
   const HelpScreen({super.key, this.role});
 
   @override
-  Widget build(BuildContext context) {
-    final String currentRole = role ?? 'player';
-    final faqs = _getFAQsForRole(currentRole);
-
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => context.pop(),
-          child: const Icon(CupertinoIcons.back, color: AppColors.grey900),
-        ),
-        title: const Text(
-          'Help & FAQs',
-          style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.grey900, fontSize: 17),
-        ),
-      ),
-      body: ListView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(24),
-        children: [
-          _buildHeader(currentRole),
-          const SizedBox(height: 32),
-          const Text(
-            'FREQUENTLY ASKED QUESTIONS',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grey400, letterSpacing: 1.2),
-          ),
-          const SizedBox(height: 16),
-          ...faqs.map((faq) => _buildFAQTile(faq)),
-          const SizedBox(height: 40),
-          _buildSupportCard(),
-          const SizedBox(height: 100),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(String role) {
-    String title = 'How can we help?';
-    String subtitle = 'Everything you need to know about ScoreCaddie.';
-    IconData icon = LucideIcons.helpCircle;
-
-    if (role == 'coach') {
-      title = 'Coach Support';
-      subtitle = 'Manage your students and grow your coaching business.';
-      icon = LucideIcons.graduationCap;
-    } else if (role == 'caddie') {
-      title = 'Caddie Guide';
-      subtitle = 'Tips for providing the best experience for your players.';
-      icon = LucideIcons.briefcase;
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: AppColors.emerald700, borderRadius: BorderRadius.circular(12)),
-          child: Icon(icon, color: Colors.white, size: 24),
-        ),
-        const SizedBox(height: 20),
-        Text(title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.grey900, letterSpacing: -0.5)),
-        const SizedBox(height: 8),
-        Text(subtitle, style: const TextStyle(fontSize: 16, color: AppColors.grey500, fontWeight: FontWeight.w500, height: 1.4)),
-      ],
-    );
-  }
-
-  Widget _buildFAQTile(_FAQItem faq) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.grey100),
-      ),
-      child: Theme(
-        data: ThemeData().copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          title: Text(faq.question, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.grey900)),
-          iconColor: AppColors.emerald700,
-          collapsedIconColor: AppColors.grey300,
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-          expandedAlignment: Alignment.centerLeft,
-          children: [
-            Text(
-              faq.answer,
-              style: const TextStyle(fontSize: 14, color: AppColors.grey600, height: 1.5, fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSupportCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.grey900,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        children: [
-          const Text('Still have questions?', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          const Text(
-            'Our team is available 24/7 to help you with any issues.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white60, fontSize: 14, height: 1.4),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: CupertinoButton(
-              color: AppColors.emerald700,
-              onPressed: () {}, // Handled in settings launchWhatsApp
-              child: const Text('Chat with Us', style: TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<_FAQItem> _getFAQsForRole(String role) {
-    if (role == 'coach') {
-      return [
-        _FAQItem(
-          question: 'How do students find me?',
-          answer: 'Ensure your profile is set to "Public" and your availability is toggled on in the dashboard. Complete your bio and specializations to appear higher in searches.',
-        ),
-        _FAQItem(
-          question: 'How are payments handled?',
-          answer: 'Currently, ScoreCaddie facilitates the connection. Payments are handled directly between you and the student as per your set hourly rate.',
-        ),
-        _FAQItem(
-          question: 'Can I share drills with students?',
-          answer: 'Yes! Use the "New Drill" action on your dashboard to create custom training routines that your students can access.',
-        ),
-      ];
-    } else if (role == 'caddie') {
-      return [
-        _FAQItem(
-          question: 'How do I start a round for a player?',
-          answer: 'Once a player connects with you, you can tap "Start Round" on your dashboard, select the course, and begin live tracking for them.',
-        ),
-        _FAQItem(
-          question: 'What is Caddie Status?',
-          answer: 'Availability toggles whether you appear in the marketplace. "Available" means you are ready for on-course bookings.',
-        ),
-        _FAQItem(
-          question: 'How do I get more reviews?',
-          answer: 'Providing accurate distance tracking and green reading will encourage players to leave 5-star ratings on your profile.',
-        ),
-      ];
-    } else {
-      return [
-        _FAQItem(
-          question: 'How is my handicap calculated?',
-          answer: 'ScoreCaddie uses the World Handicap System (WHS) formula. We take your best 8 scores from your last 20 rounds to calculate your index.',
-        ),
-        _FAQItem(
-          question: 'How do I add friends?',
-          answer: 'Go to your Profile, tap the QR code icon to show your UID, or go to the Friends section to search for a friend\'s unique ID.',
-        ),
-        _FAQItem(
-          question: 'What is AI Swing Analysis?',
-          answer: 'Our AI uses pose detection to track your swing path, shoulder turn, and tempo. Ensure your full body is visible in the frame for the best results.',
-        ),
-      ];
-    }
-  }
+  State<HelpScreen> createState() => _HelpScreenState();
 }
 
-class _FAQItem {
-  final String question;
-  final String answer;
-  _FAQItem({required this.question, required this.answer});
+class _HelpScreenState extends State<HelpScreen> {
+  int _open = 0;
+
+  static const _player = [
+    ('How is my handicap index worked out?',
+        'It\'s the average of your best 8 score differentials from your last 20 rounds, under the World Handicap System. Each differential compares your score with the course rating and slope of the tees you played.'),
+    ('Why does my round need a marker?',
+        'For a round to count towards your index, another golfer has to sign your card. Pick them in round setup and they sign when you finish.'),
+    ('Can I scan a paper card?', 'Yes. From Start a round, choose Scan a scorecard. Daniel reads every hole and flags any he isn\'t sure of.'),
+    ('How do I add friends?', 'Open Friends from your profile. Search by name, scan their QR code, or share yours from the QR button on your profile.'),
+    ('How do I book a caddie or coach?', 'Open the Caddie tab, pick someone, and message, call or WhatsApp them. Coaches also list sessions you can book in the app.'),
+  ];
+
+  static const _coach = [
+    ('How do players find me?', 'Keep "Taking bookings" on from your Home and fill in your bio and specialities. Complete profiles show up higher.'),
+    ('How do payments work?', 'Players pay you directly by M-Pesa, cash or bank. Record each payment on the Payments tab so you both know who owes what.'),
+    ('Can I send drills to players?', 'Yes. Build a drill on the Drills tab, then open a student and tap Assign drill.'),
+  ];
+
+  static const _caddie = [
+    ('How do I show I\'m available?', 'Your availability decides whether you appear in the Caddie tab. Switch it on when you\'re ready for bookings.'),
+    ('How do I get more reviews?', 'Players are asked to rate you after a round. Good yardages and green reads earn five stars.'),
+    ('Who sets my fee?', 'Caddie fees are set by your home club. Change your home club in Settings if you move.'),
+  ];
+
+  Future<void> _chat() async {
+    final url = Uri.parse('https://wa.me/254115706542');
+    if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final faqs = switch (widget.role) { 'coach' => _coach, 'caddie' => _caddie, _ => _player };
+
+    return Scaffold(
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
+            children: [
+              ObTopBar('Help', onBack: () => context.pop()),
+              const SizedBox(height: 16),
+              ObGuideRow(botAsset: ObBot.clover.idle, botLabel: 'Daniel the clover', text: 'Stuck? Most answers are below. If not, a real person is a tap away.', size: 84, fontSize: 17).rise(),
+              const SizedBox(height: 22),
+              const ObEyebrow('Common questions'),
+              const SizedBox(height: 10),
+              for (final (i, f) in faqs.indexed)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    decoration: BoxDecoration(
+                      color: _open == i ? Ob.roleFill : Ob.cardFill,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _open == i ? Ob.lime.withValues(alpha: .25) : Ob.creamA(.06)),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Semantics(
+                        button: true,
+                        expanded: _open == i,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => setState(() => _open = _open == i ? -1 : i),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(children: [
+                              Expanded(child: Text(f.$1, style: Ob.body(15, weight: FontWeight.w700))),
+                              AnimatedRotation(
+                                turns: _open == i ? .125 : 0,
+                                duration: const Duration(milliseconds: 350),
+                                curve: Curves.elasticOut,
+                                child: Icon(LucideIcons.plus, size: 18, color: _open == i ? Ob.lime : Ob.creamA(.5)),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOutCubic,
+                        child: _open == i
+                            ? Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                child: Text(f.$2, style: Ob.body(14, height: 1.55, color: Ob.creamA(.75))),
+                              )
+                            : const SizedBox(width: double.infinity),
+                      ),
+                    ]),
+                  ),
+                ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(26), border: Border.all(color: Ob.lime.withValues(alpha: .2))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Text('Still need a hand?', style: Ob.display(22)),
+                  const SizedBox(height: 6),
+                  Text('Our team answers every day, usually within the hour.', style: Ob.body(14, height: 1.5, color: Ob.creamA(.7))),
+                  const SizedBox(height: 14),
+                  ObButton(
+                    onPressed: _chat,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(LucideIcons.messageCircle, size: 18, color: Ob.ink),
+                      const SizedBox(width: 8),
+                      Text('Chat with us', style: Ob.label(15, weight: FontWeight.w800)),
+                    ]),
+                  ),
+                ]),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

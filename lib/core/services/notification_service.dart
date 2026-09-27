@@ -1,3 +1,4 @@
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -114,29 +115,51 @@ class NotificationService {
     }
   }
 
-  /// Stream of unread notifications
+  /// The user's notifications, newest first.
+  ///
+  /// Realtime isn't enabled for the Notification table, so a realtime
+  /// `.stream()` fails with RealtimeSubscribeException. This polls instead:
+  /// once now, then every 30 seconds, and again right after a change here.
   Stream<List<AppNotification>> watchNotifications() {
     if (_uid == null) return Stream.value([]);
-    return _supabase
-        .from('Notification')
-        .stream(primaryKey: ['id'])
-        .eq('userId', _uid)
-        .order('createdAt', ascending: false)
-        .map(
-          (data) =>
-              data.map((row) => AppNotification.fromSupabase(row)).toList(),
-        );
+    late final StreamController<List<AppNotification>> c;
+    Timer? timer;
+    Future<void> load() async {
+      try {
+        final rows = await _supabase.from('Notification').select().eq('userId', _uid).order('createdAt', ascending: false).limit(100);
+        if (!c.isClosed) c.add([for (final r in rows) AppNotification.fromSupabase(r)]);
+      } catch (e) {
+        debugPrint('NOTIFICATIONS: load failed: $e');
+        if (!c.isClosed && !_loadedOnce) c.add(const []);
+      }
+      _loadedOnce = true;
+    }
+
+    void onPoke() => load();
+    c = StreamController<List<AppNotification>>(
+      onListen: () {
+        load();
+        timer = Timer.periodic(const Duration(seconds: 30), (_) => load());
+        _pokes.add(onPoke);
+      },
+      onCancel: () {
+        timer?.cancel();
+        _pokes.remove(onPoke);
+      },
+    );
+    return c.stream;
   }
 
-  /// Stream of unread count status (for the red dot)
-  Stream<bool> watchHasUnread() {
-    if (_uid == null) return Stream.value(false);
-    return _supabase
-        .from('Notification')
-        .stream(primaryKey: ['id'])
-        .eq('userId', _uid)
-        .map((data) => data.any((row) => row['isRead'] == false));
+  bool _loadedOnce = false;
+  final _pokes = <void Function()>{};
+  void _poke() {
+    for (final p in [..._pokes]) {
+      p();
+    }
   }
+
+  /// Whether anything is unread (the dot on the bell).
+  Stream<bool> watchHasUnread() => watchNotifications().map((l) => l.any((n) => !n.read));
 
   Future<void> markAsRead(String notificationId) async {
     if (_uid == null) return;
@@ -144,6 +167,7 @@ class NotificationService {
         .from('Notification')
         .update({'isRead': true})
         .eq('id', notificationId);
+    _poke();
   }
 
   Future<void> markAllAsRead() async {
@@ -153,11 +177,13 @@ class NotificationService {
         .update({'isRead': true})
         .eq('userId', _uid)
         .eq('isRead', false);
+    _poke();
   }
 
   Future<void> deleteNotification(String id) async {
     if (_uid == null) return;
     await _supabase.from('Notification').delete().eq('id', id);
+    _poke();
   }
 }
 

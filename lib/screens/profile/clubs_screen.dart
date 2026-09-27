@@ -7,7 +7,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:drift/drift.dart' as drift;
-import '../../core/theme/app_theme.dart';
+import 'package:flutter/cupertino.dart';
+import '../../core/models/achievement_model.dart';
+import '../../widgets/achievement_dialog.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
 import '../../widgets/top_notification.dart';
@@ -15,100 +20,188 @@ import '../../widgets/top_notification.dart';
 class ClubsScreen extends ConsumerWidget {
   const ClubsScreen({super.key});
 
+  static const _standardSet = ['Driver', '3 wood', '5 hybrid', '5 iron', '6 iron', '7 iron', '8 iron', '9 iron', 'Pitching wedge', 'Sand wedge', 'Putter'];
+
+  static String short(String type) {
+    final t = type.toLowerCase();
+    if (t.contains('driver')) return 'Dr';
+    if (t.contains('putter')) return 'Pt';
+    if (t.contains('pitching')) return 'PW';
+    if (t.contains('sand')) return 'SW';
+    if (t.contains('gap')) return 'GW';
+    if (t.contains('lob')) return 'LW';
+    final n = RegExp(r'\d+').firstMatch(t)?.group(0);
+    if (n != null && t.contains('wood')) return '${n}W';
+    if (n != null && t.contains('hybrid')) return '${n}H';
+    if (n != null && (t.contains('iron') || t.contains('i'))) return '${n}i';
+    if (n != null) return n;
+    return type.length <= 2 ? type : type.substring(0, 2);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clubsAsync = ref.watch(clubsProvider);
+    final clubs = clubsAsync.valueOrNull ?? const <Club>[];
+    final units = ref.watch(unitFormatterProvider).units;
+    final full = clubs.length >= 14;
+    final loaded = Achievement.allAchievements.where((a) => a.id == 'new_bag').firstOrNull;
 
     return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('My Bag', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.grey900)),
-      ),
-      body: clubsAsync.when(
-        data: (clubs) => clubs.isEmpty ? _buildEmptyState(context) : _buildList(context, clubs, ref),
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.emerald700)),
-        error: (e, s) => Center(child: Text('Error: $e')),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddClubDialog(context, ref),
-        backgroundColor: AppColors.emerald700,
-        icon: const Icon(LucideIcons.plus, color: Colors.white),
-        label: const Text('Add Club', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.briefcase, size: 64, color: AppColors.grey200),
-          const SizedBox(height: 16),
-          const Text('Your bag is empty', style: TextStyle(color: AppColors.grey500, fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          const Text('Add your clubs to track your equipment', style: TextStyle(color: AppColors.grey400)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildList(BuildContext context, List<Club> clubs, WidgetRef ref) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      itemCount: clubs.length,
-      itemBuilder: (context, i) {
-        final club = clubs[i];
-        return Card(
-          color: AppColors.white,
-          elevation: 0,
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.grey100)),
-          child: ListTile(
-            onTap: () => _showClubDetails(context, club, ref),
-            contentPadding: const EdgeInsets.all(12),
-            leading: Container(
-              width: 60, height: 60,
-              decoration: BoxDecoration(
-                color: AppColors.grey50, 
-                borderRadius: BorderRadius.circular(12),
-                image: club.photoUrl != null ? DecorationImage(
-                  image: club.photoUrl!.startsWith('http') 
-                      ? NetworkImage(club.photoUrl!) as ImageProvider
-                      : FileImage(File(club.photoUrl!)), 
-                  fit: BoxFit.cover
-                ) : null,
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
+            children: [
+              ObTopBar('My bag', onBack: () => context.pop(), actions: [
+                ObIconButton(icon: LucideIcons.plus, label: 'Add a club', onPressed: () => _showAddClubDialog(context, ref)),
+              ]),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+                decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(28), border: Border.all(color: Ob.lime.withValues(alpha: .2))),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('IN THE BAG', style: Ob.eyebrow()),
+                      const SizedBox(height: 4),
+                      Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                        Text('${clubs.length}', style: Ob.display(52, height: 1)),
+                        Text(' of 14 clubs', style: Ob.body(15, weight: FontWeight.w700, color: Ob.creamA(.6))),
+                      ]),
+                    ]),
+                  ),
+                  if (loaded != null)
+                    Container(
+                      width: 76,
+                      height: 76,
+                      decoration: const BoxDecoration(color: Color(0xFF0D1A12), shape: BoxShape.circle),
+                      child: AchievementAvatar(loaded, earned: full, size: 70),
+                    ),
+                ]),
               ),
-              child: club.photoUrl == null ? Center(child: Icon(LucideIcons.camera, color: AppColors.grey300)) : null,
-            ),
-            title: Text('${club.brand ?? ""} ${club.model ?? ""}'.trim().isEmpty ? club.type : '${club.brand ?? ""} ${club.model ?? ""}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-            subtitle: Text(club.type, style: const TextStyle(color: AppColors.grey500, fontSize: 12)),
-            trailing: IconButton(
-              icon: const Icon(LucideIcons.trash2, color: AppColors.doubleBogey, size: 20),
-              onPressed: () => _deleteClub(ref, club.id),
-            ),
+              const SizedBox(height: 8),
+              Text(full ? 'Fully Loaded unlocked. Nice.' : 'Add ${14 - clubs.length} more to unlock Fully Loaded.', style: Ob.body(13, color: Ob.creamA(.62))),
+              const SizedBox(height: 16),
+              if (clubsAsync.isLoading && clubs.isEmpty)
+                const Center(child: CupertinoActivityIndicator(color: Ob.lime))
+              else if (clubs.isEmpty) ...[
+                ObCard(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Start with a standard set?', style: Ob.display(20)),
+                    const SizedBox(height: 4),
+                    Text('Driver to putter, 11 clubs. Edit or remove any later.', style: Ob.body(13, color: Ob.creamA(.65))),
+                    const SizedBox(height: 14),
+                    ObButton(onPressed: () => _addStandardSet(context, ref), child: Text('Add the standard set', style: Ob.label(15, weight: FontWeight.w800))),
+                  ]),
+                ),
+                const SizedBox(height: 10),
+              ] else
+                for (final c in clubs)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Dismissible(
+                      key: ValueKey(c.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        decoration: BoxDecoration(color: Ob.warn.withValues(alpha: .2), borderRadius: BorderRadius.circular(20)),
+                        child: const Icon(LucideIcons.trash2, color: Ob.warn),
+                      ),
+                      onDismissed: (_) => _deleteClub(ref, c.id),
+                      child: GestureDetector(
+                        onTap: () => _showClubDetails(context, c, ref),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(20), border: Border.all(color: Ob.creamA(.06))),
+                          child: Row(children: [
+                            Container(
+                              width: 54,
+                              height: 54,
+                              clipBehavior: Clip.antiAlias,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1D3322), Color(0xFF0B160F)]),
+                              ),
+                              child: c.photoUrl != null
+                                  ? (c.photoUrl!.startsWith('http')
+                                      ? Image.network(c.photoUrl!, fit: BoxFit.cover, errorBuilder: (_, _, _) => _shortLabel(c.type))
+                                      : Image.file(File(c.photoUrl!), fit: BoxFit.cover, errorBuilder: (_, _, _) => _shortLabel(c.type)))
+                                  : _shortLabel(c.type),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(c.type, style: Ob.body(15, weight: FontWeight.w800)),
+                                Text(
+                                  [c.brand, c.model, if (c.loft != null) '${c.loft!.toStringAsFixed(c.loft! % 1 == 0 ? 0 : 1)}°'].whereType<String>().where((x) => x.isNotEmpty).join(' · ').ifBlank('Tap to add details'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Ob.body(12, color: Ob.creamA(.55)),
+                                ),
+                              ]),
+                            ),
+                            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                              Text(c.averageDistance == null ? '—' : '${c.averageDistance!.round()}', style: Ob.display(18, height: 1)),
+                              Text(c.averageDistance == null ? 'carry' : '$units carry', style: Ob.body(11, color: Ob.creamA(.5))),
+                            ]),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  ),
+              if (!full)
+                GestureDetector(
+                  onTap: () => _showAddClubDialog(context, ref),
+                  child: Container(
+                    height: 56,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: Ob.creamA(.16), width: 2)),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(LucideIcons.camera, size: 18, color: Ob.creamA(.75)),
+                      const SizedBox(width: 8),
+                      Text('Add a club with a photo', style: Ob.body(14, weight: FontWeight.w700, color: Ob.creamA(.75))),
+                    ]),
+                  ),
+                ),
+              if (clubs.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text('Swipe a club left to remove it.', textAlign: TextAlign.center, style: Ob.body(12, color: Ob.creamA(.4))),
+              ],
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
+  }
+
+  Widget _shortLabel(String type) => Center(child: Text(short(type), style: Ob.display(20)));
+
+  Future<void> _addStandardSet(BuildContext context, WidgetRef ref) async {
+    final db = ref.read(databaseProvider);
+    final user = ref.read(authStateProvider).valueOrNull;
+    if (user == null) return;
+    for (final t in _standardSet) {
+      await db.into(db.clubs).insert(ClubsCompanion.insert(userId: user.uid, type: t));
+    }
+    ref.read(achievementServiceProvider).checkAllAchievements(user.uid);
+    if (context.mounted) TopNotification.showSuccess(context, '${_standardSet.length} clubs added');
   }
 
   void _showAddClubDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => _AddClubDialog(onAdd: (type, brand, model, loft, distance, notes, photoPath) {
+    showObSheet(
+      context,
+      (_) => _AddClubDialog(onAdd: (type, brand, model, loft, distance, notes, photoPath) {
         _addClub(ref, type, brand, model, loft, distance, notes, photoPath);
       }),
     );
   }
 
-  Future<void> _addClub(WidgetRef ref, String type, String brand, String model, double? loft, double? distance, String? notes, String photoPath) async {
+  Future<void> _addClub(WidgetRef ref, String type, String brand, String model, double? loft, double? distance, String? notes, String? photoPath) async {
     final db = ref.read(databaseProvider);
     final user = ref.read(authStateProvider).valueOrNull;
     if (user == null) return;
@@ -123,120 +216,49 @@ class ClubsScreen extends ConsumerWidget {
       notes: drift.Value(notes?.isNotEmpty == true ? notes : null),
       photoUrl: drift.Value(photoPath),
     ));
-
-    // Trigger Achievement Check
     ref.read(achievementServiceProvider).checkAllAchievements(user.uid);
   }
 
   void _showClubDetails(BuildContext context, Club club, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: AppColors.grey200, borderRadius: BorderRadius.circular(2)),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (club.photoUrl != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: club.photoUrl!.startsWith('http')
-                          ? Image.network(
-                              club.photoUrl!,
-                              width: double.infinity,
-                              height: 300,
-                              fit: BoxFit.cover,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  height: 300,
-                                  color: AppColors.grey50,
-                                  child: const Center(child: CircularProgressIndicator(color: AppColors.emerald500)),
-                                );
-                              },
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                height: 300,
-                                color: AppColors.grey50,
-                                child: const Center(child: Icon(LucideIcons.imageOff, color: AppColors.grey300, size: 48)),
-                              ),
-                            )
-                          : Image.file(
-                              File(club.photoUrl!),
-                              width: double.infinity,
-                              height: 300,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                height: 300,
-                                color: AppColors.grey50,
-                                child: const Center(child: Icon(LucideIcons.imageOff, color: AppColors.grey300, size: 48)),
-                              ),
-                            ),
-                      ),
-                    const SizedBox(height: 24),
-                    Text(club.type.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.emerald700, letterSpacing: 1.5)),
-                    const SizedBox(height: 8),
-                    Text('${club.brand ?? ""} ${club.model ?? ""}'.trim().isEmpty ? 'Generic Club' : '${club.brand ?? ""} ${club.model ?? ""}', 
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.grey900)),
-                    const SizedBox(height: 24),
-                    const Divider(),
-                    const SizedBox(height: 24),
-                    _buildDetailRow('Brand', club.brand ?? '—'),
-                    _buildDetailRow('Model', club.model ?? '—'),
-                    _buildDetailRow('Loft', club.loft != null ? '${club.loft}°' : '—'),
-                    _buildDetailRow('Avg Distance', club.averageDistance != null ? '${club.averageDistance!.toInt()} ${ref.read(unitFormatterProvider).units}' : '—'),
-                    if (club.notes != null && club.notes!.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      const Text('NOTES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1)),
-                      const SizedBox(height: 8),
-                      Text(club.notes!, style: const TextStyle(fontSize: 16, color: AppColors.grey700, height: 1.5)),
-                    ],
-                    const SizedBox(height: 40),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.grey900,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
-                        child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                ),
+    final units = ref.read(unitFormatterProvider).units;
+    Widget line(String k, String v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(children: [
+            Expanded(child: Text(k, style: Ob.body(14, color: Ob.creamA(.6)))),
+            Text(v, style: Ob.body(14, weight: FontWeight.w700)),
+          ]),
+        );
+    showObSheet(
+      context,
+      (ctx) => ObSheet(
+        title: club.type,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (club.photoUrl != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: SizedBox(
+                height: 180,
+                child: club.photoUrl!.startsWith('http')
+                    ? Image.network(club.photoUrl!, fit: BoxFit.cover)
+                    : Image.file(File(club.photoUrl!), fit: BoxFit.cover, errorBuilder: (_, _, _) => const SizedBox()),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.grey400)),
-          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.grey900)),
-        ],
+          const SizedBox(height: 8),
+          line('Brand', club.brand ?? '—'),
+          line('Model', club.model ?? '—'),
+          line('Loft', club.loft == null ? '—' : '${club.loft}°'),
+          line('Average carry', club.averageDistance == null ? '—' : '${club.averageDistance!.round()} $units'),
+          if ((club.notes ?? '').isNotEmpty) line('Notes', club.notes!),
+          const SizedBox(height: 12),
+          ObButton(
+            tone: ObButtonTone.dark,
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deleteClub(ref, club.id);
+            },
+            child: Text('Remove from bag', style: Ob.label(15, weight: FontWeight.w800).copyWith(color: Ob.warn)),
+          ),
+        ]),
       ),
     );
   }
@@ -247,8 +269,12 @@ class ClubsScreen extends ConsumerWidget {
   }
 }
 
+extension on String {
+  String ifBlank(String other) => trim().isEmpty ? other : this;
+}
+
 class _AddClubDialog extends StatefulWidget {
-  final Function(String type, String brand, String model, double? loft, double? distance, String? notes, String photoPath) onAdd;
+  final Function(String type, String brand, String model, double? loft, double? distance, String? notes, String? photoPath) onAdd;
   const _AddClubDialog({required this.onAdd});
 
   @override
@@ -274,130 +300,122 @@ class _AddClubDialogState extends State<_AddClubDialog> {
   }
 
   Future<void> _handleAdd() async {
-    if (_typeController.text.isEmpty || _image == null) return;
-    
+    if (_typeController.text.trim().isEmpty) return;
     setState(() => _isSaving = true);
-    
     try {
-      // Save image to local documents directory for persistence
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName = 'club_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = await _image!.copy(p.join(directory.path, fileName));
-      
-      widget.onAdd(
-        _typeController.text,
-        _brandController.text,
-        _modelController.text,
-        double.tryParse(_loftController.text),
-        double.tryParse(_distanceController.text),
-        _notesController.text,
-        savedImage.path,
-      );
+      String? path;
+      if (_image != null) {
+        // Keep a copy in app documents so the photo survives cache clears.
+        final dir = await getApplicationDocumentsDirectory();
+        path = (await _image!.copy(p.join(dir.path, 'club_${DateTime.now().millisecondsSinceEpoch}.jpg'))).path;
+      }
+      widget.onAdd(_typeController.text.trim(), _brandController.text.trim(), _modelController.text.trim(), double.tryParse(_loftController.text),
+          double.tryParse(_distanceController.text), _notesController.text, path);
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        TopNotification.showError(context, 'Error saving club: $e');
+        TopNotification.showError(context, 'Couldn\'t save the club: $e');
         setState(() => _isSaving = false);
       }
     }
   }
 
   @override
+  void dispose() {
+    for (final c in [_typeController, _brandController, _modelController, _loftController, _distanceController, _notesController]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  static const _quick = ['Driver', '3 wood', '5 wood', '4 hybrid', '4 iron', '5 iron', '6 iron', '7 iron', '8 iron', '9 iron', 'Pitching wedge', 'Gap wedge', 'Sand wedge', 'Lob wedge', 'Putter'];
+
+  @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      title: const Text('Add New Club', style: TextStyle(fontWeight: FontWeight.w800)),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    return ObSheet(
+      title: 'Add a club',
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .72),
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             GestureDetector(
               onTap: () => _showImageSourceActionSheet(context),
               child: Container(
-                width: double.infinity,
-                height: 150,
+                height: 130,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color: AppColors.grey50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _image == null ? AppColors.grey200 : AppColors.emerald700, width: 2),
-                  image: _image != null ? DecorationImage(image: FileImage(_image!), fit: BoxFit.cover) : null,
+                  color: Ob.cardFill,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _image == null ? Ob.creamA(.12) : Ob.lime, width: 1.5),
                 ),
-                child: _image == null 
-                  ? const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(LucideIcons.camera, color: AppColors.grey400, size: 32),
-                        SizedBox(height: 8),
-                        Text('Add Club Photo*', style: TextStyle(color: AppColors.grey400, fontWeight: FontWeight.bold, fontSize: 12)),
-                        Text('Required for Identification', style: TextStyle(color: AppColors.grey300, fontSize: 10)),
-                      ],
-                    )
-                  : const SizedBox.shrink(),
+                child: _image == null
+                    ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(LucideIcons.camera, color: Ob.creamA(.6), size: 26),
+                        const SizedBox(height: 6),
+                        Text('Snap the club (optional)', style: Ob.body(13, weight: FontWeight.w700, color: Ob.creamA(.7))),
+                      ])
+                    : Image.file(_image!, fit: BoxFit.cover),
               ),
             ),
-            const SizedBox(height: 20),
-            _buildDialogField(_typeController, 'Type (e.g. Driver, 7-Iron)*'),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: _buildDialogField(_brandController, 'Brand')),
-                const SizedBox(width: 8),
-                Expanded(child: _buildDialogField(_loftController, 'Loft', keyboardType: TextInputType.number)),
-              ],
+            const SizedBox(height: 14),
+            const ObEyebrow('Which club?'),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final q in _quick)
+                GestureDetector(
+                  onTap: () => setState(() => _typeController.text = q),
+                  child: ObChip(q, on: _typeController.text == q),
+                ),
+            ]),
+            const SizedBox(height: 10),
+            _buildDialogField(_typeController, 'Or type it'),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: _buildDialogField(_brandController, 'Brand')),
+              const SizedBox(width: 8),
+              Expanded(child: _buildDialogField(_modelController, 'Model')),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: _buildDialogField(_loftController, 'Loft °', keyboardType: TextInputType.number)),
+              const SizedBox(width: 8),
+              Expanded(child: _buildDialogField(_distanceController, 'Carry', keyboardType: TextInputType.number)),
+            ]),
+            const SizedBox(height: 16),
+            ObButton(
+              onPressed: _typeController.text.trim().isNotEmpty && !_isSaving ? _handleAdd : null,
+              child: Text(_isSaving ? 'Saving…' : 'Add to bag', style: Ob.label(16, weight: FontWeight.w800)),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: _buildDialogField(_modelController, 'Model')),
-                const SizedBox(width: 8),
-                Expanded(child: _buildDialogField(_distanceController, 'Avg Distance', keyboardType: TextInputType.number)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildDialogField(_notesController, 'Notes/Serial #', maxLines: 3),
-          ],
+          ]),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: (_typeController.text.isNotEmpty && _image != null && !_isSaving) ? _handleAdd : null,
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.emerald700,
-            disabledBackgroundColor: AppColors.grey200,
-          ),
-          child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Add to Bag'),
-        ),
-      ],
     );
   }
 
   void _showImageSourceActionSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(LucideIcons.camera),
-              title: const Text('Take Photo'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(LucideIcons.image),
-              title: const Text('Choose from Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-          ],
-        ),
+    showObSheet(
+      context,
+      (ctx) => ObSheet(
+        title: 'Add a photo',
+        child: Column(children: [
+          ObSelectTile(
+            selected: false,
+            onTap: () {
+              Navigator.pop(ctx);
+              _pickImage(ImageSource.camera);
+            },
+            child: Row(children: [const Icon(LucideIcons.camera, color: Ob.lime), const SizedBox(width: 12), Text('Take a photo', style: Ob.body(15, weight: FontWeight.w700))]),
+          ),
+          const SizedBox(height: 8),
+          ObSelectTile(
+            selected: false,
+            onTap: () {
+              Navigator.pop(ctx);
+              _pickImage(ImageSource.gallery);
+            },
+            child: Row(children: [const Icon(LucideIcons.image, color: Ob.lime), const SizedBox(width: 12), Text('Choose from photos', style: Ob.body(15, weight: FontWeight.w700))]),
+          ),
+        ]),
       ),
     );
   }
@@ -407,15 +425,10 @@ class _AddClubDialogState extends State<_AddClubDialog> {
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      cursorColor: Ob.lime,
       onChanged: (_) => setState(() {}),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(fontSize: 12),
-        filled: true,
-        fillColor: AppColors.grey50,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      ),
+      style: Ob.body(15, weight: FontWeight.w700),
+      decoration: obInput(label),
     );
   }
 }
