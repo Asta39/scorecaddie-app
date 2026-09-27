@@ -3,7 +3,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme/app_theme.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_style.dart';
+import 'coach_dashboard_screen.dart' show coachGold;
 import '../../providers/app_providers.dart';
 import '../../widgets/top_notification.dart';
 
@@ -33,6 +35,11 @@ class _CoachDrillBuilderScreenState extends ConsumerState<CoachDrillBuilderScree
   List<Map<String, dynamic>> _steps = [
     {'instruction': '', 'balls': 10},
   ];
+  // Steps get a stable key so their text fields keep the right text when
+  // one above them is removed, and show loaded instructions when editing.
+  int _nextKey = 0;
+  final _keys = <Map<String, dynamic>, Key>{};
+  Key _keyFor(Map<String, dynamic> step) => _keys.putIfAbsent(step, () => ValueKey(_nextKey++));
 
   @override
   void initState() {
@@ -123,249 +130,185 @@ class _CoachDrillBuilderScreenState extends ConsumerState<CoachDrillBuilderScree
     }
   }
 
+  static const _categories = ['Swing', 'Short Game', 'Putting', 'Fitness', 'Mental'];
+  static const _levels = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
+  static const _durations = [5, 10, 15, 20, 30, 45, 60];
+
+  InputDecoration _input(String label, {String? hint}) => InputDecoration(
+        labelText: label,
+        hintText: hint,
+        labelStyle: Ob.body(13, color: Ob.creamA(.6)),
+        floatingLabelStyle: Ob.body(13, weight: FontWeight.w700, color: coachGold),
+        hintStyle: Ob.body(14, color: Ob.creamA(.3)),
+        errorStyle: Ob.body(12, color: Ob.warn),
+        filled: true,
+        fillColor: Ob.cardFill,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: coachGold, width: 1.5)),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: Ob.warn)),
+      );
+
+  Widget _chips(String label, List<String> options, String selected, ValueChanged<String> onTap) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      ObEyebrow(label),
+      const SizedBox(height: 10),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final o in options) GestureDetector(onTap: () => onTap(o), child: ObChip(o, on: o == selected, color: coachGold)),
+      ]),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final totalBalls = _steps.fold<int>(0, (a, s) => a + (s['balls'] as int));
+    final canSave = !_isSaving && !_isLoadingSteps && !_stepsLoadFailed;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.grey900 : const Color(0xFFF2F2F7),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: Text(widget.drill == null ? 'Create Template' : 'Edit Template', 
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-        actions: [
-          if (_isSaving)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: CupertinoActivityIndicator(),
-            )
-          else if (!_stepsLoadFailed && !_isLoadingSteps)
-            TextButton(
-              onPressed: _saveDrill,
-              child: const Text('Save', style: TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.bold)),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
+              child: Row(children: [
+                ObIconButton(icon: LucideIcons.chevronLeft, label: 'Back', onPressed: () => context.pop()),
+                const SizedBox(width: 10),
+                Text(widget.drill == null ? 'New drill' : 'Edit drill', style: Ob.display(24)),
+              ]),
             ),
-        ],
-      ),
-      body: _isLoadingSteps
-        ? const Center(child: CupertinoActivityIndicator())
-        : _stepsLoadFailed
-        ? Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Couldn't load this drill's steps.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.grey900),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Editing now would overwrite them, so saving is disabled until they load.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: AppColors.grey600),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _loadSteps,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.emerald700,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Retry'),
-                  ),
-                ],
+            Expanded(
+              child: _isLoadingSteps
+                  ? const Center(child: CupertinoActivityIndicator(color: coachGold))
+                  : _stepsLoadFailed
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Text('Couldn\'t load this drill\'s steps.', textAlign: TextAlign.center, style: Ob.display(22)),
+                            const SizedBox(height: 8),
+                            Text('Saving now would wipe them, so it\'s off until they load.', textAlign: TextAlign.center, style: Ob.body(14, color: Ob.creamA(.7))),
+                            const SizedBox(height: 20),
+                            ObButton(onPressed: _loadSteps, child: Text('Try again', style: Ob.label(15, weight: FontWeight.w800))),
+                          ]),
+                        )
+                      : Form(
+                          key: _formKey,
+                          child: ListView(
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                            children: [
+                              TextFormField(
+                                controller: _nameController,
+                                cursorColor: coachGold,
+                                style: Ob.body(15, weight: FontWeight.w700),
+                                decoration: _input('Name', hint: 'Gate putting'),
+                                validator: (v) => v == null || v.trim().isEmpty ? 'Needed' : null,
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _descriptionController,
+                                cursorColor: coachGold,
+                                maxLines: 3,
+                                style: Ob.body(15, weight: FontWeight.w600),
+                                decoration: _input('What it trains'),
+                              ),
+                              const SizedBox(height: 18),
+                              _chips('Area', _categories, _categories.contains(_category) ? _category : '', (v) => setState(() => _category = v)),
+                              const SizedBox(height: 18),
+                              _chips('Level', _levels, _levels.contains(_difficulty) ? _difficulty : '', (v) => setState(() => _difficulty = v)),
+                              const SizedBox(height: 18),
+                              _chips('Takes about', [for (final d in {..._durations, _duration}.toList()..sort()) '$d min'], '$_duration min',
+                                  (v) => setState(() => _duration = int.parse(v.split(' ').first))),
+                              const SizedBox(height: 24),
+                              ObEyebrow('Steps · $totalBalls balls'),
+                              const SizedBox(height: 10),
+                              for (final (i, step) in _steps.indexed)
+                                Padding(
+                                  key: _keyFor(step),
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: ObCard(
+                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Row(children: [
+                                        Container(
+                                          width: 28,
+                                          height: 28,
+                                          alignment: Alignment.center,
+                                          decoration: const BoxDecoration(color: coachGold, shape: BoxShape.circle),
+                                          child: Text('${i + 1}', style: Ob.body(13, weight: FontWeight.w800, color: Ob.ink)),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text('Step ${i + 1}', style: Ob.body(14, weight: FontWeight.w800)),
+                                        const Spacer(),
+                                        if (_steps.length > 1)
+                                          IconButton(
+                                            tooltip: 'Remove step',
+                                            onPressed: () => _removeStep(i),
+                                            icon: Icon(LucideIcons.trash2, size: 18, color: Ob.creamA(.5)),
+                                          ),
+                                      ]),
+                                      const SizedBox(height: 10),
+                                      TextFormField(
+                                        initialValue: step['instruction'] as String? ?? '',
+                                        onChanged: (v) => step['instruction'] = v,
+                                        cursorColor: coachGold,
+                                        maxLines: null,
+                                        style: Ob.body(15, weight: FontWeight.w600),
+                                        decoration: _input('What to do', hint: 'Hit 10 pitches to the flag').copyWith(fillColor: Ob.creamA(.05)),
+                                        validator: (v) => v == null || v.trim().isEmpty ? 'Needed' : null,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(children: [
+                                        Text('Balls', style: Ob.body(13, color: Ob.creamA(.6))),
+                                        Expanded(
+                                          child: SliderTheme(
+                                            data: SliderTheme.of(context).copyWith(
+                                              activeTrackColor: coachGold,
+                                              inactiveTrackColor: Ob.creamA(.1),
+                                              thumbColor: coachGold,
+                                              overlayColor: coachGold.withValues(alpha: .15),
+                                            ),
+                                            child: Slider(
+                                              value: (step['balls'] as int).toDouble().clamp(1, 50),
+                                              min: 1,
+                                              max: 50,
+                                              label: 'Balls',
+                                              onChanged: (v) => setState(() => step['balls'] = v.round()),
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(width: 30, child: Text('${step['balls']}', textAlign: TextAlign.end, style: Ob.display(18, color: coachGold))),
+                                      ]),
+                                    ]),
+                                  ),
+                                ),
+                              ObButton(
+                                tone: ObButtonTone.dark,
+                                onPressed: _addStep,
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  const Icon(LucideIcons.plus, size: 18, color: Ob.cream),
+                                  const SizedBox(width: 8),
+                                  Text('Add a step', style: Ob.label(15, weight: FontWeight.w800)),
+                                ]),
+                              ),
+                            ],
+                          ),
+                        ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
+              child: SizedBox(
+                width: double.infinity,
+                child: ObButton(
+                  onPressed: canSave ? _saveDrill : null,
+                  child: Text(_isSaving ? 'Saving…' : (widget.drill == null ? 'Save drill' : 'Save changes'), style: Ob.label(16, weight: FontWeight.w800)),
+                ),
               ),
             ),
-          )
-        : Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionLabel('TEMPLATE INFO'),
-              const SizedBox(height: 16),
-              _buildCard([
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Drill Name', hintText: 'e.g., Draw Control Drills', border: InputBorder.none),
-                  validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const Divider(height: 1),
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(labelText: 'Description', hintText: 'Explain the goal of this drill...', border: InputBorder.none),
-                  maxLines: 3,
-                ),
-              ], isDark),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionLabel('CATEGORY'),
-                        const SizedBox(height: 8),
-                        _buildDropdownCard(
-                          child: DropdownButton<String>(
-                            value: _category,
-                            isExpanded: true,
-                            underline: const SizedBox(),
-                            items: ['Swing', 'Short Game', 'Putting', 'Fitness', 'Mental']
-                                .map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))))
-                                .toList(),
-                            onChanged: (v) => setState(() => _category = v!),
-                          ),
-                          isDark: isDark,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionLabel('DIFFICULTY'),
-                        const SizedBox(height: 8),
-                        _buildDropdownCard(
-                          child: DropdownButton<String>(
-                            value: _difficulty,
-                            isExpanded: true,
-                            underline: const SizedBox(),
-                            items: ['Beginner', 'Intermediate', 'Advanced', 'Expert']
-                                .map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))))
-                                .toList(),
-                            onChanged: (v) => setState(() => _difficulty = v!),
-                          ),
-                          isDark: isDark,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildSectionLabel('DRILL STEPS'),
-                  TextButton.icon(
-                    onPressed: _addStep,
-                    icon: const Icon(LucideIcons.plus, size: 14),
-                    label: const Text('Add Step', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _steps.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 16),
-                itemBuilder: (context, index) {
-                  return Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.grey800 : Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(radius: 12, backgroundColor: AppColors.emerald700, child: Text('${index + 1}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
-                            const SizedBox(width: 12),
-                            const Text('Step Instructions', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -0.2)),
-                            const Spacer(),
-                            if (_steps.length > 1)
-                              IconButton(
-                                icon: const Icon(LucideIcons.trash2, size: 16, color: AppColors.doubleBogey), 
-                                onPressed: () => _removeStep(index),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          decoration: const InputDecoration(hintText: 'e.g., Hit 10 yard pitch shots to target'),
-                          onChanged: (v) => _steps[index]['instruction'] = v,
-                          maxLines: null,
-                          validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            const Text('Balls to hit:', style: TextStyle(fontSize: 13, color: AppColors.grey600, fontWeight: FontWeight.w600)),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Slider(
-                                value: _steps[index]['balls'].toDouble(),
-                                min: 1, max: 50,
-                                activeColor: AppColors.emerald700,
-                                inactiveColor: AppColors.emerald700.withValues(alpha: 0.1),
-                                onChanged: (v) => setState(() => _steps[index]['balls'] = v.round()),
-                              ),
-                            ),
-                            Container(
-                              width: 32,
-                              alignment: Alignment.center,
-                              child: Text('${_steps[index]['balls']}', style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.emerald700)),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 100),
-            ],
-          ),
+          ]),
         ),
       ),
-    );
-  }
-
-  Widget _buildSectionLabel(String text) {
-    return Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2));
-  }
-
-  Widget _buildCard(List<Widget> children, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.grey800 : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Column(children: children),
-    );
-  }
-
-  Widget _buildDropdownCard({required Widget child, required bool isDark}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.grey800 : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: child,
     );
   }
 }
