@@ -18,6 +18,7 @@ import '../../core/database/database.dart' as db;
 import '../../core/models/achievement_model.dart';
 import 'dart:convert';
 import '../../widgets/profile_image.dart';
+import '../../widgets/achievement_dialog.dart';
 import '../../widgets/top_notification.dart';
 import '../../widgets/coaching_panel.dart';
 import '../../widgets/loading_spinner.dart';
@@ -769,7 +770,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: SizedBox(
                         width: 88,
                         child: Column(children: [
-                          Image.asset(on ? a.avatarAsset : a.lockedAvatarAsset, width: 80, height: 80, errorBuilder: (_, _, _) => Icon(a.icon, size: 40, color: Ob.creamA(.4))),
+                          AchievementAvatar(a, earned: on, size: 80),
                           const SizedBox(height: 6),
                           Text(a.title, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: Ob.body(11, weight: FontWeight.w700, color: on ? Ob.cream : Ob.creamA(.45), height: 1.2)),
                         ]),

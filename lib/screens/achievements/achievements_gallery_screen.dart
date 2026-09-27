@@ -1,230 +1,149 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:convert';
-import '../../core/theme/app_theme.dart';
-import '../../providers/app_providers.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/models/achievement_model.dart';
+import '../../providers/app_providers.dart';
 import '../../widgets/achievement_dialog.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 
-class AchievementsGalleryScreen extends ConsumerWidget {
+Set<String> parseBadges(String? json) {
+  if (json == null || json.isEmpty) return {};
+  try {
+    final decoded = jsonDecode(json);
+    if (decoded is List) return decoded.map((e) => '$e').toSet();
+  } catch (_) {}
+  return {};
+}
+
+class AchievementsGalleryScreen extends ConsumerStatefulWidget {
   const AchievementsGalleryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsync = ref.watch(userProfileProvider);
-    
+  ConsumerState<AchievementsGalleryScreen> createState() => _AchievementsGalleryScreenState();
+}
+
+class _AchievementsGalleryScreenState extends ConsumerState<AchievementsGalleryScreen> {
+  AchievementCategory? _category;
+
+  @override
+  Widget build(BuildContext context) {
+    final earned = parseBadges(ref.watch(userProfileProvider).valueOrNull?.badgesJson);
+    const all = Achievement.allAchievements;
+    final got = all.where((a) => earned.contains(a.id)).toList();
+    final points = got.fold<int>(0, (s, a) => s + a.points);
+    final shown = all.where((a) => _category == null || a.category == _category).toList()
+      ..sort((a, b) {
+        final ea = earned.contains(a.id), eb = earned.contains(b.id);
+        return ea == eb ? 0 : (ea ? -1 : 1);
+      });
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Achievements', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: AppColors.grey900)),
-        centerTitle: false,
-      ),
-      body: profileAsync.when(
-        data: (profile) {
-          final earnedIds = _parseBadges(profile?.badgesJson);
-          return _buildContent(context, earnedIds);
-        },
-        loading: () => const Center(child: CupertinoActivityIndicator()),
-        error: (e, s) => Center(child: Text('Error: $e')),
-      ),
-    );
-  }
-
-  Set<String> _parseBadges(String? json) {
-    if (json == null || json.isEmpty) return {};
-    try {
-      final decoded = jsonDecode(json);
-      if (decoded is List) return decoded.cast<String>().toSet();
-    } catch (e) {
-      debugPrint('Error parsing badges: $e');
-    }
-    return {};
-  }
-
-  Widget _buildContent(BuildContext context, Set<String> earnedIds) {
-    final categories = AchievementCategory.values;
-    final totalEarned = earnedIds.length;
-    final totalBadges = Achievement.allAchievements.length;
-
-    // Calculate total points
-    int totalPoints = 0;
-    for (var a in Achievement.allAchievements) {
-      if (earnedIds.contains(a.id)) {
-        totalPoints += a.points;
-      }
-    }
-
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: _buildProgressCard(totalEarned, totalBadges, totalPoints),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                sliver: SliverList.list(children: [
+                  Row(children: [
+                    if (context.canPop()) ...[
+                      ObIconButton(icon: LucideIcons.chevronLeft, label: 'Back', onPressed: () => context.pop()),
+                      const SizedBox(width: 10),
+                    ],
+                    Text('Achievements', style: Ob.display(28)),
+                  ]).rise(),
+                  const SizedBox(height: 16),
+                  ObHeroCard(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('YOUR SHELF', style: Ob.eyebrow()),
+                      const SizedBox(height: 6),
+                      Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                        Text('${got.length}', style: Ob.display(52, color: Ob.lime, height: 1)),
+                        Text(' of ${all.length}', style: Ob.body(16, weight: FontWeight.w700, color: Ob.creamA(.6))),
+                        const Spacer(),
+                        Text('$points pts', style: Ob.display(22)),
+                      ]),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(5),
+                        child: LinearProgressIndicator(value: all.isEmpty ? 0 : got.length / all.length, minHeight: 10, backgroundColor: Ob.creamA(.08), color: Ob.lime),
+                      ),
+                      if (got.isEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text('Play a round and the first ones start waking up.', style: Ob.body(13, color: Ob.creamA(.6))),
+                      ],
+                    ]),
+                  ).rise(1),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 34,
+                    child: ListView(scrollDirection: Axis.horizontal, children: [
+                      _filter(null, 'All', all.length),
+                      for (final c in AchievementCategory.values)
+                        _filter(c, AchievementDialog.categoryName(c), all.where((a) => a.category == c).length),
+                    ]),
+                  ),
+                  const SizedBox(height: 16),
+                ]),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 120),
+                sliver: SliverGrid.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 6, crossAxisSpacing: 6, childAspectRatio: .74),
+                  itemCount: shown.length,
+                  itemBuilder: (_, i) {
+                    final a = shown[i];
+                    final on = earned.contains(a.id);
+                    return Semantics(
+                      button: true,
+                      label: '${a.title}, ${on ? 'earned' : 'locked'}',
+                      child: GestureDetector(
+                        onTap: () => AchievementDialog.show(context, a, isEarned: on),
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
+                          decoration: BoxDecoration(
+                            color: on ? Ob.roleFill : Ob.cardFill,
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(color: on ? Ob.lime.withValues(alpha: .35) : Colors.transparent),
+                          ),
+                          child: Column(children: [
+                            Expanded(
+                              child: AchievementAvatar(a, earned: on),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(a.title,
+                                maxLines: 2,
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                style: Ob.body(12, weight: FontWeight.w800, height: 1.15, color: on ? Ob.cream : Ob.creamA(.5))),
+                            Text('${a.points} pts', style: Ob.body(11, color: on ? Ob.lime : Ob.creamA(.35))),
+                          ]),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
-        ...categories.map((cat) => _buildCategorySection(cat, earnedIds)),
-        const SliverPadding(padding: EdgeInsets.only(bottom: 120)),
-      ],
-    );
-  }
-
-  Widget _buildProgressCard(int earned, int total, int points) {
-    final percent = total > 0 ? (earned / total) : 0.0;
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.golfLime,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('TOTAL PROGRESS', style: TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('$earned', style: const TextStyle(color: Colors.black, fontSize: 40, fontWeight: FontWeight.w900, letterSpacing: -1)),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6, left: 4),
-                child: Text('/ $total', style: TextStyle(color: Colors.black.withValues(alpha: 0.5), fontSize: 18, fontWeight: FontWeight.w800)),
-              ),
-              const Spacer(),
-              Text('${(percent * 100).toInt()}%', style: const TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w900)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: LinearProgressIndicator(
-              value: percent,
-              backgroundColor: Colors.black.withValues(alpha: 0.08),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
-              minHeight: 10,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Divider(color: Colors.black12, height: 1),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.05), shape: BoxShape.circle),
-                child: const Icon(LucideIcons.sparkles, color: Colors.black, size: 20),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('REWARDS COLLECTED', style: TextStyle(color: Colors.black54, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
-                  Text('$points PTS', style: const TextStyle(color: Colors.black, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-                ],
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
 
-  Widget _buildCategorySection(AchievementCategory category, Set<String> earnedIds) {
-    final catAchievements = Achievement.allAchievements.where((a) => a.category == category).toList();
-    
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      sliver: SliverList(
-        delegate: SliverChildListDelegate([
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, top: 12),
-            child: Row(
-              children: [
-                _getCategoryIcon(category),
-                const SizedBox(width: 8),
-                Text(
-                  category.name.toUpperCase(),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2),
-                ),
-              ],
-            ),
-          ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.85,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
-            itemCount: catAchievements.length,
-            itemBuilder: (context, i) {
-              final a = catAchievements[i];
-              final isEarned = earnedIds.contains(a.id);
-              return _buildBadgeItem(context, a, isEarned);
-            },
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildBadgeItem(BuildContext context, Achievement a, bool isEarned) {
-    return GestureDetector(
-      onTap: () => _showBadgeDetail(context, a, isEarned),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: isEarned ? Colors.white : Colors.white.withValues(alpha: 0.4),
-              shape: BoxShape.circle,
-              boxShadow: isEarned ? [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))] : null,
-            ),
-            child: Icon(
-              a.icon,
-              size: 26,
-              color: isEarned ? AppColors.emerald700 : AppColors.grey200,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            a.title,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: isEarned ? AppColors.grey900 : AppColors.grey300,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showBadgeDetail(BuildContext context, Achievement a, bool isEarned) {
-    AchievementDialog.show(context, a, isEarned: isEarned);
-  }
-
-  Widget _getCategoryIcon(AchievementCategory cat) {
-    IconData icon;
-    switch (cat) {
-      case AchievementCategory.scoring: icon = LucideIcons.target; break;
-      case AchievementCategory.consistency: icon = LucideIcons.activity; break;
-      case AchievementCategory.activity: icon = LucideIcons.calendar; break;
-      case AchievementCategory.explorer: icon = LucideIcons.map; break;
-      case AchievementCategory.social: icon = LucideIcons.users; break;
-      case AchievementCategory.practice: icon = LucideIcons.dumbbell; break;
-    }
-    return Icon(icon, size: 16, color: AppColors.grey400);
-  }
+  Widget _filter(AchievementCategory? c, String label, int count) => Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: GestureDetector(
+          onTap: () => setState(() => _category = c),
+          child: ObChip('$label · $count', on: _category == c),
+        ),
+      );
 }
