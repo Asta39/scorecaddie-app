@@ -57,10 +57,10 @@ void main() {
     
     // We inserted 10.0 to 29.0. Best 8 are 10, 11, 12, 13, 14, 15, 16, 17.
     // Average = 108 / 8 = 13.5
-    // 13.5 * 0.96 = 12.96 -> rounded to 13.0
+    // No multiplier since 2020 (Rule 5.2)
     
     final handicapIndex = WHSEngine.calculateHandicapIndex(differentials);
     
-    expect(handicapIndex, 13.0);
+    expect(handicapIndex, 13.5);
   });
 }

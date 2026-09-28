@@ -1693,8 +1693,9 @@ class _WHSAuditContent extends ConsumerWidget {
                 child: Column(children: [
                   _line('Sum of the best ${best.length}', status.bestSum!.toStringAsFixed(1)),
                   _line('Average', status.bestAverage!.toStringAsFixed(2)),
-                  _line('× 0.96', status.bestAverageWithMultiplier!.toStringAsFixed(2)),
-                  _line('Capped for a big jump?', (status.currentIndex ?? 0) != status.bestAverageWithMultiplier ? 'Yes' : 'No'),
+                  if ((status.bestAverageWithMultiplier! - status.bestAverage!).abs() > .01)
+                    _line('Fewer than 20 rounds', (status.bestAverageWithMultiplier! - status.bestAverage!).toStringAsFixed(1)),
+                  _line('Exceptional score or cap?', ((status.currentIndex ?? 0) - status.bestAverageWithMultiplier!).abs() >= .05 ? 'Yes' : 'No'),
                   const ObHair(),
                   const SizedBox(height: 8),
                   Row(children: [

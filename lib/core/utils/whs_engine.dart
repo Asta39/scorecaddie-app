@@ -94,54 +94,57 @@ class WHSEngine {
   }
 
   // ── Step 3: Handicap Index ───────────────────────────────
-  /// Calculates the Handicap Index from a list of differentials.
-  /// Applies 20th score window, the "Best 8" logic, and WHS Caps if [lowIndex] is provided.
-  /// If [latestScoreDiff] and [previousIndex] are provided, applies Exceptional Score Reduction (ESR)
-  /// before the soft/hard cap check per WHS 2024 rules.
+  /// Highest Handicap Index a player can have (Rule 5.2).
+  static const double maxHandicapIndex = 54.0;
+
+  /// Adjustment for scoring records shorter than 20 (Rule 5.2a table).
+  static double fewerThan20Adjustment(int count) => switch (count) {
+        3 => -2.0,
+        4 => -1.0,
+        6 => -1.0,
+        _ => 0.0,
+      };
+
+  /// The Handicap Index from differentials in play order (oldest first).
+  ///
+  /// Rules of Handicapping 2024:
+  /// - 5.2: average of the lowest 8 of the most recent 20 differentials,
+  ///   with no multiplier (the old 0.96 "bonus for excellence" was dropped
+  ///   in 2020); fewer than 20 use the 5.2a table, and at least 3 scores
+  ///   (54 holes) are needed before there's an index at all; max 54.0.
+  /// - 5.9: an exceptional score (7.0+ below the index before it) lowers
+  ///   the most recent 20 differentials by 1 (or 2 at 10.0+), which keeps
+  ///   applying until those rounds leave the window. The deprecated
+  ///   [latestScoreDiff]/[previousIndex] parameters are ignored: the
+  ///   reduction is worked out from the full history instead.
+  /// - 5.8: soft cap above +3.0 and hard cap at +5.0 over [lowIndex].
   static double? calculateHandicapIndex(List<double> allDifferentials, {double? lowIndex, double? latestScoreDiff, double? previousIndex}) {
-    if (allDifferentials.isEmpty) return null;
-    
-    // Only use the 20 most recent scores
-    final recent = allDifferentials.length > 20
-        ? allDifferentials.sublist(allDifferentials.length - 20)
-        : allDifferentials;
+    final adjusted = <double>[];
+    for (final d in allDifferentials) {
+      final before = _indexOf(adjusted);
+      adjusted.add(d);
+      if (before == null) continue;
+      final esr = calculateExceptionalScoreReduction(d, before);
+      if (esr == 0) continue;
+      final from = adjusted.length > 20 ? adjusted.length - 20 : 0;
+      for (var i = from; i < adjusted.length; i++) {
+        adjusted[i] += esr;
+      }
+    }
+    var result = _indexOf(adjusted);
+    if (result == null) return null;
+    if (lowIndex != null) result = applyYearlyCap(result, lowIndex);
+    return (result.clamp(-10.0, maxHandicapIndex) * 10).roundToDouble() / 10;
+  }
 
+  /// Index from the most recent 20 differentials, before caps. Null under 3.
+  static double? _indexOf(List<double> diffs) {
+    final recent = diffs.length > 20 ? diffs.sublist(diffs.length - 20) : diffs;
     final count = recent.length;
-    final numToUse = _getDifferentialsToUse(count);
-    if (numToUse == 0) return null;
-
-    final sorted = List<double>.from(recent)..sort();
-    final best = sorted.sublist(0, numToUse);
+    if (count < 3) return null;
+    final best = (List<double>.from(recent)..sort()).sublist(0, _getDifferentialsToUse(count));
     final average = best.reduce((a, b) => a + b) / best.length;
-    
-    // Apply 0.96 multiplier (as per user design requirement)
-    // Note: Official WHS 2024 usually uses 1.0, but we follow the design spec here.
-    double result = average * 0.96;
-
-    // Apply WHS adjustments for fewer than 20 scores
-    double adjustment = 0.0;
-    if (count == 3) {
-      adjustment = -2.0;
-    } else if (count == 4) {
-      adjustment = -1.0;
-    } else if (count == 6) {
-      adjustment = -1.0;
-    }
-
-    result = result + adjustment;
-
-    // Apply Exceptional Score Reduction (ESR) before cap check
-    // WHS 2024: if latest SD is 7.0+ below previous HI, reduce index by -1.0 or -2.0
-    if (latestScoreDiff != null && previousIndex != null) {
-      result += calculateExceptionalScoreReduction(latestScoreDiff, previousIndex);
-    }
-
-    // Apply WHS Caps (Soft/Hard) if a Low Index (Anchor) is available
-    if (lowIndex != null) {
-      result = applyYearlyCap(result, lowIndex);
-    }
-
-    return (result * 10).roundToDouble() / 10;
+    return average + fewerThan20Adjustment(count);
   }
 
   // ── Step 4: Caps & Anchoring ─────────────────────────────

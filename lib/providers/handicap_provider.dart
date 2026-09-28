@@ -85,16 +85,8 @@ final handicapProvider = StreamProvider<HandicapStatus>((ref) {
         .toList();
 
     // 2. Calculate Current HI (Applying Caps based on Anchor, with ESR)
-    final latestSD = allDiffs.isNotEmpty ? allDiffs.last : null;
-    final previousIndex = allDiffs.length > 1
-        ? WHSEngine.calculateHandicapIndex(allDiffs.sublist(0, allDiffs.length - 1), lowIndex: lowIndexAnchor)
-        : null;
-    final currentHI = WHSEngine.calculateHandicapIndex(
-      allDiffs,
-      lowIndex: lowIndexAnchor,
-      latestScoreDiff: latestSD,
-      previousIndex: previousIndex,
-    );
+    // Exceptional-score reductions are worked out from the whole history.
+    final currentHI = WHSEngine.calculateHandicapIndex(allDiffs, lowIndex: lowIndexAnchor) ?? profile?.handicap;
 
     // 3. Low HI Handling
     // If the newly calculated index is lower than the stored anchor, it potentially becomes the new anchor.
@@ -128,7 +120,9 @@ final handicapProvider = StreamProvider<HandicapStatus>((ref) {
     final bestRoundsForSum = validLast20.where((r) => bestIds.contains(r.id)).toList();
     final sum = bestRoundsForSum.isEmpty ? 0.0 : bestRoundsForSum.fold<double>(0, (a, b) => a + (b.scoreDifferential ?? 0));
     final avg = bestRoundsForSum.isEmpty ? 0.0 : sum / bestRoundsForSum.length;
-    final avgWithMultiplier = avg * 0.96;
+    // Before caps and exceptional-score reductions: the plain average plus
+    // the fewer-than-20 adjustment (Rule 5.2a).
+    final avgWithMultiplier = avg + WHSEngine.fewerThan20Adjustment(validLast20.length);
 
     return HandicapStatus(
       currentIndex: currentHI,

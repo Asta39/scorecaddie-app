@@ -47,39 +47,37 @@ void main() {
       final differentials = List.generate(20, (index) => 10.0 + index); // 10.0 to 29.0
       // Best 8: 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0
       // Average = 108 / 8 = 13.5
-      // * 0.96 = 12.96 -> 13.0
+      // No multiplier since 2020 (Rule 5.2).
       final index = WHSEngine.calculateHandicapIndex(differentials);
-      expect(index, 13.0);
+      expect(index, 13.5);
     });
 
     test('calculateHandicapIndex with 3 scores (best 1)', () {
       final differentials = [10.5, 15.0, 20.0];
-      // Best 1 = 10.5. * 0.96 = 10.08. Adjustment -2.0 -> 8.08 -> 8.1
+      // Best 1 = 10.5, adjustment -2.0 (Rule 5.2a) -> 8.5
       final index = WHSEngine.calculateHandicapIndex(differentials);
-      expect(index, 8.1);
+      expect(index, 8.5);
     });
   });
 
   group('WHSEngine - Caps (Soft/Hard)', () {
     test('no cap applied when index below soft cap', () {
       final differentials = List.generate(20, (_) => 12.0);
-      // Avg = 12.0. * 0.96 = 11.52 -> 11.5
-      // Soft cap at 13.0. 11.5 < 13.0 -> no cap
+      // Avg = 12.0, under the 13.0 soft cap
       final index = WHSEngine.calculateHandicapIndex(differentials, lowIndex: 10.0);
-      expect(index, 11.5);
+      expect(index, 12.0);
     });
 
     test('soft cap applied when index between soft and hard cap', () {
       final differentials = List.generate(20, (_) => 14.0);
-      // Avg = 14.0. * 0.96 = 13.44 -> 13.4
-      // Soft cap at 13.0. 13.4 > 13.0 -> 13.0 + (13.4-13.0)*0.5 = 13.2
+      // Avg = 14.0; soft cap 13.0 -> 13.0 + (14.0-13.0)*0.5 = 13.5
       final index = WHSEngine.calculateHandicapIndex(differentials, lowIndex: 10.0);
-      expect(index, 13.2);
+      expect(index, 13.5);
     });
 
     test('hard cap applied when index exceeds hard cap threshold', () {
       final differentials = List.generate(20, (_) => 18.0);
-      // Avg = 18.0. * 0.96 = 17.28 -> 17.3
+      // Avg = 18.0
       // Hard cap at 15.0. 17.3 > 15.0 -> 15.0
       final index = WHSEngine.calculateHandicapIndex(differentials, lowIndex: 10.0);
       expect(index, 15.0);
@@ -107,10 +105,8 @@ void main() {
 
     test('ESR applied in calculateHandicapIndex when latestSD 8 below previous', () {
       // 19 diffs at 15.0 + latest SD at 5.0
-      // Previous HI from 19 diffs: 7 best x 15.0 = 105/7 = 15.0. *0.96 = 14.4 -> 14.4
-      // Latest SD = 5.0, diff from prev HI = 14.4-5.0 = 9.4 -> ESR = -1.0
-      // All 20 sorted: 5.0 + 19x15.0. Best 8: 5.0 + 7x15.0 = 110/8 = 13.75. *0.96 = 13.2
-      // Result = 13.2 + (-1.0) ESR = 12.2
+      // Index before it: 15.0. 15.0 - 5.0 = 10.0 -> ESR -2.0 on all 20 (Rule 5.9)
+      // 3.0 + 19x13.0 -> best 8: (3 + 7x13) / 8 = 11.75 -> 11.8
       final differentials = List.generate(19, (_) => 15.0)..add(5.0);
       final previousDiffs = List.generate(19, (_) => 15.0);
       final previousIndex = WHSEngine.calculateHandicapIndex(previousDiffs);
@@ -119,7 +115,7 @@ void main() {
         latestScoreDiff: 5.0,
         previousIndex: previousIndex,
       );
-      expect(index, 12.2);
+      expect(index, 11.8);
     });
 
     test('ESR applied BEFORE soft cap', () {
@@ -127,7 +123,6 @@ void main() {
       // Previous HI with 19 diffs at 10.0 = approx 10.0
       // Latest SD = 0.0 (10 below) -> ESR = -2.0
       // Calculated from all 20 (with ESR): best 8 avg = (0 + 7*10) / 8 = 8.75
-      // * 0.96 = 8.4. ESR -2.0 = 6.4. Below soft cap 13.0 -> 6.4
       final differentials = List.generate(19, (_) => 10.0)..add(0.0);
       final previousDiffs = List.generate(19, (_) => 10.0);
       final previousIndex = WHSEngine.calculateHandicapIndex(previousDiffs);
@@ -142,9 +137,8 @@ void main() {
 
     test('no ESR when latestScoreDiff not provided', () {
       final differentials = List.generate(20, (_) => 15.0);
-      // Avg = 15.0. * 0.96 = 14.4 -> 14.4 (no ESR since params omitted)
       final index = WHSEngine.calculateHandicapIndex(differentials);
-      expect(index, 14.4);
+      expect(index, 15.0);
     });
   });
 
@@ -209,6 +203,25 @@ void main() {
       final ch9 = WHSEngine.calculateNineHoleCourseHandicap(handicapIndex: 18.7, slopeRating: 113, courseRating: 72.0, par: 72);
       expect(ch18, 19);
       expect((ch9 - ch18 / 2).abs() <= 1, isTrue);
+    });
+  });
+
+  group('WHSEngine - Rules of Handicapping 2024', () {
+    test('no index before 3 scores (54 holes)', () {
+      expect(WHSEngine.calculateHandicapIndex([12.0]), isNull);
+      expect(WHSEngine.calculateHandicapIndex([12.0, 14.0]), isNull);
+      expect(WHSEngine.calculateHandicapIndex([12.0, 14.0, 16.0]), 10.0);
+    });
+
+    test('exceptional score reduction keeps applying after the next round', () {
+      // 19 x 15.0, then a 5.0 (ESR -2 on all 20), then an ordinary 15.0.
+      final diffs = List.generate(19, (_) => 15.0)..addAll([5.0, 15.0]);
+      // Window: 18 x 13.0 (reduced), 3.0 (reduced), 15.0 -> best 8 = (3 + 7x13) / 8
+      expect(WHSEngine.calculateHandicapIndex(diffs), 11.8);
+    });
+
+    test('index is never above 54.0', () {
+      expect(WHSEngine.calculateHandicapIndex(List.generate(20, (_) => 70.0)), 54.0);
     });
   });
 }
