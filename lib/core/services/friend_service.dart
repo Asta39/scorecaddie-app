@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart' as drift;
@@ -7,6 +8,7 @@ import '../cloud/sync_service.dart';
 
 class FriendService {
   final db.AppDatabase _database;
+  // ignore: unused_field
   final SyncService _sync;
   final String? _uid;
   final supabase.SupabaseClient _supabase;
@@ -23,64 +25,183 @@ class FriendService {
     return 'SC-$part1-$part2';
   }
 
-  Future<bool> sendFriendRequest(String targetUid) async {
-    if (_uid == null || targetUid == _uid) return false;
+  /// Turns what someone typed or scanned into a friend code: trims it,
+  /// upper-cases it and restores the "SC-XXXX-XXXX" dashes if they were left
+  /// out. Returns null when it can't be a friend code.
+  static String? normalizeFriendCode(String input) {
+    final raw = input.trim().toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
+    final body = raw.length == 10 && raw.startsWith('SC') ? raw.substring(2) : raw;
+    if (!RegExp(r'^[A-Z0-9]{8}$').hasMatch(body)) return null;
+    return 'SC-${body.substring(0, 4)}-${body.substring(4)}';
+  }
 
-    // 1. Check if already friends locally
-    final existing = await (_database.select(_database.friends)..where((f) => f.friendId.equals(targetUid))).get().then((rows) => rows.firstOrNull);
-    if (existing != null) return false;
+  /// Sends a friend request, or completes the friendship when the other
+  /// golfer already asked us. Friendships live in the Friend table as one row
+  /// per request; either direction counts, so a pair is never stored twice.
+  Future<FriendRequestResult> sendFriendRequest(String targetUid) async {
+    if (_uid == null) return FriendRequestResult.failed;
+    if (targetUid == _uid) return FriendRequestResult.self;
 
-    // 2. Fetch target profile from Supabase to confirm exists
-    final targetProfile = await fetchProfile(targetUid);
-    if (targetProfile == null) return false;
+    // Already friends on this phone: nothing to ask.
+    final local = await (_database.select(_database.friends)
+          ..where((f) => f.userId.equals(_uid) & f.friendId.equals(targetUid)))
+        .get();
+    if (local.isNotEmpty) return FriendRequestResult.alreadyFriends;
 
-    // 3. Create request in Supabase Friend table
     try {
-      await _supabase.from('Friend').upsert({
+      final rows = await _supabase
+          .from('Friend')
+          .select('id, userId, friendId, status')
+          .or('and(userId.eq.$_uid,friendId.eq.$targetUid),and(userId.eq.$targetUid,friendId.eq.$_uid)');
+      final pair = List<Map<String, dynamic>>.from(rows);
+
+      if (pair.any((r) => r['status'] == 'ACCEPTED')) {
+        await syncFriends();
+        return FriendRequestResult.alreadyFriends;
+      }
+
+      // They asked us first: accepting that request makes us friends.
+      final theirs = pair.where((r) => r['userId'] == targetUid).firstOrNull;
+      if (theirs != null) {
+        await _supabase
+            .from('Friend')
+            .update({'status': 'ACCEPTED', 'updatedAt': DateTime.now().toIso8601String()})
+            .eq('id', theirs['id']);
+        await syncFriends();
+        return FriendRequestResult.nowFriends;
+      }
+
+      if (pair.any((r) => r['userId'] == _uid)) return FriendRequestResult.alreadySent;
+
+      await _supabase.from('Friend').insert({
         'userId': _uid,
         'friendId': targetUid,
         'status': 'PENDING',
-        'updatedAt': DateTime.now().toIso8601String()
-      }, onConflict: 'userId,friendId');
-      return true;
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      return FriendRequestResult.sent;
     } catch (e) {
-      debugPrint('FriendService ERROR: Failed to send friend request');
-      return false;
+      debugPrint('FriendService: sendFriendRequest failed: $e');
+      return FriendRequestResult.failed;
     }
   }
 
-  Stream<List<Map<String, dynamic>>> streamIncomingRequests() {
-    if (_uid == null) return Stream.value([]);
-    debugPrint('FriendService: Starting stream for incoming requests');
+  /// Makes the friends list on this phone match the server: every ACCEPTED
+  /// row in either direction, once per golfer. Removes friends who were
+  /// removed elsewhere and clears duplicates left by older versions.
+  Future<void> syncFriends() async {
+    if (_uid == null) return;
     try {
-      return _supabase
+      final rows = await _supabase
           .from('Friend')
-          .stream(primaryKey: ['id'])
-          .eq('friendId', _uid)
-          .asyncMap((data) async {
-            List<Map<String, dynamic>> requests = [];
-            final pendingData = data.where((row) => row['status'] == 'PENDING');
-            for (var row in pendingData) {
-              final fromUid = row['userId'] as String;
-              final profile = await fetchProfile(fromUid);
-              requests.add({
-                'id': row['id'], // Supabase UUID
-                'from': fromUid,
-                'to': _uid,
-                'fromName': profile?['name'] ?? 'Golfer',
-                'fromAvatar': profile?['avatarUrl'],
-                'status': 'pending',
-              });
-            }
-            return requests;
-          })
-          .handleError((error) {
-            debugPrint('Supabase STREAM ERROR (Friend)');
-            return <Map<String, dynamic>>[];
-          });
+          .select('userId, friendId')
+          .eq('status', 'ACCEPTED')
+          .or('userId.eq.$_uid,friendId.eq.$_uid');
+      final others = <String>{
+        for (final r in List<Map<String, dynamic>>.from(rows)) (r['userId'] == _uid ? r['friendId'] : r['userId']) as String,
+      }..remove(_uid);
+
+      final profiles = <String, Map<String, dynamic>>{};
+      if (others.isNotEmpty) {
+        final data = await _supabase.from('User').select('id, name, avatarUrl').inFilter('id', others.toList());
+        for (final p in List<Map<String, dynamic>>.from(data)) {
+          profiles[p['id'] as String] = p;
+        }
+      }
+
+      await _database.transaction(() async {
+        final existing = await (_database.select(_database.friends)..where((f) => f.userId.equals(_uid))).get();
+        final kept = <String>{};
+        for (final f in existing) {
+          // Drop anyone no longer a friend, and any second copy of a friend.
+          if (!others.contains(f.friendId) || !kept.add(f.friendId)) {
+            await (_database.delete(_database.friends)..where((x) => x.id.equals(f.id))).go();
+          }
+        }
+        for (final id in others) {
+          final p = profiles[id];
+          final update = db.FriendsCompanion(
+            friendName: drift.Value(p?['name'] as String? ?? 'Golfer'),
+            friendAvatar: drift.Value(p?['avatarUrl'] as String?),
+          );
+          if (kept.contains(id)) {
+            await (_database.update(_database.friends)..where((f) => f.userId.equals(_uid) & f.friendId.equals(id))).write(update);
+          } else {
+            await _database.into(_database.friends).insert(update.copyWith(userId: drift.Value(_uid), friendId: drift.Value(id)));
+          }
+        }
+      });
     } catch (e) {
-      debugPrint('Error setting up friend requests stream');
-      return Stream.value([]);
+      debugPrint('FriendService: syncFriends failed: $e');
+    }
+  }
+
+  /// Friend requests sent to me that are waiting for an answer.
+  ///
+  /// Realtime isn't enabled for the Friend table, so a realtime `.stream()`
+  /// silently never delivered anything. This polls: now, every 20 seconds,
+  /// and right after I answer one. Each poll also refreshes the friends list,
+  /// which is how the sender learns their request was accepted.
+  Stream<List<Map<String, dynamic>>> watchIncomingRequests() {
+    if (_uid == null) return Stream.value([]);
+    late final StreamController<List<Map<String, dynamic>>> c;
+    Timer? timer;
+    Future<void> load() async {
+      try {
+        final rows = await _supabase
+            .from('Friend')
+            .select('id, userId')
+            .eq('friendId', _uid)
+            .eq('status', 'PENDING')
+            .order('updatedAt', ascending: false);
+        final list = List<Map<String, dynamic>>.from(rows);
+        final ids = list.map((r) => r['userId'] as String).toSet().toList();
+        final profiles = <String, Map<String, dynamic>>{};
+        if (ids.isNotEmpty) {
+          final data = await _supabase.from('User').select('id, name, avatarUrl').inFilter('id', ids);
+          for (final p in List<Map<String, dynamic>>.from(data)) {
+            profiles[p['id'] as String] = p;
+          }
+        }
+        final seen = <String>{};
+        if (!c.isClosed) {
+          c.add([
+            for (final r in list)
+              if (seen.add(r['userId'] as String))
+                {
+                  'id': r['id'],
+                  'from': r['userId'],
+                  'fromName': profiles[r['userId']]?['name'] ?? 'Golfer',
+                  'fromAvatar': profiles[r['userId']]?['avatarUrl'],
+                },
+          ]);
+        }
+      } catch (e) {
+        debugPrint('FriendService: loading requests failed: $e');
+        if (!c.isClosed) c.add(const []);
+      }
+      await syncFriends();
+    }
+
+    void poke() => load();
+    c = StreamController<List<Map<String, dynamic>>>(
+      onListen: () {
+        _pokes.add(poke);
+        load();
+        timer = Timer.periodic(const Duration(seconds: 20), (_) => load());
+      },
+      onCancel: () {
+        _pokes.remove(poke);
+        timer?.cancel();
+      },
+    );
+    return c.stream;
+  }
+
+  final _pokes = <void Function()>{};
+  void _refresh() {
+    for (final p in _pokes.toList()) {
+      p();
     }
   }
 
@@ -88,95 +209,20 @@ class FriendService {
     if (_uid == null) return;
     try {
       if (accept) {
-        // Fetch the request record first to know who sent it
-        final request = await _supabase.from('Friend').select().eq('id', requestId).maybeSingle();
-        if (request == null) return;
-        
-        final fromUid = request['userId'] as String;
-
-        // Mark as accepted in Supabase
-        await _supabase.from('Friend').update({
-          'status': 'ACCEPTED',
-          'updatedAt': DateTime.now().toIso8601String()
-        }).eq('id', requestId);
-
-        // Fetch profile to save locally
-        final fromProfile = await fetchProfile(fromUid);
-        final fromName = fromProfile?['name'] ?? 'Golfer';
-        final fromAvatar = fromProfile?['avatarUrl'];
-
-        // Add to local DB
-        await _database.into(_database.friends).insert(db.FriendsCompanion.insert(
-          userId: _uid,
-          friendId: fromUid,
-          friendName: drift.Value(fromName),
-          friendAvatar: drift.Value(fromAvatar),
-        ), mode: drift.InsertMode.insertOrReplace);
-
-        _sync.pullFriends();
+        // Only the golfer the request was sent to can accept it.
+        await _supabase
+            .from('Friend')
+            .update({'status': 'ACCEPTED', 'updatedAt': DateTime.now().toIso8601String()})
+            .eq('id', requestId)
+            .eq('friendId', _uid);
+        await syncFriends();
       } else {
-        // Decline = delete row or mark DECLINED
-        await _supabase.from('Friend').delete().eq('id', requestId);
+        await _supabase.from('Friend').delete().eq('id', requestId).eq('friendId', _uid);
       }
     } catch (e) {
-      debugPrint('FriendService ERROR: respondToRequest failed');
-    }
-  }
-
-  /// Listens for requests I SENT that have been accepted
-  Stream<List<Map<String, dynamic>>> streamAcceptedSentRequests() {
-    if (_uid == null) return Stream.value([]);
-    return _supabase
-        .from('Friend')
-        .stream(primaryKey: ['id'])
-        .eq('userId', _uid)
-        .asyncMap((data) async {
-          List<Map<String, dynamic>> accepted = [];
-          final acceptedData = data.where((row) => row['status'] == 'ACCEPTED');
-          for (var row in acceptedData) {
-            final toUid = row['friendId'] as String;
-            final profile = await fetchProfile(toUid);
-            accepted.add({
-              'id': row['id'],
-              'from': _uid,
-              'to': toUid,
-              'toName': profile?['name'] ?? 'Golfer',
-              'toAvatar': profile?['avatarUrl'],
-              'status': 'accepted',
-            });
-          }
-          return accepted;
-        });
-  }
-
-  Future<void> finalizeHandshake(String requestId) async {
-    if (_uid == null) return;
-    try {
-      final request = await _supabase.from('Friend').select().eq('id', requestId).maybeSingle();
-      if (request == null) return;
-
-      final toUid = request['friendId'] as String;
-
-      // 1. Fetch latest profile of the person who accepted
-      final friendProfile = await fetchProfile(toUid);
-      final name = friendProfile?['name'] ?? 'Golfer';
-      final avatar = friendProfile?['avatarUrl'];
-
-      // 2. Add to MY local DB
-      await _database.into(_database.friends).insert(db.FriendsCompanion.insert(
-        userId: _uid,
-        friendId: toUid,
-        friendName: drift.Value(name),
-        friendAvatar: drift.Value(avatar),
-      ), mode: drift.InsertMode.insertOrReplace);
-
-      // We DON'T delete the row here because it's our ongoing record of friendship (status='ACCEPTED').
-      // Alternatively, we leave it in the DB to sync friends automatically in pullFriends().
-      
-      _sync.pullFriends();
-      debugPrint('FriendService: Handshake finalized');
-    } catch (e) {
-      debugPrint('FriendService ERROR: finalizeHandshake failed');
+      debugPrint('FriendService: respondToRequest failed: $e');
+    } finally {
+      _refresh();
     }
   }
 
@@ -258,44 +304,35 @@ class FriendService {
   Future<void> ensureFriendCode() async {
     if (_uid == null) return;
     try {
-      // 1. Already have one locally? Nothing to do — fast path.
       final localProfile = await _database.getProfile(_uid);
-      if (localProfile?.friendCode != null) return;
+      final local = localProfile?.friendCode;
 
-      // 2. Generate a brand-new code immediately (no network wait).
-      //    We'll reconcile with any existing remote code afterwards.
-      final friendCode = _generateFriendCode();
-
-      // 3. Write locally FIRST — this is what makes the QR dialog update instantly.
-      if (localProfile == null) {
-        await _database.insertProfile(
-          db.UserProfilesCompanion(
-            uid: drift.Value(_uid),
-            friendCode: drift.Value(friendCode),
-          ),
-        );
-      } else {
-        await _database.updateProfile(
-          _uid,
-          db.UserProfilesCompanion(friendCode: drift.Value(friendCode)),
-        );
+      // The code on the server is the one friends type and scan, so it wins.
+      // This used to make a fresh code whenever the phone had none, which
+      // replaced a golfer's code after a reinstall and broke codes they had
+      // already shared.
+      String? remote;
+      try {
+        final row = await _supabase.from('User').select('friendCode').eq('id', _uid).maybeSingle();
+        remote = row?['friendCode'] as String?;
+      } catch (_) {
+        // Offline: keep whatever this phone has and try again next launch.
+        if (local != null) return;
       }
-      debugPrint('FriendService: Friend code saved locally → $friendCode');
 
-      // 4. Patch just the friendCode on the existing Supabase row (background).
-      //    Use update() not upsert() — avoids the not-null email constraint
-      //    on accounts that haven't completed their profile yet.
-      //    syncMyProfileToCloud() will write the full row when they do.
-      _supabase
-          .from('User')
-          .update({'friendCode': friendCode})
-          .eq('id', _uid)
-          .then((_) {
-        debugPrint('FriendService: Friend code synced to Supabase → $friendCode');
-      }).catchError((e) {
-        debugPrint('FriendService: Friend code Supabase sync failed (non-fatal): $e');
-      });
-
+      final code = remote ?? local ?? _generateFriendCode();
+      if (code != local) {
+        if (localProfile == null) {
+          await _database.insertProfile(db.UserProfilesCompanion(uid: drift.Value(_uid), friendCode: drift.Value(code)));
+        } else {
+          await _database.updateProfile(_uid, db.UserProfilesCompanion(friendCode: drift.Value(code)));
+        }
+      }
+      if (remote == null) {
+        // Update, not upsert: a profile that isn't finished yet has no email,
+        // which the User row requires.
+        await _supabase.from('User').update({'friendCode': code}).eq('id', _uid);
+      }
     } catch (e) {
       debugPrint('FriendService: ensureFriendCode failed: $e');
     }
@@ -355,10 +392,12 @@ class FriendService {
   }
 
   Future<Map<String, dynamic>?> fetchProfile(String identifier) async {
+    identifier = identifier.trim();
     try {
-      final isFriendCode = identifier.toUpperCase().startsWith('SC-');
+      final code = normalizeFriendCode(identifier);
 
-      if (isFriendCode) {
+      if (code != null) {
+        identifier = code;
         // --- Friend Code Lookup ---
         debugPrint('FriendService: Looking up by friendCode: $identifier');
         final response = await _supabase
@@ -421,9 +460,6 @@ class FriendService {
     };
   }
 
-  Future<bool> addFriend(String friendUid) async {
-    return sendFriendRequest(friendUid);
-  }
 
   Future<void> removeFriend(String friendId) async {
     if (_uid == null) return;
@@ -432,7 +468,13 @@ class FriendService {
     await (_database.delete(_database.friends)..where((f) => f.friendId.equals(friendId))).go();
 
     // 2. Delete from Supabase Friend list (either direction)
-    await _supabase.from('Friend').delete().eq('userId', _uid).eq('friendId', friendId);
-    await _supabase.from('Friend').delete().eq('userId', friendId).eq('friendId', _uid);
+    try {
+      await _supabase.from('Friend').delete().eq('userId', _uid).eq('friendId', friendId);
+      await _supabase.from('Friend').delete().eq('userId', friendId).eq('friendId', _uid);
+    } catch (e) {
+      debugPrint('FriendService: removeFriend failed: $e');
+    }
   }
 }
+
+enum FriendRequestResult { sent, nowFriends, alreadySent, alreadyFriends, self, failed }

@@ -14,21 +14,22 @@ import '../../providers/app_providers.dart';
 import '../../core/database/database.dart';
 
 class FriendsScreen extends ConsumerWidget {
-  const FriendsScreen({super.key});
+  const FriendsScreen({super.key, this.addCode});
+
+  /// A friend code from a scanned QR link, to confirm and send on open.
+  final String? addCode;
+  static final _handledCodes = <String>{};
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final code = addCode;
+    if (code != null && _handledCodes.add(code)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) addFriendByCode(context, ref, code);
+      });
+    }
     final friendsAsync = ref.watch(friendsProvider);
     final requestsAsync = ref.watch(friendRequestsProvider);
-
-    // AUTO-SYNC ACCEPTED REQUESTS (For the Sender)
-    ref.listen(acceptedSentRequestsProvider, (prev, next) {
-      if (next.hasValue && next.value!.isNotEmpty) {
-        for (var req in next.value!) {
-          ref.read(friendServiceProvider).finalizeHandshake(req['id']);
-        }
-      }
-    });
 
     final requests = requestsAsync.valueOrNull ?? const <Map<String, dynamic>>[];
     final friends = friendsAsync.valueOrNull ?? const <Friend>[];

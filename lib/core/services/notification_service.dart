@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +34,7 @@ class NotificationService {
 
   Future<void> _initLocalNotifications() async {
     const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+      'ic_stat_onesignal_default',
     );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -71,13 +72,13 @@ class NotificationService {
     final scheduledDate = tz.TZDateTime.from(notifyAt, tz.local);
 
     final body = notes != null && notes.isNotEmpty
-        ? 'Your round is in $notifyBeforeMinutes minutes! Note: $notes'
-        : 'Your round is in $notifyBeforeMinutes minutes. Get ready! ⛳';
+        ? 'Note: $notes'
+        : 'See you on the first tee!';
 
     try {
       await _localNotifications.zonedSchedule(
         reminderId, // Use local DB id as notification id
-        '⛳ Tee Time Reminder',
+        'Tee off in $notifyBeforeMinutes minutes',
         body,
         scheduledDate,
         const NotificationDetails(
@@ -87,7 +88,9 @@ class NotificationService {
             channelDescription: 'Notifications for upcoming tee times',
             importance: Importance.high,
             priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
+            icon: 'ic_stat_onesignal_default',
+            largeIcon: DrawableResourceAndroidBitmap('ic_onesignal_large_icon_default'),
+            color: Color(0xFFA3E635),
           ),
           iOS: DarwinNotificationDetails(
             sound: 'default',

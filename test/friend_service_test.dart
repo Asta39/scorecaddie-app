@@ -28,12 +28,12 @@ void main() {
   });
 
   group('FriendService - sendFriendRequest', () {
-    test('returns false if targetUid is same as current user', () async {
+    test('refuses your own account', () async {
       final result = await friendService.sendFriendRequest('current-user-uid');
-      expect(result, isFalse);
+      expect(result, FriendRequestResult.self);
     });
 
-    test('returns false if already friends locally', () async {
+    test('says already friends when they are on this phone', () async {
       // Insert a friend locally
       await db.into(db.friends).insert(FriendsCompanion.insert(
         userId: 'current-user-uid',
@@ -42,14 +42,29 @@ void main() {
 
       final result = await friendService.sendFriendRequest('target-friend-uid');
       
-      // Should return false because they are already friends locally
-      expect(result, isFalse);
+      expect(result, FriendRequestResult.alreadyFriends);
     });
 
-    test('returns false if unauthenticated', () async {
+    test('fails when signed out', () async {
       final unauthService = FriendService(db, mockSync, null, mockSupabase);
       final result = await unauthService.sendFriendRequest('target-uid');
-      expect(result, isFalse);
+      expect(result, FriendRequestResult.failed);
+    });
+  });
+
+  group('FriendService.normalizeFriendCode', () {
+    test('accepts the code as shown', () {
+      expect(FriendService.normalizeFriendCode('SC-A3B9-X7K2'), 'SC-A3B9-X7K2');
+    });
+    test('accepts lower case, spaces and missing dashes', () {
+      expect(FriendService.normalizeFriendCode(' sc a3b9 x7k2 '), 'SC-A3B9-X7K2');
+      expect(FriendService.normalizeFriendCode('a3b9x7k2'), 'SC-A3B9-X7K2');
+      expect(FriendService.normalizeFriendCode('scab12cd'), 'SC-SCAB-12CD');
+    });
+    test('rejects anything that is not a friend code', () {
+      expect(FriendService.normalizeFriendCode('hello'), isNull);
+      expect(FriendService.normalizeFriendCode('SC-A3B9-X7K'), isNull);
+      expect(FriendService.normalizeFriendCode('3f2b1c9e-8d7a-4b6c-9e1f-2a3b4c5d6e7f'), isNull);
     });
   });
 }

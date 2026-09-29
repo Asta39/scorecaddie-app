@@ -390,7 +390,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/profile/friends',
-        builder: (context, state) => const FriendsScreen(),
+        builder: (context, state) => FriendsScreen(addCode: state.uri.queryParameters['add']),
       ),
       GoRoute(
         path: '/help',
@@ -721,26 +721,19 @@ class FriendAddHandleScreen extends ConsumerStatefulWidget {
 }
 
 class _FriendAddHandleScreenState extends ConsumerState<FriendAddHandleScreen> {
-  bool _isProcessing = true;
-  String _message = 'Processing friend request...';
-
   @override
   void initState() {
     super.initState();
     _process();
   }
 
+  // A friend's QR scanned with the phone's own camera opens
+  // scorecaddie://friend/add/<code>. Hand it to the same confirm-then-send
+  // flow as scanning inside the app, on the friends screen.
   Future<void> _process() async {
-    final success = await ref.read(friendServiceProvider).addFriend(widget.uid);
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-        _message = success ? 'Friend added successfully!' : 'Failed to add friend. ID may be invalid.';
-      });
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) context.go('/profile/friends');
-      });
-    }
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    context.go(Uri(path: '/profile/friends', queryParameters: {'add': widget.uid}).toString());
   }
 
   @override
@@ -750,9 +743,7 @@ class _FriendAddHandleScreenState extends ConsumerState<FriendAddHandleScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (_isProcessing) const LoadingSpinner(size: 80),
-            const SizedBox(height: 24),
-            Text(_message, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            LoadingSpinner(size: 80),
           ],
         ),
       ),

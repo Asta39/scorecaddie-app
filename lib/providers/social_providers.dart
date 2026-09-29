@@ -31,14 +31,11 @@ final friendsProvider = StreamProvider<List<db.Friend>>((ref) {
   return (database.select(database.friends)..where((f) => f.userId.equals(user.id))).watch();
 });
 
+/// Requests waiting for me. Watching it also keeps the friends list in step
+/// with the server (see FriendService.watchIncomingRequests).
 final friendRequestsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   final service = ref.watch(friendServiceProvider);
-  return service.streamIncomingRequests();
-});
-
-final acceptedSentRequestsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
-  final service = ref.watch(friendServiceProvider);
-  return service.streamAcceptedSentRequests();
+  return service.watchIncomingRequests();
 });
 
 final leaderboardStreamProvider = StreamProvider.family<List<LeaderboardEntry>, LeaderboardParams>((ref, params) {

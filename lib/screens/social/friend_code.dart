@@ -7,6 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/services/friend_service.dart';
 import '../../providers/app_providers.dart';
 import '../../widgets/profile_image.dart';
 import '../../widgets/top_notification.dart';
@@ -101,10 +102,19 @@ Future<void> scanFriendCode(BuildContext context, WidgetRef ref) async {
 
 /// Looks a code up and confirms before sending the request.
 Future<void> addFriendByCode(BuildContext context, WidgetRef ref, String code) async {
-  final profile = await ref.read(friendServiceProvider).fetchProfile(code.trim());
+  final service = ref.read(friendServiceProvider);
+  if (FriendService.normalizeFriendCode(code) == null) {
+    TopNotification.showError(context, 'Friend codes look like SC-AB12-CD34. Check it and try again.');
+    return;
+  }
+  final profile = await service.fetchProfile(code);
   if (!context.mounted) return;
   if (profile == null) {
     TopNotification.showError(context, 'No golfer with that code. Check it and try again.');
+    return;
+  }
+  if (profile['uid'] == ref.read(authStateProvider).valueOrNull?.id) {
+    TopNotification.showError(context, 'That\'s your own code.');
     return;
   }
   final ok = await showObSheet<bool>(
@@ -126,9 +136,23 @@ Future<void> addFriendByCode(BuildContext context, WidgetRef ref, String code) a
     ),
   );
   if (ok != true || !context.mounted) return;
-  final sent = await ref.read(friendServiceProvider).sendFriendRequest(profile['uid'] as String);
+  final result = await ref.read(friendServiceProvider).sendFriendRequest(profile['uid'] as String);
   if (!context.mounted) return;
-  sent ? TopNotification.showSuccess(context, 'Request sent') : TopNotification.showError(context, 'Couldn\'t send the request. Try again.');
+  final name = '${profile['name'] ?? 'They'}';
+  switch (result) {
+    case FriendRequestResult.sent:
+      TopNotification.showSuccess(context, 'Request sent to $name');
+    case FriendRequestResult.nowFriends:
+      TopNotification.showSuccess(context, '$name had already asked. You\'re friends now.');
+    case FriendRequestResult.alreadySent:
+      TopNotification.showSuccess(context, 'You already asked $name. Waiting for them to accept.');
+    case FriendRequestResult.alreadyFriends:
+      TopNotification.showSuccess(context, 'You and $name are already friends.');
+    case FriendRequestResult.self:
+      TopNotification.showError(context, 'That\'s your own code.');
+    case FriendRequestResult.failed:
+      TopNotification.showError(context, 'Couldn\'t send the request. Check your connection and try again.');
+  }
 }
 
 class _Scanner extends StatefulWidget {
@@ -153,7 +177,7 @@ class _ScannerState extends State<_Scanner> {
     for (final b in capture.barcodes) {
       final raw = b.rawValue;
       if (raw == null) continue;
-      final code = raw.startsWith(_prefix) ? raw.substring(_prefix.length) : (RegExp(r'^SC-[A-Z0-9-]+$').hasMatch(raw) ? raw : null);
+      final code = FriendService.normalizeFriendCode(raw.startsWith(_prefix) ? raw.substring(_prefix.length) : raw);
       if (code != null) {
         _done = true;
         HapticFeedback.mediumImpact();

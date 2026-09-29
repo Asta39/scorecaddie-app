@@ -8,6 +8,8 @@ import 'widgets/offline_pill.dart';
 import 'screens/onboarding/ob_style.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
+bool _pushTapsWired = false;
+
 class ScoreCaddieApp extends ConsumerWidget {
   const ScoreCaddieApp({super.key});
 
@@ -18,19 +20,28 @@ class ScoreCaddieApp extends ConsumerWidget {
     ref.watch(syncControllerProvider);
     ref.watch(handicapTrackerProvider);
 
+    // Tapping a push opens the screen it's about. Registered once: this
+    // used to be added on every sign-in, so taps fired once per login.
+    if (!_pushTapsWired) {
+      _pushTapsWired = true;
+      OneSignal.Notifications.addClickListener((event) {
+        final data = event.notification.additionalData;
+        final route = data?['route'];
+        if (route is String && route.startsWith('/')) {
+          router.push(route);
+        } else if (data?['type'] == 'tee_time_reminder') {
+          router.push('/tee-times');
+        } else if (data?['club_id'] != null) {
+          router.push('/club-life');
+        }
+      });
+    }
+
     // Initialize Supabase Realtime when user is available
     ref.listen(authStateProvider, (previous, next) {
       if (next.value != null && previous?.value == null) {
         debugPrint('APP: User logged in, initializing Supabase Realtime');
         ref.read(supabaseServiceProvider).init();
-
-        // Setup OneSignal Click Listener for deep linking
-        OneSignal.Notifications.addClickListener((event) {
-          final data = event.notification.additionalData;
-          if (data != null && data['club_id'] != null) {
-             router.push('/club-life');
-          }
-        });
       }
     });
 

@@ -31,8 +31,12 @@ async function sendOneSignalNotification(
     contents: { en: body },
     data: {
       type: 'tee_time_reminder',
+      route: '/tee-times',
       reminderId,
-    }
+    },
+    small_icon: 'ic_stat_onesignal_default',
+    android_accent_color: 'FFA3E635',
+    android_group: 'tee_time_reminders',
   }
 
   const response = await fetch(url, {
@@ -78,12 +82,12 @@ serve(async (_req) => {
 
       const minutesBefore = reminder.notify_before_minutes
       const notificationBody = reminder.notes
-        ? `Your round is in ${minutesBefore} minutes! Note: ${reminder.notes}`
-        : `Your round is in ${minutesBefore} minutes. Get ready! ⛳`
+        ? `Note: ${reminder.notes}`
+        : 'See you on the first tee!'
 
       const sent = await sendOneSignalNotification(
         reminder.user_id,
-        '⛳ Tee Time Reminder',
+        `Tee off in ${minutesBefore} minutes`,
         notificationBody,
         reminder.id.toString()
       )
