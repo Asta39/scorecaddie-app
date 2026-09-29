@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,12 +6,15 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:drift/drift.dart' as drift;
-import '../../core/theme/app_theme.dart';
 import '../../core/services/interaction_service.dart';
 import '../../core/services/notification_service.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart' as db;
+import '../../widgets/booking_check_sheet.dart';
+import '../../widgets/top_notification.dart';
+import 'package:intl/intl.dart';
 import '../onboarding/ob_nav.dart';
+import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
 
 // Tab screen imports
@@ -134,72 +136,52 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
     }
   }
 
+  bool _askingAboutBooking = false;
+
+  /// After the player comes back from calling or messaging a pro, asks
+  /// whether they booked. Only asks about a recent contact they actually
+  /// left the app for, and "not yet" waits a while before asking again.
   Future<void> _checkPendingInteractions() async {
+    if (_askingAboutBooking) return;
     final service = ref.read(interactionServiceProvider);
-    final pending = await service.getPendingInteractions();
+    final interaction = await service.dueForPrompt();
+    if (interaction == null || !mounted) return;
 
-    if (pending.isNotEmpty && mounted) {
-      // ONLY prompt if the interaction happened recently (e.g. last 2 hours)
-      // and we haven't prompted for it yet.
-      final now = DateTime.now();
-      final latest = pending.firstWhere((i) {
-        final age = now.difference(i.timestamp);
-        return i.lastPromptedAt == null && age.inHours < 2;
-      }, orElse: () => pending.first);
+    final provider = await (_database.select(_database.providers)..where((p) => p.userId.equals(interaction.providerId))).get().then((rows) => rows.firstOrNull);
+    if (provider == null || !mounted) return;
 
-      final age = now.difference(latest.timestamp);
-      if (latest.lastPromptedAt == null && age.inHours < 2) {
-        final provider = await (_database.select(_database.providers)..where((p) => p.userId.equals(latest.providerId))).get().then((rows) => rows.firstOrNull);
-        if (provider != null) {
-          _showBookingConfirmation(latest, provider.name);
-        }
+    _askingAboutBooking = true;
+    // Counts as asked straight away, so leaving the sheet open and switching
+    // apps doesn't stack a second one.
+    await service.dismissInteraction(interaction.id);
+    final viaCall = interaction.type.toLowerCase() == 'call';
+    final via = viaCall ? 'CALL' : 'CHAT';
+    try {
+      if (!mounted) return;
+      final answer = await askAboutBooking(
+        context,
+        name: provider.name,
+        avatarUrl: provider.avatarUrl,
+        viaCall: viaCall,
+        contactedAt: interaction.timestamp,
+      );
+      switch (answer) {
+        case BookedFor(when: final at):
+          await ref.read(supabaseServiceProvider).createBooking(caddieId: interaction.providerId, initiatedVia: via, when: at);
+          await service.confirmBooking(interaction.id, true);
+          if (mounted) TopNotification.showSuccess(context, '${provider.name.split(' ').first} is booked for ${DateFormat('EEE d MMM').format(at)}');
+        case DidNotBook():
+          await ref.read(supabaseServiceProvider).createInquiry(providerId: interaction.providerId, initiatedVia: via);
+          await service.confirmBooking(interaction.id, false);
+        case NotYet():
+          break; // Asked again after the snooze (see dueForPrompt).
       }
+    } catch (e) {
+      debugPrint('Booking check failed: $e');
+      if (mounted) TopNotification.showError(context, 'Couldn\'t save that. Check your connection and try again.');
+    } finally {
+      _askingAboutBooking = false;
     }
-  }
-
-  void _showBookingConfirmation(db.Interaction interaction, String providerName) {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Booking Confirmation'),
-        content: Text('Did you successfully book $providerName for your round?'),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () {
-              Navigator.pop(context);
-              // They didn't book - Log an Inquiry for the caddie
-              ref
-                  .read(supabaseServiceProvider)
-                  .createInquiry(providerId: interaction.providerId, initiatedVia: interaction.type.toUpperCase() == 'CALL' ? 'CALL' : 'CHAT');
-              ref.read(interactionServiceProvider).dismissInteraction(interaction.id);
-            },
-            child: const Text('No, I didn\'t', style: TextStyle(color: Colors.redAccent)),
-          ),
-          CupertinoDialogAction(
-            onPressed: () {
-              Navigator.pop(context);
-              // Not Yet - Leave interaction as pending, it will prompt again later
-            },
-            child: const Text('Not Yet', style: TextStyle(color: AppColors.grey600)),
-          ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () {
-              Navigator.pop(context);
-              // Yes Booked - Create actual booking in backend
-              ref
-                  .read(supabaseServiceProvider)
-                  .createBooking(caddieId: interaction.providerId, initiatedVia: interaction.type.toUpperCase() == 'CALL' ? 'CALL' : 'CHAT');
-              ref.read(interactionServiceProvider).confirmBooking(interaction.id, true);
-            },
-            child: const Text(
-              'Yes, Booked',
-              style: TextStyle(color: AppColors.emerald700, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _checkCompletedBookings(List<db.Booking> bookings) async {
@@ -230,169 +212,96 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
   }
 
   void _showRatingPrompt(db.Booking booking, String providerName) {
-    int rating = 5;
+    int rating = 0;
     final commentController = TextEditingController();
     bool isSubmitting = false;
+    const words = ['', 'Poor', 'Not great', 'Fine', 'Good', 'Brilliant'];
+    final first = providerName.split(' ').first;
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      barrierColor: Colors.black.withValues(alpha: 0.5), // Semi-transparent overlay
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-        child: StatefulBuilder(
-          builder: (context, setModalState) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(color: AppColors.grey100, borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Rate your Round',
-                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -1, color: AppColors.grey900),
-                        ),
-                        Text(
-                          'How was your experience with $providerName?',
-                          style: const TextStyle(color: AppColors.grey500, fontSize: 14, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    child: const Icon(LucideIcons.x, color: AppColors.grey300),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
-              const Text(
-                'RATING',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  final isSelected = index < rating;
-                  return GestureDetector(
-                    onTap: () => setModalState(() => rating = index + 1),
+    showObSheet(
+      context,
+      (sheetContext) => StatefulBuilder(
+        builder: (context, setModalState) => ObSheet(
+          title: 'How was $first?',
+          subtitle: 'Your round is done. A quick rating helps other golfers choose.',
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              for (var i = 1; i <= 5; i++)
+                Semantics(
+                  button: true,
+                  label: '$i star${i == 1 ? '' : 's'}',
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setModalState(() => rating = i);
+                    },
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
                       child: AnimatedScale(
-                        scale: isSelected ? 1.1 : 1.0,
-                        duration: const Duration(milliseconds: 200),
-                        child: Icon(LucideIcons.star, color: isSelected ? Colors.amber : AppColors.grey100, size: 44, fill: isSelected ? 1.0 : 0.0),
+                        scale: i <= rating ? 1.12 : 1,
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutBack,
+                        child: Icon(LucideIcons.star, size: 42, color: i <= rating ? Ob.lime : Ob.creamA(.2), fill: i <= rating ? 1 : 0),
                       ),
                     ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 40),
-              const Text(
-                'LEAVE A NOTE',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.2),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.grey50,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.grey100),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    controller: commentController,
-                    maxLines: null,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.grey900),
-                    decoration: const InputDecoration(
-                      hintText: 'Great caddie, highly recommended...',
-                      hintStyle: TextStyle(color: AppColors.grey300),
-                      border: InputBorder.none,
-                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 64,
-                child: FilledButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () async {
-                          if (commentController.text.trim().isEmpty) return;
-                          setModalState(() => isSubmitting = true);
-
-                          try {
-                            final syncService = ref.read(syncServiceProvider);
-                            final currentUser = ref.read(userProfileProvider).valueOrNull;
-                            if (currentUser == null) throw Exception('Not logged in');
-
-                            final review = db.Review(
-                              id: 0,
-                              providerId: booking.providerId,
-                              playerId: currentUser.uid ?? 'unknown',
-                              playerName: currentUser.name,
-                              playerAvatar: currentUser.avatarUrl,
-                              rating: rating,
-                              comment: commentController.text.trim(),
-                              createdAt: DateTime.now(),
-                            );
-
-                            await _database
-                                .into(_database.reviews)
-                                .insert(
-                                  db.ReviewsCompanion.insert(
-                                    providerId: review.providerId,
-                                    playerId: review.playerId,
-                                    playerName: review.playerName,
-                                    playerAvatar: drift.Value(review.playerAvatar),
-                                    rating: review.rating,
-                                    comment: review.comment,
-                                  ),
-                                );
-
-                            await syncService.syncReview(review);
-                            await _database.updateProviderRating(booking.providerId);
-
-                            if (context.mounted) Navigator.pop(context);
-                          } catch (e) {
-                            setModalState(() => isSubmitting = false);
-                          }
-                        },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.grey900,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    elevation: 0,
-                  ),
-                  child: isSubmitting
-                      ? const CupertinoActivityIndicator()
-                      : const Text('Submit Review', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                ),
-              ),
-            ],
-          ),
+            ]),
+            const SizedBox(height: 8),
+            Text(rating == 0 ? 'Tap a star' : words[rating], textAlign: TextAlign.center, style: Ob.body(14, weight: FontWeight.w800, color: rating == 0 ? Ob.creamA(.45) : Ob.lime)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: commentController,
+              maxLines: 3,
+              cursorColor: Ob.lime,
+              style: Ob.body(15, weight: FontWeight.w600),
+              decoration: obInput('Anything to add? (optional)', hint: 'Read the greens well, kept the pace up…'),
+            ),
+            const SizedBox(height: 16),
+            ObButton(
+              onPressed: rating == 0 || isSubmitting
+                  ? null
+                  : () async {
+                      setModalState(() => isSubmitting = true);
+                      try {
+                        final syncService = ref.read(syncServiceProvider);
+                        final currentUser = ref.read(userProfileProvider).valueOrNull;
+                        if (currentUser == null) throw Exception('Not logged in');
+                        final review = db.Review(
+                          id: 0,
+                          providerId: booking.providerId,
+                          playerId: currentUser.uid ?? 'unknown',
+                          playerName: currentUser.name,
+                          playerAvatar: currentUser.avatarUrl,
+                          rating: rating,
+                          comment: commentController.text.trim(),
+                          createdAt: DateTime.now(),
+                        );
+                        await _database.into(_database.reviews).insert(db.ReviewsCompanion.insert(
+                              providerId: review.providerId,
+                              playerId: review.playerId,
+                              playerName: review.playerName,
+                              playerAvatar: drift.Value(review.playerAvatar),
+                              rating: review.rating,
+                              comment: review.comment,
+                            ));
+                        await syncService.syncReview(review);
+                        await _database.updateProviderRating(booking.providerId);
+                        if (sheetContext.mounted) Navigator.pop(sheetContext);
+                        if (mounted) TopNotification.showSuccess(this.context, 'Thanks. Your rating is on $first\'s profile.');
+                      } catch (e) {
+                        setModalState(() => isSubmitting = false);
+                        if (mounted) TopNotification.showError(this.context, 'Couldn\'t send your rating. Try again.');
+                      }
+                    },
+              child: Text(isSubmitting ? 'Sending…' : 'Send rating', style: Ob.label(16, weight: FontWeight.w800)),
+            ),
+            const SizedBox(height: 4),
+            TextButton(
+              onPressed: () => Navigator.pop(sheetContext),
+              child: Text('Skip', style: Ob.body(14, weight: FontWeight.w700, color: Ob.creamA(.55))),
+            ),
+          ]),
         ),
       ),
     );

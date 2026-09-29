@@ -21,17 +21,16 @@ class InteractionService {
     final user = _ref.read(authStateProvider).valueOrNull;
     if (user == null) return;
 
-    // Duplicate guard: block re-logging if pending record already exists for
-    // this exact (player, provider, type) combination.
+    // Contacting the same pro again restarts the "did you book?" check
+    // instead of being ignored, so the question is about the latest contact.
     final existing = await (_database.select(_database.interactions)
-          ..where((i) =>
-              i.playerId.equals(user.uid) &
-              i.providerId.equals(providerId) &
-              i.type.equals(type) &
-              i.status.equals('pending')))
-        .get()
-        .then((rows) => rows.firstOrNull);
-    if (existing != null) return;
+          ..where((i) => i.playerId.equals(user.uid) & i.providerId.equals(providerId) & i.status.equals('pending')))
+        .get();
+    if (existing.isNotEmpty) {
+      await (_database.update(_database.interactions)..where((i) => i.id.isIn(existing.map((e) => e.id))))
+          .write(db.InteractionsCompanion(type: drift.Value(type), timestamp: drift.Value(DateTime.now()), lastPromptedAt: const drift.Value(null)));
+      return;
+    }
 
     final interaction = db.Interaction(
       id: 0,
@@ -111,6 +110,30 @@ class InteractionService {
         .get();
   }
 
+  /// The contact to ask about now, if any: the latest pending one, at least
+  /// [minAway] old (so the player actually left to call or message), at most
+  /// [window] old, and not asked about in the last [snooze]. Contacts older
+  /// than the window are dropped so they never come back.
+  Future<db.Interaction?> dueForPrompt({
+    Duration minAway = const Duration(seconds: 20),
+    Duration window = const Duration(hours: 3),
+    Duration snooze = const Duration(minutes: 45),
+  }) async {
+    final now = DateTime.now();
+    final pending = await getPendingInteractions();
+    pending.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    for (final i in pending) {
+      if (now.difference(i.timestamp) > window) await ignoreInteraction(i.id);
+    }
+    for (final i in pending) {
+      final age = now.difference(i.timestamp);
+      if (age < minAway || age > window) continue;
+      if (i.lastPromptedAt != null && now.difference(i.lastPromptedAt!) < snooze) continue;
+      return i;
+    }
+    return null;
+  }
+
   /// Sets status to 'ignored' so it won't prompt again.
   Future<void> ignoreInteraction(int id) async {
     await (_database.update(_database.interactions)..where((i) => i.id.equals(id)))
@@ -119,7 +142,7 @@ class InteractionService {
         ));
   }
 
-  /// Sets lastPromptedAt to now to suppress the popup for the current session.
+  /// Sets lastPromptedAt to now: "not yet" asks again after the snooze.
   Future<void> dismissInteraction(int id) async {
     await (_database.update(_database.interactions)..where((i) => i.id.equals(id)))
         .write(db.InteractionsCompanion(

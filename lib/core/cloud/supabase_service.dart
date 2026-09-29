@@ -172,6 +172,7 @@ class SupabaseService {
   Future<void> createBooking({
     required String caddieId,
     required String initiatedVia, // CALL or CHAT
+    DateTime? when,
   }) async {
     final user = _ref.read(authStateProvider).valueOrNull;
     if (user == null) return;
@@ -181,7 +182,7 @@ class SupabaseService {
       'provider_id': caddieId,
       'status': 'CONFIRMED',
       'initiated_via': initiatedVia,
-      'booking_date': DateTime.now().toIso8601String(),
+      'booking_date': (when ?? DateTime.now()).toIso8601String(),
     }).select().single();
 
     // Store in local DB
@@ -191,6 +192,7 @@ class SupabaseService {
       providerId: caddieId,
       status: const drift.Value('CONFIRMED'),
       initiatedVia: drift.Value(initiatedVia),
+      startTime: drift.Value(when),
     ));
   }
 
