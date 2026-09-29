@@ -1,1412 +1,856 @@
+import 'dart:async';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/models/competition.dart';
-import '../../core/theme/app_theme.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/competition_providers.dart';
-import '../../widgets/loading_spinner.dart';
-import '../../widgets/stk_push_dialog.dart';
+import '../../widgets/top_notification.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 
+enum _Tab { overview, sheet, results }
+
+/// One competition: what it is and how to enter, the start sheet, and the
+/// leaderboard.
 class CompetitionDetailScreen extends ConsumerStatefulWidget {
   final String competitionId;
   const CompetitionDetailScreen({super.key, required this.competitionId});
 
   @override
-  ConsumerState<CompetitionDetailScreen> createState() =>
-      _CompetitionDetailScreenState();
+  ConsumerState<CompetitionDetailScreen> createState() => _CompetitionDetailScreenState();
 }
 
-class _CompetitionDetailScreenState
-    extends ConsumerState<CompetitionDetailScreen> {
+class _CompetitionDetailScreenState extends ConsumerState<CompetitionDetailScreen> {
+  _Tab? _tab;
 
   @override
   Widget build(BuildContext context) {
-    final competitionAsync =
-        ref.watch(competitionDetailProvider(widget.competitionId));
+    final async = ref.watch(competitionDetailProvider(widget.competitionId));
+    final c = async.valueOrNull;
     final profile = ref.watch(userProfileProvider).valueOrNull;
-    final isAdmin =
-        profile?.role == 'club_admin' || profile?.role == 'super_admin';
+    final isAdmin = profile?.role == 'club_admin' || profile?.role == 'super_admin';
+    final entry = ref.watch(myEntryProvider(widget.competitionId)).valueOrNull;
 
-    return competitionAsync.when(
-      loading: () => const Scaffold(
-        body: Center(child: LoadingSpinner(size: 60)),
-      ),
-      error: (e, _) => Scaffold(
-        appBar: AppBar(),
-        body: Center(child: Text('Error: $e')),
-      ),
-      data: (competition) {
-        if (competition == null) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: Text('Competition not found')),
-          );
-        }
-        return DefaultTabController(
-          length: 3,
-          child: _CompetitionDetailBody(
-            competition: competition,
-            isAdmin: isAdmin,
-            profile: profile,
+    // Open where it matters: results while it's on or done, the start sheet
+    // once you're in, otherwise the overview.
+    final tab = _tab ??
+        (c == null
+            ? _Tab.overview
+            : (c.isInProgress || c.isCompleted)
+                ? _Tab.results
+                : _Tab.overview);
+
+    Widget body;
+    if (async.isLoading && c == null) {
+      body = const Center(child: CupertinoActivityIndicator(color: Ob.lime));
+    } else if (c == null) {
+      body = Padding(
+        padding: const EdgeInsets.all(20),
+        child: ObCard(
+          padding: const EdgeInsets.all(18),
+          child: ObGuideRow(
+            botAsset: ObBot.ball.sleep,
+            botLabel: 'Your golf-ball avatar',
+            text: async.hasError ? 'Couldn\'t load this competition. Go back and try again.' : 'This competition isn\'t there any more.',
+            size: 72,
+            fontSize: 16,
           ),
-        );
-      },
-    );
-  }
-}
+        ),
+      );
+    } else {
+      body = switch (tab) {
+        _Tab.overview => _Overview(competition: c, entry: entry),
+        _Tab.sheet => _StartSheet(competition: c, isAdmin: isAdmin),
+        _Tab.results => _Results(competition: c),
+      };
+    }
 
-class _CompetitionDetailBody extends ConsumerWidget {
-  final Competition competition;
-  final bool isAdmin;
-  final dynamic profile;
+    final showEnter = c != null && tab == _Tab.overview && c.isOpenForEntry && entry == null;
 
-  const _CompetitionDetailBody({
-    required this.competition,
-    required this.isAdmin,
-    required this.profile,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: AppColors.grey50,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            backgroundColor: Colors.white,
-            elevation: 0,
-            pinned: true,
-            centerTitle: true,
-            leading: IconButton(
-              icon: const Icon(
-                LucideIcons.arrowLeft,
-                color: AppColors.grey900,
-              ),
-              onPressed: () => context.pop(),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: ObTopBar(c?.name ?? 'Competition', onBack: () => context.pop()),
             ),
-            title: Text(
-              competition.name,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: AppColors.grey900,
-              ),
-            ),
-            actions: const [],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(56),
-              child: Container(
-                color: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.grey50,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.all(3),
-                  child: TabBar(
-                    labelColor: AppColors.grey900,
-                    unselectedLabelColor: AppColors.grey500,
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    indicator: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    dividerColor: Colors.transparent,
-                    labelStyle: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                    unselectedLabelStyle: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
-                    ),
-                    tabs: const [
-                      Tab(text: 'Overview'),
-                      Tab(text: 'Start Sheet'),
-                      Tab(text: 'Results'),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-        body: TabBarView(
-          children: [
-            _OverviewTab(
-                competition: competition,
-                isAdmin: isAdmin,
-                profile: profile),
-            _StartingSheetTab(
-                competition: competition, isAdmin: isAdmin),
-            _LeaderboardTab(competition: competition),
-          ],
-        ),
-      ),
-    );
-  }
-
-
-}
-
-// ─── Overview Tab ─────────────────────────────────────────────────────────────
-class _OverviewTab extends ConsumerWidget {
-  final Competition competition;
-  final bool isAdmin;
-  final dynamic profile;
-
-  const _OverviewTab({
-    required this.competition,
-    required this.isAdmin,
-    required this.profile,
-  });
-
-  Widget _buildPosterCard() {
-    if (competition.posterUrl == null || competition.posterUrl!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Image.network(
-          competition.posterUrl!,
-          fit: BoxFit.fitWidth,
-          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final myEntryAsync =
-        ref.watch(myEntryProvider(competition.id));
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Hero image card
-          _buildPosterCard(),
-
-          // Status banner
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _statusBgColor(competition.status),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              competition.statusLabel.toUpperCase(),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 13,
-                color: _statusTextColor(competition.status),
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Key details
-          _DetailCard(children: [
-            _DetailRow(
-                icon: LucideIcons.trophy,
-                label: 'Format',
-                value: competition.formatLabel),
-            _DetailRow(
-                icon: LucideIcons.calendar,
-                label: 'Date',
-                value:
-                    DateFormat('EEEE, d MMMM y').format(competition.startDate)),
-            if (competition.entryDeadline != null)
-              _DetailRow(
-                  icon: LucideIcons.clock,
-                  label: 'Entry Deadline',
-                  value: DateFormat('d MMM y, HH:mm')
-                      .format(competition.entryDeadline!)),
-            if (competition.entryFee > 0)
-              _DetailRow(
-                  icon: LucideIcons.banknote,
-                  label: 'Entry Fee',
-                  value:
-                      '${competition.currency} ${competition.entryFee.toStringAsFixed(0)}'),
-          ]),
-
-          if (competition.description != null && competition.description!.isNotEmpty) ...[
-            const SizedBox(height: 28),
-            const Text('About',
-                style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 17,
-                    color: AppColors.grey900,
-                    letterSpacing: -0.2)),
-            const SizedBox(height: 10),
-            Text(competition.description!,
-                style: const TextStyle(
-                    fontSize: 15,
-                    color: AppColors.grey600,
-                    height: 1.6,
-                    fontWeight: FontWeight.w500)),
-          ],
-
-          const SizedBox(height: 28),
-          const Text('Rules',
-              style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17,
-                  color: AppColors.grey900,
-                  letterSpacing: -0.2)),
-          const SizedBox(height: 10),
-          _DetailCard(children: [
-            _DetailRow(
-                icon: LucideIcons.percent,
-                label: 'Handicap Allowance',
-                value:
-                    '${competition.rulesConfig['handicap_allowance_pct'] ?? 100}%'),
-            _DetailRow(
-                icon: LucideIcons.gauge,
-                label: 'Max Handicap',
-                value:
-                    '${competition.rulesConfig['max_handicap'] ?? 36}'),
-            if (competition.rulesConfig['min_handicap'] != null)
-              _DetailRow(
-                  icon: LucideIcons.gauge,
-                  label: 'Min Handicap',
-                  value:
-                      '${competition.rulesConfig['min_handicap']}'),
-            _DetailRow(
-                icon: LucideIcons.arrowDownUp,
-                label: 'Tiebreaker',
-                value:
-                    '${competition.rulesConfig['tiebreaker'] ?? 'Countback'}'),
-          ]),
-
-          const SizedBox(height: 32),
-
-          // Player entry action
-          myEntryAsync.when(
-            loading: () => const Center(child: LoadingSpinner(size: 40)),
-            error: (e, _) => const SizedBox.shrink(),
-            data: (entry) {
-              if (entry != null) {
-                return _EntryStatusBanner(entry: entry);
-              }
-              if (competition.isOpenForEntry) {
-                return SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: FilledButton.icon(
-                    icon: const Icon(LucideIcons.clipboardList,
-                        color: Colors.white, size: 20),
-                    label: const Text(
-                      'Enter Competition',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.emerald700,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                    ),
-                    onPressed: () => _showEntrySheet(context, ref),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  Color _statusBgColor(String status) {
-    switch (status) {
-      case 'open_for_entry':
-        return Colors.blue.withValues(alpha: 0.1);
-      case 'in_progress':
-        return AppColors.emerald700.withValues(alpha: 0.1);
-      case 'completed':
-        return AppColors.grey100;
-      case 'cancelled':
-        return Colors.red.withValues(alpha: 0.1);
-      default:
-        return AppColors.grey50;
-    }
-  }
-
-  Color _statusTextColor(String status) {
-    switch (status) {
-      case 'open_for_entry':
-        return Colors.blue.shade700;
-      case 'in_progress':
-        return AppColors.emerald700;
-      case 'completed':
-        return AppColors.grey500;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return AppColors.grey500;
-    }
-  }
-
-  void _showEntrySheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => CompetitionEntrySheet(
-        competition: competition,
-        profile: profile,
-      ),
-    );
-  }
-}
-
-class _EntryStatusBanner extends StatelessWidget {
-  final CompetitionEntry entry;
-  const _EntryStatusBanner({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final isPending = entry.entryStatus == 'pending';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isPending
-            ? Colors.amber.withValues(alpha: 0.1)
-            : AppColors.emerald700.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isPending ? Colors.amber : AppColors.emerald700,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isPending ? LucideIcons.clock : LucideIcons.checkCircle2,
-            color: isPending ? Colors.amber.shade700 : AppColors.emerald700,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isPending ? 'Entry Pending Confirmation' : 'Entry Confirmed',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: isPending
-                        ? Colors.amber.shade700
-                        : AppColors.emerald700,
-                  ),
-                ),
-                if (entry.playingHandicap != null)
-                  Text(
-                    'Playing HC: ${entry.playingHandicap!.toStringAsFixed(1)}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.grey500),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-
-
-// ─── Starting Sheet Tab ───────────────────────────────────────────────────────
-class _StartingSheetTab extends ConsumerWidget {
-  final Competition competition;
-  final bool isAdmin;
-
-  const _StartingSheetTab({required this.competition, required this.isAdmin});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final sheetAsync = ref.watch(startingSheetProvider(competition.id));
-    final user = ref.watch(authStateProvider).valueOrNull;
-    final entryAsync = ref.watch(myEntryProvider(competition.id));
-    
-    final lockHours = (competition.rulesConfig['tee_time_lock_hours'] as int?) ?? 24;
-    final lockTimestamp = competition.startDate.subtract(Duration(hours: lockHours));
-    final isLocked = DateTime.now().isAfter(lockTimestamp);
-
-    return sheetAsync.when(
-      loading: () => const Center(child: LoadingSpinner(size: 60)),
-      error: (e, _) => Center(child: Text('Error: $e')),
-      data: (rows) {
-        if (rows.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(LucideIcons.calendarDays,
-                    size: 48, color: AppColors.grey200),
-                SizedBox(height: 12),
-                Text('Starting sheet not published yet',
-                    style: TextStyle(color: AppColors.grey400)),
-              ],
-            ),
-          );
-        }
-
-        final myRow = rows.where((r) => r.playerId == user?.id).firstOrNull;
-        final entry = entryAsync.valueOrNull;
-        final isRegistered = entry != null && entry.entryStatus == 'confirmed';
-
-        // Group by tee time
-        final grouped = <DateTime, List<StartingSheetRow>>{};
-        for (final row in rows) {
-          final key = DateTime(row.teeTime.year, row.teeTime.month,
-              row.teeTime.day, row.teeTime.hour, row.teeTime.minute);
-          grouped.putIfAbsent(key, () => []).add(row);
-        }
-
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (isRegistered) ...[
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.golfLime.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.golfLime),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(LucideIcons.info, color: AppColors.grey900, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        isLocked
-                            ? 'Tee time modifications are closed.'
-                            : (myRow != null
-                                ? 'You are scheduled at ${DateFormat('HH:mm').format(myRow.teeTime)} (Hole ${myRow.teeNumber}). Tap "Swap" or "Claim" to adjust.'
-                                : 'You are registered! Select a vacant slot below to claim your tee time.'),
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.grey900),
-                      ),
-                    ),
-                  ],
+            if (c != null) ...[
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: ObGooSegmented<_Tab>(
+                  options: const [(_Tab.overview, 'Overview'), (_Tab.sheet, 'Start sheet'), (_Tab.results, 'Results')],
+                  selected: tab,
+                  onChanged: (t) => setState(() => _tab = t),
                 ),
               ),
             ],
-            ...grouped.entries.map((e) {
-              final teeTime = e.key;
-              final group = e.value;
-              return _TeeTimeGroup(
-                teeTime: teeTime,
-                players: group,
-                isAdmin: isAdmin,
-                myRow: myRow,
-                isRegistered: isRegistered,
-                competition: competition,
-              );
-            }),
-          ],
-        );
-      },
+            Expanded(child: body),
+            if (showEnter) _EnterBar(competition: c, profile: profile),
+          ]),
+        ),
+      ),
     );
   }
 }
 
-class _TeeTimeGroup extends StatelessWidget {
-  final DateTime teeTime;
-  final List<StartingSheetRow> players;
-  final bool isAdmin;
-  final StartingSheetRow? myRow;
-  final bool isRegistered;
-  final Competition competition;
+String _money(Competition c) => '${c.currency} ${NumberFormat.decimalPattern().format(c.entryFee)}';
 
-  const _TeeTimeGroup({
-    required this.teeTime,
-    required this.players,
-    required this.isAdmin,
-    this.myRow,
-    required this.isRegistered,
-    required this.competition,
-  });
+num _allowance(Competition c) => (c.rulesConfig['handicap_allowance_pct'] as num?) ?? 100;
+
+/// Playing handicap from a handicap index at the competition's allowance.
+/// The club's start sheet has the exact figure for the tee played.
+int _playingHandicap(double index, Competition c) => (index * _allowance(c) / 100).round();
+
+// ─── Overview ────────────────────────────────────────────────────────────────
+
+class _Overview extends ConsumerWidget {
+  const _Overview({required this.competition, required this.entry});
+  final Competition competition;
+  final CompetitionEntry? entry;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = competition;
+    final hi = ref.watch(userProfileProvider).valueOrNull?.handicap;
+    final rules = c.rulesConfig;
+    final (String status, bool statusOn) = switch (c.status) {
+      'open_for_entry' => ('Open for entry', true),
+      'in_progress' => ('Live now', true),
+      'upcoming' => ('Coming up', false),
+      'cancelled' => ('Cancelled', false),
+      _ => ('Finished', false),
+    };
+    final stats = <(String, String)>[
+      (c.entryFee > 0 ? _money(c) : 'Free', 'Entry'),
+      if (c.entryDeadline != null) (DateFormat('EEE d').format(c.entryDeadline!), 'Entries close'),
+      if (c.entryCount != null) ('${c.entryCount}', 'Entered'),
+    ];
+
+    Widget line(String k, String v) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: Text(k, style: Ob.body(14, color: Ob.creamA(.6)))),
+            const SizedBox(width: 12),
+            Flexible(child: Text(v, textAlign: TextAlign.right, style: Ob.body(14, weight: FontWeight.w800))),
+          ]),
+        );
+
+    final lines = <(String, String)>[
+      ('Format', c.formatLabel),
+      ('Handicap allowance', '${_allowance(c)}%'),
+      if (rules['min_handicap'] != null || rules['max_handicap'] != null) ('Handicap range', '${rules['min_handicap'] ?? 0} to ${rules['max_handicap'] ?? 54}'),
+      ('Tie-break', '${rules['tiebreaker'] ?? 'Countback'}'),
+      if (c.endDate != null && !DateUtils.isSameDay(c.endDate, c.startDate)) ('Ends', DateFormat('EEE d MMM').format(c.endDate!)),
+    ];
+
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
       children: [
         Container(
-          margin: const EdgeInsets.only(bottom: 8, top: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.grey900,
-            borderRadius: BorderRadius.circular(8),
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(30), border: Border.all(color: Ob.lime.withValues(alpha: .2))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(spacing: 6, runSpacing: 6, children: [ObChip(status, on: statusOn), ObChip(c.formatLabel)]),
+            const SizedBox(height: 12),
+            Text(c.name, style: Ob.display(32, height: 1.05)),
+            const SizedBox(height: 6),
+            Text(
+              [DateFormat('EEEE d MMMM').format(c.startDate), if (c.startDate.hour != 0 || c.startDate.minute != 0) 'from ${DateFormat.Hm().format(c.startDate)}', if (c.clubName != null) c.clubName!].join(' · '),
+              style: Ob.body(14, color: Ob.creamA(.7)),
+            ),
+            const SizedBox(height: 14),
+            Row(children: [
+              for (final (i, s) in stats.indexed) ...[
+                if (i > 0) const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(color: Ob.bg.withValues(alpha: .45), borderRadius: BorderRadius.circular(16)),
+                    child: Column(children: [
+                      FittedBox(child: Text(s.$1, style: Ob.display(20, height: 1))),
+                      const SizedBox(height: 2),
+                      Text(s.$2, style: Ob.body(11, color: Ob.creamA(.55))),
+                    ]),
+                  ),
+                ),
+              ],
+            ]),
+          ]),
+        ).rise(),
+        if (entry != null) ...[
+          const SizedBox(height: 12),
+          _EntryCard(entry: entry!, competition: c),
+        ],
+        if (c.posterUrl != null && c.posterUrl!.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Image.network(c.posterUrl!, fit: BoxFit.fitWidth, errorBuilder: (_, _, _) => const SizedBox.shrink()),
           ),
-          child: Row(
-            children: [
-              const Icon(LucideIcons.clock,
-                  size: 14, color: Colors.white70),
-              const SizedBox(width: 6),
-              Text(
-                DateFormat('HH:mm').format(teeTime),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Hole ${players.first.teeNumber}',
-                style: const TextStyle(
-                    color: Colors.white70, fontSize: 12),
-              ),
-            ],
-          ),
+        ],
+        const SizedBox(height: 12),
+        ObCard(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(children: [
+            for (final (i, l) in lines.indexed) ...[if (i > 0) const ObHair(), line(l.$1, l.$2)],
+          ]),
         ),
-        ...players.map((p) => _SheetPlayerTile(
-              row: p,
-              isAdmin: isAdmin,
-              myRow: myRow,
-              isRegistered: isRegistered,
-              competition: competition,
-            )),
-        const SizedBox(height: 4),
+        if (c.description != null && c.description!.trim().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ObCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const ObEyebrow('About'),
+              const SizedBox(height: 8),
+              Text(c.description!.trim(), style: Ob.body(14, height: 1.55, color: Ob.creamA(.78))),
+            ]),
+          ),
+        ],
+        if (hi != null && entry == null && (c.isOpenForEntry || c.status == 'upcoming')) ...[
+          const SizedBox(height: 16),
+          ObGuideRow(
+            botAsset: ObBot.ball.idle,
+            botLabel: 'Your golf-ball avatar',
+            text: 'At ${_allowance(c)}% you\'d play off about ${_playingHandicap(hi, c)}.',
+            size: 80,
+            fontSize: 16,
+          ),
+        ],
       ],
     );
   }
 }
 
-class _SheetPlayerTile extends ConsumerWidget {
-  final StartingSheetRow row;
-  final bool isAdmin;
-  final StartingSheetRow? myRow;
-  final bool isRegistered;
+class _EntryCard extends StatelessWidget {
+  const _EntryCard({required this.entry, required this.competition});
+  final CompetitionEntry entry;
   final Competition competition;
 
-  const _SheetPlayerTile({
-    required this.row,
-    required this.isAdmin,
-    this.myRow,
-    required this.isRegistered,
-    required this.competition,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isVacant = row.playerId == null;
-    final isMe = row.playerId != null && row.playerId == myRow?.playerId;
-    
-    final lockHours = (competition.rulesConfig['tee_time_lock_hours'] as int?) ?? 24;
-    final lockTimestamp = competition.startDate.subtract(Duration(hours: lockHours));
-    final isLocked = DateTime.now().isAfter(lockTimestamp);
-
-    if (isVacant) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.grey50,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.grey200, style: BorderStyle.solid),
-        ),
-        child: Row(
-          children: [
-            const Icon(LucideIcons.userPlus, size: 16, color: AppColors.grey400),
-            const SizedBox(width: 10),
-            const Text(
-              'Vacant Slot',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.grey400,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const Spacer(),
-            if (isRegistered && myRow?.id != row.id && !isLocked)
-              GestureDetector(
-                onTap: () => _claimSlot(context, ref),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.golfLime,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'Claim',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                      color: AppColors.grey900,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: isMe ? AppColors.golfLime.withValues(alpha: 0.15) : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isMe ? AppColors.golfLime : AppColors.grey100),
-      ),
-      child: Row(
-        children: [
-          Text(
-            isMe ? 'You (${row.playerName})' : (row.playerName ?? 'Unknown Player'),
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: isMe ? AppColors.grey900 : AppColors.grey900,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            'HC: ${row.playingHandicap?.toStringAsFixed(1) ?? "-"}',
-            style: const TextStyle(fontSize: 12, color: AppColors.grey500),
-          ),
-          if (row.teeColor != null) ...[
-            const SizedBox(width: 8),
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: _teeColor(row.teeColor!),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ],
-          if (isRegistered && myRow != null && !isMe && !isLocked) ...[
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: () => _requestSwap(context, ref),
-              child: const Icon(
-                LucideIcons.arrowRightLeft,
-                color: AppColors.grey500,
-                size: 16,
-              ),
-            ),
-          ],
-          if (isAdmin) ...[
-            const SizedBox(width: 12),
-            IconButton(
-              constraints: const BoxConstraints(),
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                LucideIcons.camera,
-                color: AppColors.emerald700,
-                size: 20,
-              ),
-              onPressed: () {
-                context.push('/competitions/${row.competitionId}/scan/${row.entryId}');
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<void> _claimSlot(BuildContext context, WidgetRef ref) async {
-    final scaffold = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Move Tee Time?'),
-        content: Text(myRow != null
-            ? 'Do you want to move from your current tee time to ${DateFormat('HH:mm').format(row.teeTime)}?'
-            : 'Do you want to claim the tee time slot at ${DateFormat('HH:mm').format(row.teeTime)}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Move')),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      final success = await ref.read(competitionActionsProvider.notifier).moveTeeTimeSlot(
-            competitionId: competition.id,
-            oldStartingSheetId: myRow?.id,
-            newStartingSheetId: row.id,
-          );
-      scaffold.showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Tee time slot moved successfully!' : 'Failed to move tee time.'),
-          backgroundColor: success ? AppColors.emerald700 : Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _requestSwap(BuildContext context, WidgetRef ref) async {
-    final scaffold = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Request Tee Time Swap?'),
-        content: Text(
-            'Would you like to swap your tee time slot at ${DateFormat('HH:mm').format(myRow!.teeTime)} with ${row.playerName}\'s slot at ${DateFormat('HH:mm').format(row.teeTime)}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Swap')),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      final success = await ref.read(competitionActionsProvider.notifier).swapTeeTimeSlot(
-            competitionId: competition.id,
-            myStartingSheetId: myRow!.id,
-            targetStartingSheetId: row.id,
-          );
-      scaffold.showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Tee time slots swapped successfully!' : 'Failed to swap tee times.'),
-          backgroundColor: success ? AppColors.emerald700 : Colors.red,
-        ),
-      );
-    }
-  }
-
-  Color _teeColor(String color) {
-    switch (color.toLowerCase()) {
-      case 'red':
-        return Colors.red;
-      case 'yellow':
-        return Colors.yellow.shade700;
-      case 'blue':
-        return Colors.blue;
-      case 'black':
-        return Colors.black;
-      case 'white':
-        return Colors.grey.shade300;
-      default:
-        return Colors.green;
-    }
-  }
-}
-
-// ─── Leaderboard Tab ─────────────────────────────────────────────────────────
-class _LeaderboardTab extends ConsumerWidget {
-  final Competition competition;
-
-  const _LeaderboardTab({required this.competition});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final lbAsync = ref.watch(leaderboardProvider(competition.id));
-    final profile = ref.watch(userProfileProvider).valueOrNull;
-
-    return lbAsync.when(
-      loading: () => const Center(child: LoadingSpinner(size: 60)),
-      error: (e, _) => Center(child: Text('Error: $e')),
-      data: (rows) {
-        if (rows.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(LucideIcons.barChart2,
-                    size: 48, color: AppColors.grey200),
-                const SizedBox(height: 12),
-                Text(
-                  competition.isInProgress || competition.isCompleted
-                      ? 'No results submitted yet'
-                      : 'Results appear when the competition starts',
-                  style: const TextStyle(color: AppColors.grey400),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: rows.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 6),
-          itemBuilder: (_, i) {
-            final row = rows[i];
-            final isMe = row.playerId == profile?.uid;
-            return _LeaderboardTile(row: row, isMe: isMe);
-          },
-        );
-      },
-    );
-  }
-}
-
-class _LeaderboardTile extends StatelessWidget {
-  final LeaderboardRow row;
-  final bool isMe;
-
-  const _LeaderboardTile({required this.row, required this.isMe});
-
   @override
   Widget build(BuildContext context) {
-    final pos = row.position;
+    final pending = entry.isPending;
+    final color = pending ? Ob.warn : Ob.lime;
+    final details = [
+      if (entry.playingHandicap != null) 'Playing handicap ${entry.playingHandicap!.round()}',
+      if (entry.teeColor != null) '${_cap(entry.teeColor!)} tees',
+      if (entry.flightName != null) '${entry.flightName} flight',
+    ].join(' · ');
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: isMe
-            ? AppColors.emerald700.withValues(alpha: 0.05)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: isMe
-            ? Border.all(
-                color: AppColors.emerald700.withValues(alpha: 0.3))
-            : null,
-      ),
-      child: Row(
-        children: [
-          // Position
-          SizedBox(
-            width: 32,
-            child: Text(
-              pos != null ? '#$pos' : '-',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                color: pos == 1
-                    ? Colors.amber
-                    : pos == 2
-                        ? Colors.blueGrey
-                        : pos == 3
-                            ? Colors.brown
-                            : AppColors.grey400,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      row.fullName ?? 'Unknown',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.grey900),
-                    ),
-                    if (isMe) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: AppColors.emerald700,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text('You',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800)),
-                      ),
-                    ],
-                  ],
-                ),
-                Text(
-                  'HC: ${row.playingHandicap?.toStringAsFixed(1) ?? "-"}  •  Gross: ${row.grossScore ?? "-"}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.grey500),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                row.displayScore,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                    color: AppColors.grey900),
-              ),
-              if (row.certified)
-                const Icon(LucideIcons.badgeCheck,
-                    size: 14, color: AppColors.emerald700),
-            ],
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: color.withValues(alpha: .08), borderRadius: BorderRadius.circular(22), border: Border.all(color: color.withValues(alpha: .4))),
+      child: Row(children: [
+        Icon(pending ? LucideIcons.clock : LucideIcons.checkCircle2, color: color),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(pending ? 'Entry waiting for the club' : 'You\'re in', style: Ob.body(15, weight: FontWeight.w800)),
+            if (details.isNotEmpty) Text(details, style: Ob.body(12, color: Ob.creamA(.6))),
+          ]),
+        ),
+      ]),
     );
   }
 }
 
-// ─── Detail helpers ───────────────────────────────────────────────────────────
-class _DetailCard extends StatelessWidget {
-  final List<Widget> children;
-  const _DetailCard({required this.children});
+String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(children: children),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _DetailRow(
-      {required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: AppColors.grey400),
-          const SizedBox(width: 12),
-          Text(label,
-              style: const TextStyle(
-                  color: AppColors.grey500,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600)),
-          const Spacer(),
-          Text(value,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  color: AppColors.grey900)),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Entry bottom sheet (exported for use in overview tab) ───────────────────
-class CompetitionEntrySheet extends ConsumerStatefulWidget {
+class _EnterBar extends StatelessWidget {
+  const _EnterBar({required this.competition, required this.profile});
   final Competition competition;
   final dynamic profile;
 
-  const CompetitionEntrySheet(
-      {super.key, required this.competition, required this.profile});
-
   @override
-  ConsumerState<CompetitionEntrySheet> createState() =>
-      _CompetitionEntrySheetState();
+  Widget build(BuildContext context) {
+    final c = competition;
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
+      decoration: BoxDecoration(color: Ob.bg, border: Border(top: BorderSide(color: Ob.creamA(.06)))),
+      child: Row(children: [
+        Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(c.entryFee > 0 ? _money(c) : 'Free', style: Ob.display(24, height: 1)),
+          Text(c.entryFee > 0 ? 'Pay by M-Pesa' : 'No entry fee', style: Ob.body(11, color: Ob.creamA(.55))),
+        ]),
+        const SizedBox(width: 16),
+        Expanded(
+          child: ObButton(
+            onPressed: () => showObSheet(context, (_) => CompetitionEntrySheet(competition: c, profile: profile)),
+            child: Text('Enter', style: Ob.label(16, weight: FontWeight.w800)),
+          ),
+        ),
+      ]),
+    );
+  }
 }
 
-class _CompetitionEntrySheetState
-    extends ConsumerState<CompetitionEntrySheet> {
-  String _selectedTee = 'white';
-  String _selectedWindow = 'morning';
-  bool _isSubmitting = false;
-  final TextEditingController _mpesaPhoneController = TextEditingController();
-  late TextEditingController _handicapController;
+// ─── Start sheet ─────────────────────────────────────────────────────────────
 
-  final _teeOptions = ['white', 'yellow', 'blue', 'red'];
+class _StartSheet extends ConsumerWidget {
+  const _StartSheet({required this.competition, required this.isAdmin});
+  final Competition competition;
+  final bool isAdmin;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = competition;
+    final async = ref.watch(startingSheetProvider(c.id));
+    final rows = async.valueOrNull ?? const <StartingSheetRow>[];
+    final me = ref.watch(authStateProvider).valueOrNull?.id;
+    final entry = ref.watch(myEntryProvider(c.id)).valueOrNull;
+    final registered = entry != null && entry.isConfirmed;
+    final lockHours = (c.rulesConfig['tee_time_lock_hours'] as int?) ?? 24;
+    final locked = DateTime.now().isAfter(c.startDate.subtract(Duration(hours: lockHours)));
+    final myRow = rows.where((r) => r.playerId != null && r.playerId == me).firstOrNull;
+
+    final groups = <DateTime, List<StartingSheetRow>>{};
+    for (final r in rows) {
+      final k = DateTime(r.teeTime.year, r.teeTime.month, r.teeTime.day, r.teeTime.hour, r.teeTime.minute);
+      groups.putIfAbsent(k, () => []).add(r);
+    }
+    final keys = groups.keys.toList()..sort();
+
+    return RefreshIndicator(
+      color: Ob.ink,
+      backgroundColor: Ob.lime,
+      onRefresh: () async => ref.invalidate(startingSheetProvider(c.id)),
+      child: ListView(
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+        children: [
+          if (async.isLoading && rows.isEmpty)
+            const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+          else if (rows.isEmpty)
+            ObCard(
+              padding: const EdgeInsets.all(18),
+              child: ObGuideRow(
+                botAsset: ObBot.ball.sleep,
+                botLabel: 'Your golf-ball avatar',
+                text: async.hasError ? 'Couldn\'t load the start sheet. Pull down to try again.' : 'The start sheet isn\'t out yet. The club publishes it before the day.',
+                size: 72,
+                fontSize: 16,
+              ),
+            )
+          else ...[
+            Row(children: [
+              Expanded(child: Text(DateFormat('EEE d MMM').format(c.startDate), style: Ob.body(14, weight: FontWeight.w700, color: Ob.creamA(.7)))),
+              if (myRow != null) const ObChip('You\'re in', on: true),
+            ]),
+            const SizedBox(height: 6),
+            if (registered)
+              Text(
+                locked
+                    ? 'Tee times are locked now.'
+                    : myRow != null
+                        ? 'You tee off at ${DateFormat.Hm().format(myRow.teeTime)} from hole ${myRow.teeNumber}. Move to an open slot or swap with someone.'
+                        : 'Pick an open slot to claim your tee time.',
+                style: Ob.body(13, color: Ob.creamA(.6)),
+              ),
+            const SizedBox(height: 12),
+            for (final k in keys)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _Group(
+                  time: k,
+                  rows: groups[k]!,
+                  me: me,
+                  myRow: myRow,
+                  canMove: registered && !locked,
+                  isAdmin: isAdmin,
+                  competition: c,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Group extends ConsumerWidget {
+  const _Group({required this.time, required this.rows, required this.me, required this.myRow, required this.canMove, required this.isAdmin, required this.competition});
+  final DateTime time;
+  final List<StartingSheetRow> rows;
+  final String? me;
+  final StartingSheetRow? myRow;
+  final bool canMove;
+  final bool isAdmin;
+  final Competition competition;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mine = rows.any((r) => r.playerId != null && r.playerId == me);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+      decoration: BoxDecoration(
+        color: mine ? Ob.lime.withValues(alpha: .08) : Ob.cardFill,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: mine ? Ob.lime : Ob.creamA(.06), width: mine ? 2 : 1),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Text(DateFormat.Hm().format(time), style: Ob.display(24, height: 1)),
+          const Spacer(),
+          Text('Hole ${rows.first.teeNumber}', style: Ob.body(12, weight: FontWeight.w700, color: Ob.creamA(.55))),
+          const SizedBox(width: 4),
+        ]),
+        const SizedBox(height: 6),
+        for (final r in rows) _slot(context, ref, r),
+      ]),
+    );
+  }
+
+  Widget _slot(BuildContext context, WidgetRef ref, StartingSheetRow r) {
+    final vacant = r.playerId == null;
+    final isMe = !vacant && r.playerId == me;
+    final name = r.playerName ?? 'Golfer';
+    final ini = name.trim().split(RegExp(r'\s+')).take(2).map((w) => w.isEmpty ? '' : w[0].toUpperCase()).join();
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44),
+      child: Row(children: [
+        if (vacant)
+          Container(width: 32, height: 32, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Ob.creamA(.2), width: 2)))
+        else
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: isMe ? Ob.lime : Ob.roleFill),
+            child: Text(ini, style: Ob.body(12, weight: FontWeight.w800, color: isMe ? Ob.ink : Ob.lime)),
+          ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: vacant
+              ? Text('Open slot', style: Ob.body(14, color: Ob.creamA(.5)))
+              : Text(isMe ? '$name (you)' : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(14, weight: FontWeight.w700)),
+        ),
+        if (!vacant) ...[
+          if (r.teeColor != null) ...[
+            Container(width: 10, height: 10, decoration: BoxDecoration(color: _teeColor(r.teeColor!), shape: BoxShape.circle, border: Border.all(color: Ob.creamA(.3)))),
+            const SizedBox(width: 8),
+          ],
+          Text('HC ${r.playingHandicap?.round() ?? '–'}', style: Ob.body(12, color: Ob.creamA(.55))),
+        ],
+        if (vacant && canMove)
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: ObButton(
+              tone: ObButtonTone.dark,
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              onPressed: () => _move(context, ref, r),
+              child: Text(myRow == null ? 'Claim' : 'Move here', style: Ob.label(13, weight: FontWeight.w800)),
+            ),
+          ),
+        if (!vacant && !isMe && canMove && myRow != null)
+          IconButton(
+            tooltip: 'Swap with $name',
+            onPressed: () => _swap(context, ref, r),
+            icon: Icon(LucideIcons.arrowRightLeft, size: 18, color: Ob.creamA(.6)),
+          ),
+        if (!vacant && isAdmin && r.entryId != null)
+          IconButton(
+            tooltip: 'Scan $name\'s card',
+            onPressed: () => context.push('/competitions/${r.competitionId}/scan/${r.entryId}'),
+            icon: const Icon(LucideIcons.camera, size: 18, color: Ob.lime),
+          ),
+      ]),
+    );
+  }
+
+  Future<bool> _confirm(BuildContext context, String title, String body, String yes) async {
+    final ok = await showObSheet<bool>(
+      context,
+      (ctx) => ObSheet(
+        title: title,
+        subtitle: body,
+        child: Row(children: [
+          Expanded(child: ObButton(tone: ObButtonTone.dark, onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: Ob.label(15, weight: FontWeight.w800)))),
+          const SizedBox(width: 10),
+          Expanded(child: ObButton(onPressed: () => Navigator.pop(ctx, true), child: Text(yes, style: Ob.label(15, weight: FontWeight.w800)))),
+        ]),
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<void> _move(BuildContext context, WidgetRef ref, StartingSheetRow r) async {
+    final at = DateFormat.Hm().format(r.teeTime);
+    if (!await _confirm(context, myRow == null ? 'Take the $at slot?' : 'Move to $at?',
+        myRow == null ? 'You\'ll tee off at $at from hole ${r.teeNumber}.' : 'Your ${DateFormat.Hm().format(myRow!.teeTime)} slot opens up for someone else.', myRow == null ? 'Claim' : 'Move')) {
+      return;
+    }
+    final ok = await ref.read(competitionActionsProvider.notifier).moveTeeTimeSlot(competitionId: competition.id, oldStartingSheetId: myRow?.id, newStartingSheetId: r.id);
+    ref.invalidate(startingSheetProvider(competition.id));
+    if (!context.mounted) return;
+    ok ? TopNotification.showSuccess(context, 'You tee off at $at') : TopNotification.showError(context, 'Couldn\'t move you. Someone may have taken it; pull down to refresh.');
+  }
+
+  Future<void> _swap(BuildContext context, WidgetRef ref, StartingSheetRow r) async {
+    final name = (r.playerName ?? 'them').split(' ').first;
+    if (!await _confirm(context, 'Swap with $name?', 'You take ${DateFormat.Hm().format(r.teeTime)} and $name takes ${DateFormat.Hm().format(myRow!.teeTime)}.', 'Swap')) return;
+    final ok = await ref.read(competitionActionsProvider.notifier).swapTeeTimeSlot(competitionId: competition.id, myStartingSheetId: myRow!.id, targetStartingSheetId: r.id);
+    ref.invalidate(startingSheetProvider(competition.id));
+    if (!context.mounted) return;
+    ok ? TopNotification.showSuccess(context, 'Swapped with $name') : TopNotification.showError(context, 'Couldn\'t swap. Pull down to refresh and try again.');
+  }
+}
+
+Color _teeColor(String color) => switch (color.toLowerCase()) {
+      'red' => const Color(0xFFEF4444),
+      'yellow' => const Color(0xFFFACC15),
+      'blue' => const Color(0xFF3B82F6),
+      'black' => const Color(0xFF111111),
+      'white' => const Color(0xFFF4F4F4),
+      'gold' => const Color(0xFFF5C531),
+      _ => const Color(0xFF22C55E),
+    };
+
+// ─── Results ─────────────────────────────────────────────────────────────────
+
+enum _Measure { net, gross }
+
+class _Results extends ConsumerStatefulWidget {
+  const _Results({required this.competition});
+  final Competition competition;
+
+  @override
+  ConsumerState<_Results> createState() => _ResultsState();
+}
+
+class _ResultsState extends ConsumerState<_Results> {
+  _Measure _measure = _Measure.net;
+  String? _flight;
+  Timer? _poll;
 
   @override
   void initState() {
     super.initState();
-    final initialHc = widget.profile?.handicap ?? 0.0;
-    _handicapController = TextEditingController(text: initialHc.toStringAsFixed(1));
+    // Live competitions refresh on their own while this is open.
+    if (widget.competition.isInProgress) {
+      _poll = Timer.periodic(const Duration(seconds: 30), (_) => ref.invalidate(leaderboardProvider(widget.competition.id)));
+    }
   }
 
   @override
   void dispose() {
-    _mpesaPhoneController.dispose();
-    _handicapController.dispose();
+    _poll?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-          24, 16, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final c = widget.competition;
+    final async = ref.watch(leaderboardProvider(c.id));
+    final all = async.valueOrNull ?? const <LeaderboardRow>[];
+    final me = ref.watch(authStateProvider).valueOrNull?.id;
+    final points = const {'stableford', 'betterball', 'bogey'}.contains(c.competitionType);
+    final flights = {for (final r in all) if (r.flightName != null && r.flightName!.isNotEmpty) r.flightName!}.toList()..sort();
+
+    final rows = all.where((r) => _flight == null || r.flightName == _flight).toList();
+    if (!points && _measure == _Measure.gross) {
+      rows.sort((a, b) => (a.grossScore ?? 9999).compareTo(b.grossScore ?? 9999));
+    }
+    final certified = all.where((r) => r.certified).length;
+
+    String score(LeaderboardRow r) {
+      if (r.resultStatus != 'active') return r.displayScore;
+      if (points) return r.stablefordPoints?.toString() ?? '–';
+      return _measure == _Measure.gross ? (r.grossScore?.toString() ?? '–') : (r.netScore?.round().toString() ?? '–');
+    }
+
+    return RefreshIndicator(
+      color: Ob.ink,
+      backgroundColor: Ob.lime,
+      onRefresh: () async => ref.invalidate(leaderboardProvider(c.id)),
+      child: ListView(
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
         children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: AppColors.grey200,
-                  borderRadius: BorderRadius.circular(2)),
+          if (async.isLoading && all.isEmpty)
+            const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+          else if (all.isEmpty)
+            ObCard(
+              padding: const EdgeInsets.all(18),
+              child: ObGuideRow(
+                botAsset: ObBot.star.idle,
+                botLabel: 'Star avatar',
+                text: async.hasError
+                    ? 'Couldn\'t load the results. Pull down to try again.'
+                    : c.isInProgress
+                        ? 'No cards in yet. Scores show here as players hand them in.'
+                        : 'Results appear once play starts.',
+                size: 72,
+                fontSize: 16,
+              ),
+            )
+          else ...[
+            Text(
+              [if (c.isInProgress) 'Live', '$certified of ${all.length} cards certified', if (points) 'Stableford points'].join(' · '),
+              style: Ob.body(13, weight: FontWeight.w700, color: Ob.creamA(.65)),
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            widget.competition.name,
-            style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: AppColors.grey900,
-                letterSpacing: -0.5),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            widget.competition.formatLabel,
-            style:
-                const TextStyle(color: AppColors.grey500, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 24),
-          // Handicap input
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.grey50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(LucideIcons.gauge,
-                    size: 18, color: AppColors.grey400),
-                const SizedBox(width: 10),
-                const Text('Playing Handicap',
-                    style: TextStyle(
-                        color: AppColors.grey600,
-                        fontWeight: FontWeight.w600)),
-                const Spacer(),
-                SizedBox(
-                  width: 80,
-                  height: 36,
-                  child: TextField(
-                    controller: _handicapController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    textAlign: TextAlign.end,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                        color: AppColors.grey900),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
+            if (!points) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: SizedBox(
+                  width: 240,
+                  child: ObGooSegmented<_Measure>(
+                    options: const [(_Measure.net, 'Net'), (_Measure.gross, 'Gross')],
+                    selected: _measure,
+                    onChanged: (m) => setState(() => _measure = m),
+                    height: 38,
+                    fontSize: 13,
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text('Tee Selection',
-              style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.grey700)),
-          const SizedBox(height: 10),
-          Row(
-            children: _teeOptions.map((tee) {
-              final selected = _selectedTee == tee;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedTee = tee),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: selected ? AppColors.grey900 : AppColors.grey50,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: selected
-                            ? AppColors.grey900
-                            : AppColors.grey200,
+              ),
+            ],
+            if (flights.length > 1) ...[
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(children: [
+                  for (final f in [null, ...flights])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _flight = f),
+                        child: ObChip(f == null ? 'All flights' : '$f flight', on: _flight == f),
                       ),
                     ),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 16,
-                          height: 16,
-                          decoration: BoxDecoration(
-                            color: _teeColorValue(tee),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                                color: AppColors.grey300, width: 0.5),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          tee[0].toUpperCase() + tee.substring(1),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: selected
-                                ? Colors.white
-                                : AppColors.grey700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-          const Text('Preferred Tee Time Window',
-              style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.grey700)),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.grey50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.grey200),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedWindow,
-                isExpanded: true,
-                icon: const Icon(LucideIcons.chevronDown, color: AppColors.grey500),
-                onChanged: (val) {
-                  if (val != null) setState(() => _selectedWindow = val);
-                },
-                items: const [
-                  DropdownMenuItem(
-                    value: 'morning',
-                    child: Text('Early Morning (7:00 - 9:00 AM)', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.grey800, fontSize: 14)),
-                  ),
-                  DropdownMenuItem(
-                    value: 'midday',
-                    child: Text('Midday (9:00 AM - 12:00 PM)', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.grey800, fontSize: 14)),
-                  ),
-                  DropdownMenuItem(
-                    value: 'afternoon',
-                    child: Text('Afternoon (12:00 PM+)', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.grey800, fontSize: 14)),
-                  ),
+                ]),
+              ),
+            ],
+            const SizedBox(height: 12),
+            ObCard(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(children: [
+                for (final (i, r) in rows.indexed) ...[
+                  if (i > 0) const ObHair(),
+                  _ResultRow(pos: _flight == null && (points || _measure == _Measure.net) ? (r.position ?? i + 1) : i + 1, row: r, score: score(r), isMe: r.playerId == me, first: i == 0),
                 ],
-              ),
-            ),
-          ),
-          if (widget.competition.entryFee > 0) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(LucideIcons.banknote,
-                          size: 18, color: Colors.amber),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Entry fee: ${widget.competition.currency} ${widget.competition.entryFee.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.grey800,
-                              fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Enter M-Pesa Phone Number for STK Push',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.grey600),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _mpesaPhoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      hintText: 'e.g. 0712345678',
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: AppColors.grey300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: AppColors.grey300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: AppColors.emerald500, width: 2),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              ]),
             ),
           ],
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton(
-              onPressed: _isSubmitting ? null : () => _submit(context),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.emerald700,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: _isSubmitting
-                  ? const LoadingSpinner(size: 24)
-                  : Text(
-                      widget.competition.entryFee > 0 ? 'Pay & Enter' : 'Confirm Entry',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16),
-                    ),
-            ),
-          ),
         ],
       ),
     );
   }
+}
 
-  Future<void> _submit(BuildContext context) async {
-    if (widget.competition.entryFee > 0 && _mpesaPhoneController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your M-Pesa phone number.')),
-      );
-      return;
-    }
+class _ResultRow extends StatelessWidget {
+  const _ResultRow({required this.pos, required this.row, required this.score, required this.isMe, required this.first});
+  final int pos;
+  final LeaderboardRow row;
+  final String score;
+  final bool isMe;
+  final bool first;
 
-    final hc = double.tryParse(_handicapController.text) ?? widget.profile?.handicap ?? 0.0;
-    
-    if (widget.competition.entryFee > 0) {
-      final mpesaPhone = _mpesaPhoneController.text.trim();
-      final success = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogCtx) => STKPushConfirmationDialog(
-          mpesaPhone: mpesaPhone,
-          amount: widget.competition.entryFee,
-          currency: widget.competition.currency,
-          onConfirm: () => ref
-              .read(competitionActionsProvider.notifier)
-              .enterCompetition(
-                competitionId: widget.competition.id,
-                playingHandicap: hc,
-                entryFee: widget.competition.entryFee,
-                mpesaPhone: mpesaPhone,
-                teeColor: _selectedTee,
-                preferredTimeWindow: _selectedWindow,
-              ),
+  @override
+  Widget build(BuildContext context) {
+    final sub = [
+      if (row.playingHandicap != null) 'HC ${row.playingHandicap!.round()}',
+      if (row.flightName != null && row.flightName!.isNotEmpty) '${row.flightName} flight',
+      if (!row.certified) 'Not certified',
+    ].join(' · ');
+    return Container(
+      color: isMe ? Ob.lime.withValues(alpha: .08) : null,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(children: [
+        SizedBox(width: 28, child: Text('$pos', style: Ob.display(16, color: Ob.creamA(.55)))),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(isMe ? '${row.fullName ?? 'You'} (you)' : (row.fullName ?? 'Golfer'), maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700)),
+            if (sub.isNotEmpty) Text(sub, style: Ob.body(12, color: Ob.creamA(.55))),
+          ]),
         ),
-      );
-
-      if (success == true && context.mounted) {
-        Navigator.pop(context);
-      }
-    } else {
-      // Free Entry
-      setState(() => _isSubmitting = true);
-      final success = await ref
-          .read(competitionActionsProvider.notifier)
-          .enterCompetition(
-            competitionId: widget.competition.id,
-            playingHandicap: hc,
-            entryFee: widget.competition.entryFee,
-            teeColor: _selectedTee,
-            preferredTimeWindow: _selectedWindow,
-          );
-      if (context.mounted) {
-        setState(() => _isSubmitting = false);
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success
-                ? 'Entry submitted successfully!'
-                : 'Failed to submit entry. Please try again.'),
-            backgroundColor: success ? AppColors.emerald700 : Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Color _teeColorValue(String color) {
-    switch (color) {
-      case 'red':
-        return Colors.red;
-      case 'yellow':
-        return Colors.yellow.shade700;
-      case 'blue':
-        return Colors.blue;
-      case 'black':
-        return Colors.black87;
-      default:
-        return Colors.grey.shade400;
-    }
+        if (row.certified) ...[Icon(LucideIcons.badgeCheck, size: 14, color: Ob.creamA(.45)), const SizedBox(width: 8)],
+        Text(score, style: Ob.display(22, color: first ? _gold : (isMe ? Ob.lime : Ob.cream))),
+      ]),
+    );
   }
 }
 
+const _gold = Color(0xFFF5C531);
 
+// ─── Entry ───────────────────────────────────────────────────────────────────
+
+/// Enter a competition: tees, preferred start and payment.
+class CompetitionEntrySheet extends ConsumerStatefulWidget {
+  final Competition competition;
+  final dynamic profile;
+
+  const CompetitionEntrySheet({super.key, required this.competition, required this.profile});
+
+  @override
+  ConsumerState<CompetitionEntrySheet> createState() => _CompetitionEntrySheetState();
+}
+
+class _CompetitionEntrySheetState extends ConsumerState<CompetitionEntrySheet> {
+  String _tee = 'white';
+  String _window = 'morning';
+  bool _paying = false;
+  late final _phone = TextEditingController();
+  late int _ph = _playingHandicap((widget.profile?.handicap as double?) ?? 0, widget.competition);
+
+  static const _tees = ['white', 'yellow', 'blue', 'red'];
+  static const _windows = [('morning', '07:00 to 09:00'), ('midday', '09:00 to 12:00'), ('afternoon', 'After 12:00')];
+
+  @override
+  void dispose() {
+    _phone.dispose();
+    super.dispose();
+  }
+
+  bool get _paid => widget.competition.entryFee > 0;
+
+  Future<void> _submit() async {
+    final c = widget.competition;
+    final phone = _phone.text.replaceAll(RegExp(r'\s'), '');
+    if (_paid && !RegExp(r'^(\+?254|0)?[17]\d{8}$').hasMatch(phone)) {
+      TopNotification.showError(context, 'Enter the M-Pesa number, like 0712 345 678.');
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    setState(() => _paying = true);
+    final ok = await ref.read(competitionActionsProvider.notifier).enterCompetition(
+          competitionId: c.id,
+          playingHandicap: _ph.toDouble(),
+          entryFee: c.entryFee,
+          mpesaPhone: _paid ? phone : null,
+          teeColor: _tee,
+          preferredTimeWindow: _window,
+        );
+    if (!mounted) return;
+    setState(() => _paying = false);
+    if (ok) {
+      ref.invalidate(myEntryProvider(c.id));
+      ref.invalidate(competitionDetailProvider(c.id));
+      Navigator.pop(context);
+      TopNotification.showSuccess(context, 'You\'re in ${c.name}');
+    } else {
+      TopNotification.showError(context, _paid ? 'Payment didn\'t go through. Nothing was charged; try again.' : 'Couldn\'t enter you. Try again.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.competition;
+    return ObSheet(
+      title: 'Your entry',
+      subtitle: c.name,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .72),
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 12, 10, 12),
+              decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(22), border: Border.all(color: Ob.lime.withValues(alpha: .2))),
+              child: Row(children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('PLAYING HANDICAP', style: Ob.eyebrow()),
+                    Text('${_allowance(c)}% of your handicap. The club confirms it.', style: Ob.body(12, color: Ob.creamA(.6))),
+                  ]),
+                ),
+                IconButton(onPressed: _ph > 0 ? () => setState(() => _ph--) : null, icon: Icon(LucideIcons.minus, color: Ob.creamA(.7)), tooltip: 'Lower'),
+                SizedBox(
+                  width: 52,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    transitionBuilder: (child, a) => SlideTransition(position: Tween(begin: const Offset(0, .35), end: Offset.zero).animate(a), child: FadeTransition(opacity: a, child: child)),
+                    child: Text('$_ph', key: ValueKey(_ph), textAlign: TextAlign.center, style: Ob.display(40, height: 1)),
+                  ),
+                ),
+                IconButton(onPressed: _ph < 54 ? () => setState(() => _ph++) : null, icon: Icon(LucideIcons.plus, color: Ob.creamA(.7)), tooltip: 'Raise'),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            const ObEyebrow('Tees'),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final t in _tees)
+                GestureDetector(
+                  onTap: () => setState(() => _tee = t),
+                  child: ObChip(_cap(t), on: _tee == t),
+                ),
+            ]),
+            const SizedBox(height: 16),
+            const ObEyebrow('When would you like to start?'),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final w in _windows)
+                GestureDetector(onTap: () => setState(() => _window = w.$1), child: ObChip(w.$2, on: _window == w.$1)),
+            ]),
+            if (_paid) ...[
+              const SizedBox(height: 16),
+              ObCard(
+                padding: const EdgeInsets.all(14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Row(children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(12)),
+                      child: const Icon(LucideIcons.smartphone, size: 18, color: Ob.lime),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Pay ${_money(c)} by M-Pesa', style: Ob.body(15, weight: FontWeight.w800)),
+                        Text('We send a prompt to this phone', style: Ob.body(12, color: Ob.creamA(.58))),
+                      ]),
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _phone,
+                    enabled: !_paying,
+                    keyboardType: TextInputType.phone,
+                    cursorColor: Ob.lime,
+                    style: Ob.display(22),
+                    decoration: obInput(null, hint: '0712 345 678'),
+                  ),
+                ]),
+              ),
+            ],
+            if (_paying && _paid) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .1), borderRadius: BorderRadius.circular(18), border: Border.all(color: Ob.lime.withValues(alpha: .3))),
+                child: Row(children: [
+                  const CupertinoActivityIndicator(color: Ob.lime, radius: 8),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('Check your phone and enter your M-Pesa PIN', style: Ob.body(14, weight: FontWeight.w700))),
+                ]),
+              ),
+            ],
+            const SizedBox(height: 18),
+            ObButton(
+              onPressed: _paying ? null : _submit,
+              child: Text(
+                _paying ? (_paid ? 'Waiting for M-Pesa…' : 'Entering…') : (_paid ? 'Pay and enter' : 'Enter'),
+                style: Ob.label(16, weight: FontWeight.w800),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}

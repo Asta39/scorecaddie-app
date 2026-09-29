@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,12 +9,15 @@ import 'package:drift/drift.dart' as drift;
 
 import '../../core/database/database.dart' as db;
 import '../../core/models/scanned_round_result.dart';
-import '../../core/theme/app_theme.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/competition_providers.dart';
 import '../../providers/database_providers.dart';
 import '../../providers/scorecard_scanner_provider.dart';
-import '../../widgets/loading_spinner.dart';
+import '../../widgets/top_notification.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 
 /// Admin-only screen: scan a player's paper scorecard and submit / certify it
 /// for a formal competition. Reuses the existing Gemini AI scanner pipeline.
@@ -171,46 +175,43 @@ class _CompetitionScanSubmitScreenState
     final scanState = ref.watch(scorecardScannerProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.grey50,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text(
-          'Scan Scorecard',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            color: AppColors.grey900,
-          ),
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: ObTopBar('Hand in the card', onBack: () => context.pop()),
+            ),
+            Expanded(
+              child: _isLoadingEntry
+                  ? const Center(child: CupertinoActivityIndicator(color: Ob.lime))
+                  : scanState.scanResult == null
+                      ? _ScanStep(
+                          entryId: widget.entryId,
+                          playerName: _playerName,
+                          playingHandicap: _playingHandicap,
+                          isLoading: scanState.isLoading,
+                          errorMessage: scanState.errorMessage,
+                        )
+                      : _ReviewStep(
+                          scanResult: scanState.scanResult!,
+                          entryId: widget.entryId,
+                          competitionId: widget.competitionId,
+                          playerName: _playerName,
+                          playingHandicap: _playingHandicap,
+                          certifyNow: _certifyNow,
+                          isSubmitting: _isSubmitting,
+                          onCertifyToggle: (val) => setState(() => _certifyNow = val),
+                          onSubmit: () => _submit(context, scanState.scanResult!),
+                          onRescan: () => ref.read(scorecardScannerProvider.notifier).resetForRescan(),
+                        ),
+            ),
+          ]),
         ),
       ),
-      body: _isLoadingEntry
-          ? const Center(child: LoadingSpinner())
-          : scanState.scanResult == null
-              ? _ScanStep(
-                  entryId: widget.entryId,
-                  playerName: _playerName,
-                  playingHandicap: _playingHandicap,
-                  isLoading: scanState.isLoading,
-                  errorMessage: scanState.errorMessage,
-                )
-              : _ReviewStep(
-                  scanResult: scanState.scanResult!,
-                  entryId: widget.entryId,
-                  competitionId: widget.competitionId,
-                  playerName: _playerName,
-                  playingHandicap: _playingHandicap,
-                  certifyNow: _certifyNow,
-                  isSubmitting: _isSubmitting,
-                  onCertifyToggle: (val) => setState(() => _certifyNow = val),
-                  onSubmit: () => _submit(context, scanState.scanResult!),
-                  onRescan: () =>
-                      ref.read(scorecardScannerProvider.notifier).resetForRescan(),
-                ),
     );
   }
 
@@ -220,32 +221,17 @@ class _CompetitionScanSubmitScreenState
     // Validation
     final unreadable = result.holes.where((h) => h.score == null).length;
     if (unreadable > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$unreadable hole(s) are missing scores. Please edit them before submitting.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      TopNotification.showError(context, '$unreadable hole${unreadable == 1 ? '' : 's'} still need a score. Tap them to fill in.');
       return;
     }
 
     if (grossScore <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Gross score must be greater than 0.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      TopNotification.showError(context, 'The card adds up to 0. Rescan it or fill in the holes.');
       return;
     }
 
     if (_playerId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Player not found. Cannot submit.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      TopNotification.showError(context, 'Couldn\'t find this player\'s entry. Go back and open it again.');
       return;
     }
 
@@ -290,17 +276,13 @@ class _CompetitionScanSubmitScreenState
     if (mounted) setState(() => _isSubmitting = false);
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success
-              ? _certifyNow
-                  ? 'Scorecard certified and saved to leaderboard!'
-                  : 'Scorecard saved as draft.'
-              : 'Failed to save. Please try again.'),
-          backgroundColor: success ? AppColors.emerald700 : Colors.red,
-        ),
-      );
-      if (success) context.pop();
+      if (success) {
+        TopNotification.showSuccess(context, _certifyNow ? 'Card certified. It\'s on the leaderboard.' : 'Card saved. Certify it to publish.');
+        ref.invalidate(leaderboardProvider(widget.competitionId));
+        context.pop();
+      } else {
+        TopNotification.showError(context, 'Couldn\'t save the card. Try again.');
+      }
     }
   }
 
@@ -404,144 +386,71 @@ class _ScanStep extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.grey100),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: AppColors.emerald700.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    LucideIcons.scanLine,
-                    size: 36,
-                    color: AppColors.emerald700,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  playerName,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.grey900,
-                    letterSpacing: -0.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Playing Handicap: ${playingHandicap.toStringAsFixed(1)}',
-                  style: const TextStyle(
-                    color: AppColors.emerald700,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Take a clear photo of the completed paper scorecard. The AI will extract all hole scores automatically.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.grey500,
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          if (isLoading)
-            const Column(
-              children: [
-                LoadingSpinner(size: 60),
-                SizedBox(height: 16),
-                Text(
-                  'Analysing scorecard...',
-                  style: TextStyle(
-                    color: AppColors.grey500,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            )
-          else ...[
-            if (errorMessage != null) ...[
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(LucideIcons.alertCircle,
-                        size: 18, color: Colors.red),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        errorMessage!,
-                        style: const TextStyle(color: Colors.red, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: FilledButton.icon(
-                icon: const Icon(LucideIcons.camera, color: Colors.white),
-                label: const Text(
-                  'Open Camera',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.emerald700,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                onPressed: () => context.push(
-                  '/scanner/camera',
-                  extra: {'competitionEntryId': entryId},
-                ),
-              ),
-            ),
-          ],
+    final first = playerName.split(' ').first;
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      children: [
+        ObGuideRow(
+          botAsset: isLoading ? ObBot.clover.happy : ObBot.clover.idle,
+          botLabel: 'Daniel the clover',
+          text: isLoading ? 'Reading $first\'s card…' : 'Snap $first\'s card and I\'ll read every hole.',
+          size: 84,
+          fontSize: 17,
+        ),
+        const SizedBox(height: 18),
+        ObCard(
+          padding: const EdgeInsets.all(16),
+          child: Row(children: [
+            Expanded(child: Text(playerName.isEmpty ? 'Player' : playerName, style: Ob.body(16, weight: FontWeight.w800))),
+            ObChip('Playing HC ${playingHandicap.round()}', on: true),
+          ]),
+        ),
+        if (errorMessage != null && !isLoading) ...[
           const SizedBox(height: 12),
-          const Text(
-            'Tip: Lay the scorecard flat on a dark surface in good lighting for the best results.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.grey400,
-              fontSize: 12,
-            ),
-          ),
+          _Banner(color: Ob.warn, icon: LucideIcons.alertCircle, text: errorMessage!),
         ],
-      ),
+        const SizedBox(height: 18),
+        if (isLoading)
+          const Padding(padding: EdgeInsets.all(24), child: Center(child: CupertinoActivityIndicator(color: Ob.lime, radius: 14)))
+        else
+          ObButton(
+            onPressed: () => context.push('/scanner/camera', extra: {'competitionEntryId': entryId}),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(LucideIcons.camera, size: 18, color: Ob.ink),
+              const SizedBox(width: 8),
+              Text(errorMessage == null ? 'Open the camera' : 'Try again', style: Ob.label(16, weight: FontWeight.w800)),
+            ]),
+          ),
+        const SizedBox(height: 12),
+        Text('Lay the card flat on something dark, in good light.', textAlign: TextAlign.center, style: Ob.body(12, color: Ob.creamA(.5))),
+      ],
     );
   }
+}
+
+class _Banner extends StatelessWidget {
+  const _Banner({required this.color, required this.icon, required this.text, this.child});
+  final Color color;
+  final IconData icon;
+  final String text;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: color.withValues(alpha: .1), borderRadius: BorderRadius.circular(18), border: Border.all(color: color.withValues(alpha: .4))),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.only(top: 1), child: Icon(icon, size: 18, color: color)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(text, style: Ob.body(14, weight: FontWeight.w700)),
+              if (child != null) child!,
+            ]),
+          ),
+        ]),
+      );
 }
 
 // ─── Step 2: Review scanned scores & submit ────────────────────────────────
@@ -576,292 +485,122 @@ class _ReviewStep extends ConsumerWidget {
     final front9 = scanResult.front9Total ?? 0;
     final back9 = scanResult.back9Total ?? 0;
     final warnings = scanResult.warnings;
-    final unreadableCount = scanResult.holes.where((h) => h.score == null).length;
+    final missing = scanResult.holes.where((h) => h.score == null).length;
+    final first = playerName.split(' ').first;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Player Info Header
-          Row(
-            children: [
-              const Icon(LucideIcons.user, color: AppColors.emerald700),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  playerName,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                      color: AppColors.grey900),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.emerald700.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'HC: ${playingHandicap.toStringAsFixed(1)}',
-                  style: const TextStyle(
-                      color: AppColors.emerald700,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Score summary
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _ScoreStat(label: 'Front 9', value: '$front9'),
-                Container(width: 1, height: 40, color: AppColors.grey100),
-                _ScoreStat(label: 'Back 9', value: '$back9'),
-                Container(width: 1, height: 40, color: AppColors.grey100),
-                _ScoreStat(
-                    label: 'Gross',
-                    value: '$gross',
-                    large: true,
-                    highlight: true),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Unreadable Error
-          if (unreadableCount > 0) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(LucideIcons.alertCircle,
-                      size: 16, color: Colors.red),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '$unreadableCount hole(s) missing scores. Tap to edit.',
-                      style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
+    return Column(children: [
+      Expanded(
+        child: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          children: [
+            ObGuideRow(
+              botAsset: missing > 0 ? ObBot.clover.idle : ObBot.clover.happy,
+              botLabel: 'Daniel the clover',
+              text: missing > 0
+                  ? 'I couldn\'t read $missing hole${missing == 1 ? '' : 's'}. Tap ${missing == 1 ? 'it' : 'them'} to fill in.'
+                  : 'Read it: $gross gross for $first. Check it, then certify.',
+              size: 80,
+              fontSize: 16,
             ),
             const SizedBox(height: 16),
-          ],
-
-          // Warnings
-          if (warnings.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
+            Row(children: [
+              Expanded(child: ObCard(padding: const EdgeInsets.all(14), child: ObStat('Front 9', '$front9', valueSize: 26))),
+              const SizedBox(width: 10),
+              Expanded(child: ObCard(padding: const EdgeInsets.all(14), child: ObStat('Back 9', '$back9', valueSize: 26))),
+              const SizedBox(width: 10),
+              Expanded(child: ObCard(padding: const EdgeInsets.all(14), child: ObStat('Gross', '$gross', valueSize: 26, valueColor: Ob.lime))),
+            ]),
+            if (warnings.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _Banner(
+                color: Ob.warn,
+                icon: LucideIcons.alertTriangle,
+                text: 'Check these',
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (final w in warnings) Padding(padding: const EdgeInsets.only(top: 4), child: Text(w, style: Ob.body(13, color: Ob.creamA(.7)))),
+                ]),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(LucideIcons.alertTriangle,
-                          size: 14, color: Colors.amber),
-                      SizedBox(width: 6),
-                      Text(
-                        'Review Flagged Holes',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: Colors.amber,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                  ...warnings.map((w) => Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          '• $w',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.grey600),
-                        ),
-                      )),
+            ],
+            const SizedBox(height: 18),
+            ObEyebrow('Hole by hole', trailing: Text('Tap to edit', style: Ob.body(12, color: Ob.creamA(.5)))),
+            const SizedBox(height: 10),
+            ObCard(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(children: [
+                for (final (i, h) in scanResult.holes.indexed) ...[
+                  if (i > 0) const ObHair(),
+                  _HoleRow(hole: h, onTap: () => _edit(context, ref, h)),
                 ],
-              ),
+              ]),
             ),
-            const SizedBox(height: 12),
-          ],
-
-          // Hole-by-hole grid
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Hole Scores',
-                style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: AppColors.grey900),
-              ),
-              Text(
-                'Tap any score to edit',
-                style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 12,
-                    color: AppColors.grey400),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ...scanResult.holes.map((h) => _HoleRow(
-                hole: h,
-                onTap: () => _showEditDialog(context, ref, h),
-              )),
-
-          const SizedBox(height: 20),
-
-          // Certify toggle
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
+            const SizedBox(height: 16),
+            ObCard(
+              padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+              child: Row(children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Certify & Publish',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.grey900),
-                      ),
-                      const Text(
-                        'Certified results appear on the live leaderboard immediately.',
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.grey500),
-                      ),
-                    ],
-                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Certify and publish', style: Ob.body(15, weight: FontWeight.w800)),
+                    Text('Certified cards go straight onto the leaderboard.', style: Ob.body(12, color: Ob.creamA(.6))),
+                  ]),
                 ),
-                Switch(
-                  value: certifyNow,
-                  onChanged: onCertifyToggle,
-                  activeThumbColor: AppColors.emerald700,
-                  activeTrackColor: AppColors.emerald700.withValues(alpha: 0.3),
-                ),
-              ],
+                CupertinoSwitch(value: certifyNow, onChanged: onCertifyToggle, activeTrackColor: Ob.lime),
+              ]),
+            ),
+          ],
+        ),
+      ),
+      Container(
+        padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
+        decoration: BoxDecoration(color: Ob.bg, border: Border(top: BorderSide(color: Ob.creamA(.06)))),
+        child: Row(children: [
+          ObButton(
+            tone: ObButtonTone.dark,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            onPressed: isSubmitting ? null : onRescan,
+            child: Text('Rescan', style: Ob.label(15, weight: FontWeight.w800)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ObButton(
+              onPressed: isSubmitting ? null : onSubmit,
+              child: Text(isSubmitting ? 'Saving…' : (certifyNow ? 'Certify and publish' : 'Save for later'), style: Ob.label(16, weight: FontWeight.w800)),
             ),
           ),
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(LucideIcons.rotateCcw, size: 16),
-                  label: const Text('Rescan'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.grey700,
-                    side: const BorderSide(color: AppColors.grey200),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  onPressed: onRescan,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  icon: Icon(
-                    certifyNow ? LucideIcons.badgeCheck : LucideIcons.save,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  label: Text(
-                    certifyNow ? 'Certify & Submit' : 'Save Draft',
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w800),
-                  ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: certifyNow
-                        ? AppColors.emerald700
-                        : AppColors.grey700,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  onPressed: isSubmitting ? null : onSubmit,
-                ),
-              ),
-            ],
-          ),
-          if (isSubmitting) ...[
-            const SizedBox(height: 12),
-            const Center(child: LoadingSpinner(size: 40)),
-          ],
-          const SizedBox(height: 40),
-        ],
+        ]),
       ),
-    );
+    ]);
   }
 
-  void _showEditDialog(BuildContext context, WidgetRef ref, ScannedHole hole) {
+  void _edit(BuildContext context, WidgetRef ref, ScannedHole hole) {
     final controller = TextEditingController(text: hole.score?.toString() ?? '');
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Edit Hole ${hole.hole}'),
-          content: TextField(
+    showObSheet(
+      context,
+      (ctx) => ObSheet(
+        title: 'Hole ${hole.hole}',
+        subtitle: 'Par ${hole.par}. How many strokes?',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TextField(
             controller: controller,
+            autofocus: true,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              labelText: 'Score (Par ${hole.par})',
-              border: const OutlineInputBorder(),
-            ),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+            cursorColor: Ob.lime,
+            textAlign: TextAlign.center,
+            style: Ob.display(36),
+            decoration: obInput(null, hint: '${hole.par}'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final newScore = int.tryParse(controller.text);
-                if (newScore != null && newScore > 0) {
-                  ref
-                      .read(scorecardScannerProvider.notifier)
-                      .updateHoleScore(hole.hole, newScore);
-                }
-                Navigator.pop(context);
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
+          const SizedBox(height: 14),
+          ObButton(
+            onPressed: () {
+              final v = int.tryParse(controller.text);
+              if (v != null && v > 0) ref.read(scorecardScannerProvider.notifier).updateHoleScore(hole.hole, v);
+              Navigator.pop(ctx);
+            },
+            child: Text('Save', style: Ob.label(16, weight: FontWeight.w800)),
+          ),
+        ]),
+      ),
     );
   }
 }
@@ -876,112 +615,36 @@ class _HoleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final score = hole.score;
     final diff = score != null ? score - hole.par : null;
-    Color scoreColor = AppColors.grey900;
-    if (diff != null) {
-      if (diff <= -2) scoreColor = Colors.amber;
-      if (diff == -1) scoreColor = AppColors.emerald700;
-      if (diff == 1) scoreColor = Colors.orange;
-      if (diff >= 2) scoreColor = Colors.red;
-    }
+    final color = diff == null
+        ? Ob.warn
+        : diff <= -2
+            ? const Color(0xFFF5C531)
+            : diff == -1
+                ? Ob.lime
+                : diff == 0
+                    ? Ob.cream
+                    : diff == 1
+                        ? Ob.creamA(.75)
+                        : Ob.warn;
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: hole.score == null
-              ? Colors.red.withValues(alpha: 0.08)
-              : hole.isFlagged
-                  ? Colors.amber.withValues(alpha: 0.06)
-                  : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: hole.score == null
-              ? Border.all(color: Colors.red.withValues(alpha: 0.4))
-              : hole.isFlagged
-                  ? Border.all(color: Colors.amber.withValues(alpha: 0.4))
-                  : null,
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 32,
-              child: Text(
-                'H${hole.hole}',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.grey500,
-                    fontSize: 13),
-              ),
-            ),
-            Text('Par ${hole.par}',
-                style: const TextStyle(color: AppColors.grey400, fontSize: 12)),
+    return Semantics(
+      button: true,
+      label: 'Hole ${hole.hole}, ${score == null ? 'no score' : '$score strokes'}',
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          color: score == null ? Ob.warn.withValues(alpha: .08) : (hole.isFlagged ? Ob.warn.withValues(alpha: .05) : null),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(children: [
+            SizedBox(width: 36, child: Text('${hole.hole}', style: Ob.display(16, color: Ob.creamA(.6)))),
+            Text('Par ${hole.par}', style: Ob.body(13, color: Ob.creamA(.55))),
             const Spacer(),
-            if (hole.score == null)
-              const Icon(LucideIcons.edit3, size: 14, color: Colors.red)
-            else if (hole.isFlagged)
-              const Icon(LucideIcons.alertTriangle,
-                  size: 14, color: Colors.amber),
-            const SizedBox(width: 8),
-            Text(
-              score?.toString() ?? 'Edit',
-              style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: score == null ? 14 : 18,
-                  color: score == null ? Colors.red : scoreColor),
-            ),
-            if (diff != null) ...[
-              const SizedBox(width: 6),
-              Text(
-                diff > 0 ? '+$diff' : '$diff',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: scoreColor.withValues(alpha: 0.7),
-                ),
-              ),
-            ],
-          ],
+            if (score == null || hole.isFlagged) ...[Icon(score == null ? LucideIcons.pencil : LucideIcons.alertTriangle, size: 14, color: Ob.warn), const SizedBox(width: 8)],
+            Text(score?.toString() ?? 'Add', style: score == null ? Ob.body(14, weight: FontWeight.w800, color: Ob.warn) : Ob.display(20, color: color)),
+            if (diff != null) SizedBox(width: 30, child: Text(diff == 0 ? '' : (diff > 0 ? '+$diff' : '$diff'), textAlign: TextAlign.right, style: Ob.body(11, weight: FontWeight.w700, color: color))),
+          ]),
         ),
       ),
-    );
-  }
-}
-
-class _ScoreStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool large;
-  final bool highlight;
-
-  const _ScoreStat({
-    required this.label,
-    required this.value,
-    this.large = false,
-    this.highlight = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: large ? 28 : 20,
-            color: highlight ? AppColors.grey900 : AppColors.grey700,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.grey400,
-              fontWeight: FontWeight.w500),
-        ),
-      ],
     );
   }
 }

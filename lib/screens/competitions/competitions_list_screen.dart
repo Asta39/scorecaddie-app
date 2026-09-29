@@ -1,15 +1,18 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/models/competition.dart';
-import '../../core/theme/app_theme.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/competition_providers.dart';
-import '../../widgets/loading_spinner.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_widgets.dart';
 
+/// The home club's competitions: live, open for entry, coming up, finished.
 class CompetitionsListScreen extends ConsumerWidget {
   const CompetitionsListScreen({super.key});
 
@@ -17,553 +20,192 @@ class CompetitionsListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(userProfileProvider).valueOrNull;
     final clubIdAsync = ref.watch(playerHomeClubIdProvider);
+    final clubId = clubIdAsync.valueOrNull;
+    final compsAsync = clubId == null ? null : ref.watch(competitionsForClubProvider(clubId));
+    final comps = compsAsync?.valueOrNull ?? const <Competition>[];
+
+    final live = comps.where((c) => c.status == 'in_progress').toList();
+    final open = comps.where((c) => c.status == 'open_for_entry').toList();
+    final soon = comps.where((c) => c.status == 'upcoming').toList();
+    final past = comps.where((c) => const {'completed', 'closed', 'cancelled'}.contains(c.status)).toList()
+      ..sort((a, b) => b.startDate.compareTo(a.startDate));
+    for (final l in [live, open, soon]) {
+      l.sort((a, b) => a.startDate.compareTo(b.startDate));
+    }
+
+    final loading = clubIdAsync.isLoading || (compsAsync?.isLoading ?? false) && comps.isEmpty;
+    final error = clubIdAsync.hasError || (compsAsync?.hasError ?? false) && comps.isEmpty;
+
+    Widget section(Widget eyebrow, List<Competition> list) => Padding(
+          padding: const EdgeInsets.only(top: 22),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            eyebrow,
+            const SizedBox(height: 10),
+            for (final (i, c) in list.indexed) Padding(padding: const EdgeInsets.only(bottom: 10), child: CompetitionRow(competition: c).rise(i)),
+          ]),
+        );
 
     return Scaffold(
-      backgroundColor: AppColors.grey50,
-      body: SafeArea(
-        child: clubIdAsync.when(
-          loading: () => const Center(child: LoadingSpinner(size: 60)),
-          error: (e, _) => _ErrorView(message: e.toString()),
-          data: (clubId) {
-            if (clubId == null) {
-              return const _NoClubView();
-            }
-            return _CompetitionsBody(
-              clubId: clubId,
-              profile: profile,
-            );
-          },
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            color: Ob.ink,
+            backgroundColor: Ob.lime,
+            onRefresh: () async {
+              if (clubId != null) ref.invalidate(competitionsForClubProvider(clubId));
+            },
+            child: ListView(
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
+              children: [
+                ObTopBar('Competitions', onBack: context.canPop() ? () => context.pop() : null),
+                if (profile?.homeCourseName != null) ...[
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    ObCrest(profile!.homeCourseName!, size: 40),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(profile.homeCourseName!, style: Ob.body(14, weight: FontWeight.w700, color: Ob.creamA(.72)))),
+                  ]),
+                ],
+                if (loading)
+                  const Padding(padding: EdgeInsets.all(48), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+                else if (error)
+                  _Note(bot: ObBot.ball.sleep, text: 'Couldn\'t load competitions. Pull down to try again.')
+                else if (clubId == null)
+                  _Note(bot: ObBot.ball.idle, text: 'Join a club to see its competitions. Pick your home club under Profile, Clubs.')
+                else if (comps.isEmpty)
+                  _Note(bot: ObBot.ball.sleep, text: 'No competitions yet. When your club posts one, it shows up here.')
+                else ...[
+                  if (live.isNotEmpty)
+                    section(
+                      Row(children: [
+                        const _Ping(),
+                        const SizedBox(width: 8),
+                        Text('LIVE NOW', style: Ob.eyebrow()),
+                      ]),
+                      live,
+                    ),
+                  if (open.isNotEmpty) section(const ObEyebrow('Open for entry'), open),
+                  if (soon.isNotEmpty) section(const ObEyebrow('Coming up'), soon),
+                  if (past.isNotEmpty) section(const ObEyebrow('Finished'), past),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _CompetitionsBody extends ConsumerWidget {
-  final String clubId;
-  final dynamic profile;
-
-  const _CompetitionsBody({
-    required this.clubId,
-    required this.profile,
-  });
+class _Note extends StatelessWidget {
+  const _Note({required this.bot, required this.text});
+  final String bot;
+  final String text;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final competitionsAsync = ref.watch(competitionsForClubProvider(clubId));
-
-    return competitionsAsync.when(
-      loading: () => const Center(child: LoadingSpinner(size: 60)),
-      error: (e, _) => _ErrorView(message: e.toString()),
-      data: (competitions) {
-        final inProgress = competitions
-            .where((c) => c.status == 'in_progress')
-            .toList();
-        final openForEntry = competitions
-            .where((c) => c.status == 'open_for_entry')
-            .toList();
-        final upcoming = competitions
-            .where((c) => c.status == 'upcoming')
-            .toList();
-        final completed = competitions
-            .where((c) => c.status == 'completed' || c.status == 'closed' || c.status == 'cancelled')
-            .toList();
-
-        return CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              backgroundColor: Colors.white,
-              elevation: 0,
-              pinned: true,
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Competitions',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.grey900,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  if (profile?.homeCourseName != null)
-                    Text(
-                      profile!.homeCourseName!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.grey500,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (competitions.isEmpty)
-              const SliverFillRemaining(
-                child: _EmptyCompetitionsView(),
-              )
-            else ...[
-              if (inProgress.isNotEmpty)
-                _SectionSliver(
-                  title: '🟢 In Progress',
-                  competitions: inProgress,
-                ),
-              if (openForEntry.isNotEmpty)
-                _SectionSliver(
-                  title: '📋 Open for Entry',
-                  competitions: openForEntry,
-                ),
-              if (upcoming.isNotEmpty)
-                _SectionSliver(
-                  title: '📅 Upcoming',
-                  competitions: upcoming,
-                ),
-              if (completed.isNotEmpty)
-                _SectionSliver(
-                  title: '✅ Past',
-                  competitions: completed,
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 150)),
-            ],
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 24),
+        child: ObCard(padding: const EdgeInsets.all(18), child: ObGuideRow(botAsset: bot, botLabel: 'Your golf-ball avatar', text: text, size: 72, fontSize: 16)),
+      );
 }
 
-class _SectionSliver extends StatelessWidget {
-  final String title;
-  final List<Competition> competitions;
+/// A lime dot that pulses: something is happening now.
+class _Ping extends StatefulWidget {
+  const _Ping();
 
-  const _SectionSliver({required this.title, required this.competitions});
+  @override
+  State<_Ping> createState() => _PingState();
+}
+
+class _PingState extends State<_Ping> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-      sliver: SliverList(
-        delegate: SliverChildListDelegate([
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: AppColors.grey500,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ...competitions.map((c) => _CompetitionCard(competition: c)),
-        ]),
+    if (MediaQuery.of(context).disableAnimations) {
+      return Container(width: 8, height: 8, decoration: const BoxDecoration(color: Ob.lime, shape: BoxShape.circle));
+    }
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, _) => Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          color: Ob.lime,
+          shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: Ob.lime.withValues(alpha: .6 * (1 - _c.value)), spreadRadius: 10 * _c.value)],
+        ),
       ),
     );
   }
 }
 
-class _CompetitionCard extends ConsumerWidget {
+/// One competition: a date tile, the name and what's next, and a tag.
+class CompetitionRow extends ConsumerWidget {
+  const CompetitionRow({super.key, required this.competition});
   final Competition competition;
 
-  const _CompetitionCard({required this.competition});
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'open_for_entry':
-      case 'in_progress':
-        return AppColors.golfLime;
-      case 'completed':
-        return AppColors.grey400;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return AppColors.grey300;
-    }
-  }
-
-  Color _statusTextColor(String status, {required bool isSolidBg}) {
-    switch (status) {
-      case 'open_for_entry':
-      case 'in_progress':
-        return AppColors.grey900;
-      case 'completed':
-        return isSolidBg ? Colors.white : AppColors.grey600;
-      case 'cancelled':
-        return isSolidBg ? Colors.white : Colors.red;
-      default:
-        return isSolidBg ? Colors.white : AppColors.grey500;
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final myEntryAsync = ref.watch(myEntryProvider(competition.id));
-    final hasEntry = myEntryAsync.valueOrNull != null;
-    final hasPoster = competition.posterUrl != null && competition.posterUrl!.isNotEmpty;
+    final c = competition;
+    final entered = ref.watch(myEntryProvider(c.id)).valueOrNull != null;
+    final live = c.status == 'in_progress';
 
-    if (hasPoster) {
-      return GestureDetector(
-        onTap: () => context.push('/competitions/${competition.id}'),
+    final (String tag, Color tagColor) = switch (c.status) {
+      'in_progress' => ('Live', Ob.lime),
+      'open_for_entry' => entered ? ('Entered', Ob.lime) : ('Enter', Ob.cream),
+      'upcoming' => entered ? ('Entered', Ob.lime) : ('Soon', Ob.creamA(.5)),
+      'cancelled' => ('Cancelled', Ob.warn),
+      _ => ('Results', Ob.creamA(.5)),
+    };
+
+    final meta = [
+      c.formatLabel,
+      if (c.status == 'open_for_entry' && c.entryDeadline != null) 'closes ${DateFormat('EEE d').format(c.entryDeadline!)}',
+      if (c.status == 'upcoming') DateFormat('EEE d MMM').format(c.startDate),
+      if (c.entryCount != null && c.entryCount! > 0) '${c.entryCount} in',
+      if (c.entryFee > 0 && c.status == 'open_for_entry') '${c.currency} ${NumberFormat.decimalPattern().format(c.entryFee)}',
+    ].join(' · ');
+
+    return Semantics(
+      button: true,
+      label: '${c.name}, $tag',
+      child: GestureDetector(
+        onTap: () => context.push('/competitions/${c.id}'),
         child: Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Stack(
-                  children: [
-                    Image.network(
-                      competition.posterUrl!,
-                      height: 160,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        height: 140,
-                        color: AppColors.grey100,
-                        child: const Center(
-                          child: Icon(LucideIcons.image, color: AppColors.grey300, size: 36),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      child: _Chip(
-                        label: competition.statusLabel,
-                        color: _statusColor(competition.status) == AppColors.golfLime
-                            ? AppColors.golfLime
-                            : _statusColor(competition.status).withValues(alpha: 0.9),
-                        textColor: _statusTextColor(competition.status, isSolidBg: true),
-                      ),
-                    ),
-                    if (hasEntry)
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.emerald700,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            'Entered',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          _Chip(
-                            label: competition.formatLabel,
-                            color: AppColors.grey100,
-                            textColor: AppColors.grey600,
-                          ),
-                          const Spacer(),
-                          const Icon(LucideIcons.calendar, size: 13, color: AppColors.grey400),
-                          const SizedBox(width: 4),
-                          Text(
-                            DateFormat('d MMM y').format(competition.startDate),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.grey500,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        competition.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                          color: AppColors.grey900,
-                          letterSpacing: -0.4,
-                        ),
-                      ),
-                      if (competition.entryFee > 0) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(LucideIcons.banknote, size: 13, color: AppColors.grey400),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${competition.currency} ${competition.entryFee.toStringAsFixed(0)} entry fee',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.grey600,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
+          padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
+          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(24), border: Border.all(color: Ob.creamA(.06))),
+          child: Row(children: [
+            Container(
+              width: 54,
+              height: 60,
+              decoration: BoxDecoration(color: live ? Ob.lime : Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(16)),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(DateFormat('MMM').format(c.startDate).toUpperCase(), style: Ob.body(11, weight: FontWeight.w800, color: live ? Ob.ink : Ob.lime)),
+                Text('${c.startDate.day}', style: Ob.display(25, height: 1, color: live ? Ob.ink : Ob.lime)),
+              ]),
             ),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: () => context.push('/competitions/${competition.id}'),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(c.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(12, color: Ob.creamA(.58))),
+              ]),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    competition.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                      color: AppColors.grey900,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (hasEntry)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.emerald700.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Entered',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.emerald700,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                _Chip(
-                  label: competition.formatLabel,
-                  color: AppColors.grey100,
-                  textColor: AppColors.grey600,
-                ),
-                const SizedBox(width: 6),
-                _Chip(
-                  label: competition.statusLabel,
-                  color: _statusColor(competition.status) == AppColors.golfLime
-                      ? AppColors.golfLime
-                      : _statusColor(competition.status).withValues(alpha: 0.12),
-                  textColor: _statusTextColor(competition.status, isSolidBg: _statusColor(competition.status) == AppColors.golfLime),
-                ),
-                const Spacer(),
-                const Icon(LucideIcons.calendar,
-                    size: 13, color: AppColors.grey400),
-                const SizedBox(width: 4),
-                Text(
-                  DateFormat('d MMM y').format(competition.startDate),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.grey500,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-            if (competition.entryFee > 0) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(LucideIcons.banknote,
-                      size: 13, color: AppColors.grey400),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${competition.currency} ${competition.entryFee.toStringAsFixed(0)} entry fee',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.grey500,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final Color color;
-  final Color textColor;
-
-  const _Chip({
-    required this.label,
-    required this.color,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: textColor,
-        ),
-      ),
-    );
-  }
-}
-
-class _NoClubView extends StatelessWidget {
-  const _NoClubView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(LucideIcons.building2,
-                size: 56, color: AppColors.grey300),
-            const SizedBox(height: 20),
-            const Text(
-              'No Club Membership',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.grey900,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'You need to be a member of a club to see competitions. Contact your club administrator.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.grey500, fontSize: 14),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyCompetitionsView extends StatelessWidget {
-  const _EmptyCompetitionsView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(LucideIcons.trophy, size: 56, color: AppColors.grey200),
-            const SizedBox(height: 20),
-            const Text(
-              'No Competitions Yet',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.grey900,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Your club hasn\'t created any competitions yet. Check back soon!',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.grey500, fontSize: 14),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  final String message;
-  const _ErrorView({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(LucideIcons.alertCircle,
-                size: 48, color: Colors.orange),
-            const SizedBox(height: 16),
-            const Text(
-              'Something went wrong',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.grey500, fontSize: 13),
-            ),
-          ],
+            const SizedBox(width: 8),
+            Text(tag, style: Ob.body(12, weight: FontWeight.w800, color: tagColor)),
+          ]),
         ),
       ),
     );
