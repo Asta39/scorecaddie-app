@@ -29,28 +29,12 @@ class ProfileService {
       if (existing.profileComplete) return;
     }
 
-    // 2. Check Supabase (via SyncService) by ID
-    final supabaseProfile = await Supabase.instance.client.from('User').select().eq('id', uid).maybeSingle();
-    Map<String, dynamic>? profileData = supabaseProfile;
-
-    // 3. Email-based lookup fallback (Requirement: check if email already exists in DB)
-    if (profileData == null && email != null) {
-      final emailQuery = await Supabase.instance.client
-          .from('User')
-          .select()
-          .eq('email', email)
-          .limit(1)
-          .maybeSingle();
-      
-      if (emailQuery != null) {
-        if (emailQuery['id'] == uid) {
-          profileData = emailQuery;
-          debugPrint('PROFILE_SERVICE: Restored existing profile by email match: $email');
-        } else {
-          debugPrint('PROFILE_SERVICE: Found profile with same email but different UID. Skipping auto-restoration.');
-        }
-      }
-    }
+    // 2. Our own row on the server. my_profile() is the only way to read
+    // our private fields (email); it may also return an older row with the
+    // same email, which we don't adopt automatically.
+    final mine = await Supabase.instance.client.rpc('my_profile');
+    Map<String, dynamic>? profileData =
+        mine is Map && mine['id'] == uid ? Map<String, dynamic>.from(mine) : null;
 
     // 4. Decide completeness from the server row plus evidence only an
     // onboarded account has. The flag alone can't be trusted: provider syncs

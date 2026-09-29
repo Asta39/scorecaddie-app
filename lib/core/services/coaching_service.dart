@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../models/coaching_model.dart';
+import '../utils/poll_stream.dart';
 import '../models/coaching_summary.dart';
 
 class CoachingService {
@@ -228,11 +229,11 @@ class CoachingService {
   }
 
   Stream<Map<String, dynamic>> watchCoachProfile(String coachId) {
-    return _supabase
-        .from('User')
-        .stream(primaryKey: ['id'])
-        .eq('id', coachId)
-        .map((data) => data.isNotEmpty ? data.first : {});
+    // Our own coach profile (coachId is the signed-in coach).
+    return pollStream(() async {
+      final row = await _supabase.rpc('my_profile');
+      return row is Map && row['id'] == coachId ? Map<String, dynamic>.from(row) : <String, dynamic>{};
+    });
   }
 
   Future<Map<String, dynamic>> getCoachProfileStats(String coachId) async {

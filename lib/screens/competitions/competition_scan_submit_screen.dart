@@ -65,7 +65,7 @@ class _CompetitionScanSubmitScreenState
       if (entryRow != null && mounted) {
         final playerId = entryRow['player_id'] as String;
         final userRow = await Supabase.instance.client
-            .from('User')
+            .from('UserPublic')
             .select()
             .eq('id', playerId)
             .maybeSingle();

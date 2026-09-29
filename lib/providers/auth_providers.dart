@@ -5,6 +5,7 @@ import '../core/database/database.dart' as db;
 import '../core/services/supabase_auth_service.dart';
 import '../core/services/profile_service.dart';
 import '../core/models/auth_user.dart';
+import '../core/utils/poll_stream.dart';
 import 'database_providers.dart';
 
 final supabaseClientProvider = Provider<supabase.SupabaseClient>((ref) {
@@ -46,10 +47,8 @@ final userProfileProvider = StreamProvider<db.UserProfile?>((ref) {
 });
 
 final specificUserProfileProvider = StreamProvider.family<db.UserProfile?, String>((ref, userId) {
-  return ref.watch(supabaseClientProvider)
-      .from('User')
-      .stream(primaryKey: ['id'])
-      .eq('id', userId)
+  final client = ref.watch(supabaseClientProvider);
+  return pollStream(() async => List<Map<String, dynamic>>.from(await client.from('UserPublic').select().eq('id', userId)))
       .map((list) {
         if (list.isEmpty) return null;
         final data = list.first;

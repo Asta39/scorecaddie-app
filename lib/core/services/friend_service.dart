@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../database/database.dart' as db;
+import '../utils/poll_stream.dart';
 import '../cloud/sync_service.dart';
 
 class FriendService {
@@ -228,10 +229,7 @@ class FriendService {
 
   /// Real-time stream of a user's profile
   Stream<Map<String, dynamic>?> streamProfile(String uid) {
-    return _supabase
-        .from('User')
-        .stream(primaryKey: ['id'])
-        .eq('id', uid)
+    return pollStream(() async => List<Map<String, dynamic>>.from(await _supabase.from('UserPublic').select().eq('id', uid)))
         .map((data) => data.isEmpty ? null : {
           'uid': data.first['id'],
           'name': data.first['name'],

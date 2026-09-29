@@ -90,11 +90,11 @@ class ApiService {
   Future<Map<String, dynamic>?> getProfile(String id) async {
     try {
       final response = await _client
-          .from('User')
-          .select()
-          .eq('id', id)
-          .maybeSingle();
-      return response;
+          .rpc('my_profile');
+      // Only the signed-in golfer's own row carries private fields (email);
+      // anything else would come from UserPublic.
+      final row = response is Map ? Map<String, dynamic>.from(response) : null;
+      return row != null && row['id'] == id ? row : null;
     } catch (e) {
       debugPrint('API_GET_PROFILE ERROR: $e');
       return null;

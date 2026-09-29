@@ -4,6 +4,7 @@ import '../core/database/database.dart' as db;
 import '../core/services/caddie_service.dart';
 import '../core/models/booking_model.dart';
 import 'auth_providers.dart';
+import '../core/utils/poll_stream.dart';
 import 'database_providers.dart';
 
 final caddieServiceProvider = Provider<CaddieService>((ref) {
@@ -21,10 +22,8 @@ final caddieAllBookingsProvider = StreamProvider<List<BookingModel>>((ref) {
 final allProvidersProvider = StreamProvider<List<db.Provider>>((ref) {
   final supabase = ref.watch(supabaseClientProvider);
   
-  final usersStream = supabase
-      .from('User')
-      .stream(primaryKey: ['id'])
-      .inFilter('role', ['COACH', 'CADDIE']);
+  final usersStream = pollStream(() async => List<Map<String, dynamic>>.from(
+      await supabase.from('UserPublic').select().inFilter('role', ['COACH', 'CADDIE'])));
 
   final caddiesStream = Stream.fromFuture(
     supabase
@@ -141,7 +140,7 @@ final specificProviderProvider = StreamProvider.family<db.Provider?, String>((re
   
   final userStream = Stream.fromFuture(
     supabase
-        .from('User')
+        .from('UserPublic')
         .select()
         .eq('id', userId)
   ).handleError((error) {
