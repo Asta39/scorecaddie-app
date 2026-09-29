@@ -7118,6 +7118,16 @@ class $ClubsTable extends Clubs with TableInfo<$ClubsTable, Club> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('club'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -7131,6 +7141,7 @@ class $ClubsTable extends Clubs with TableInfo<$ClubsTable, Club> {
     photoUrl,
     supabaseId,
     createdAt,
+    kind,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -7214,6 +7225,12 @@ class $ClubsTable extends Clubs with TableInfo<$ClubsTable, Club> {
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
     return context;
   }
 
@@ -7267,6 +7284,10 @@ class $ClubsTable extends Clubs with TableInfo<$ClubsTable, Club> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
     );
   }
 
@@ -7288,6 +7309,11 @@ class Club extends DataClass implements Insertable<Club> {
   final String? photoUrl;
   final String? supabaseId;
   final DateTime createdAt;
+
+  /// 'club' for anything you hit a shot with; 'accessory' for the bag,
+  /// umbrella, alignment sticks and so on. Accessories stay out of practice,
+  /// scoring and the 14-club count.
+  final String kind;
   const Club({
     required this.id,
     required this.userId,
@@ -7300,6 +7326,7 @@ class Club extends DataClass implements Insertable<Club> {
     this.photoUrl,
     this.supabaseId,
     required this.createdAt,
+    required this.kind,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -7329,6 +7356,7 @@ class Club extends DataClass implements Insertable<Club> {
       map['supabase_id'] = Variable<String>(supabaseId);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
+    map['kind'] = Variable<String>(kind);
     return map;
   }
 
@@ -7357,6 +7385,7 @@ class Club extends DataClass implements Insertable<Club> {
           ? const Value.absent()
           : Value(supabaseId),
       createdAt: Value(createdAt),
+      kind: Value(kind),
     );
   }
 
@@ -7377,6 +7406,7 @@ class Club extends DataClass implements Insertable<Club> {
       photoUrl: serializer.fromJson<String?>(json['photoUrl']),
       supabaseId: serializer.fromJson<String?>(json['supabaseId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      kind: serializer.fromJson<String>(json['kind']),
     );
   }
   @override
@@ -7394,6 +7424,7 @@ class Club extends DataClass implements Insertable<Club> {
       'photoUrl': serializer.toJson<String?>(photoUrl),
       'supabaseId': serializer.toJson<String?>(supabaseId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'kind': serializer.toJson<String>(kind),
     };
   }
 
@@ -7409,6 +7440,7 @@ class Club extends DataClass implements Insertable<Club> {
     Value<String?> photoUrl = const Value.absent(),
     Value<String?> supabaseId = const Value.absent(),
     DateTime? createdAt,
+    String? kind,
   }) => Club(
     id: id ?? this.id,
     userId: userId ?? this.userId,
@@ -7423,6 +7455,7 @@ class Club extends DataClass implements Insertable<Club> {
     photoUrl: photoUrl.present ? photoUrl.value : this.photoUrl,
     supabaseId: supabaseId.present ? supabaseId.value : this.supabaseId,
     createdAt: createdAt ?? this.createdAt,
+    kind: kind ?? this.kind,
   );
   Club copyWithCompanion(ClubsCompanion data) {
     return Club(
@@ -7441,6 +7474,7 @@ class Club extends DataClass implements Insertable<Club> {
           ? data.supabaseId.value
           : this.supabaseId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      kind: data.kind.present ? data.kind.value : this.kind,
     );
   }
 
@@ -7457,7 +7491,8 @@ class Club extends DataClass implements Insertable<Club> {
           ..write('notes: $notes, ')
           ..write('photoUrl: $photoUrl, ')
           ..write('supabaseId: $supabaseId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -7475,6 +7510,7 @@ class Club extends DataClass implements Insertable<Club> {
     photoUrl,
     supabaseId,
     createdAt,
+    kind,
   );
   @override
   bool operator ==(Object other) =>
@@ -7490,7 +7526,8 @@ class Club extends DataClass implements Insertable<Club> {
           other.notes == this.notes &&
           other.photoUrl == this.photoUrl &&
           other.supabaseId == this.supabaseId &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.kind == this.kind);
 }
 
 class ClubsCompanion extends UpdateCompanion<Club> {
@@ -7505,6 +7542,7 @@ class ClubsCompanion extends UpdateCompanion<Club> {
   final Value<String?> photoUrl;
   final Value<String?> supabaseId;
   final Value<DateTime> createdAt;
+  final Value<String> kind;
   const ClubsCompanion({
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
@@ -7517,6 +7555,7 @@ class ClubsCompanion extends UpdateCompanion<Club> {
     this.photoUrl = const Value.absent(),
     this.supabaseId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.kind = const Value.absent(),
   });
   ClubsCompanion.insert({
     this.id = const Value.absent(),
@@ -7530,6 +7569,7 @@ class ClubsCompanion extends UpdateCompanion<Club> {
     this.photoUrl = const Value.absent(),
     this.supabaseId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.kind = const Value.absent(),
   }) : userId = Value(userId),
        type = Value(type);
   static Insertable<Club> custom({
@@ -7544,6 +7584,7 @@ class ClubsCompanion extends UpdateCompanion<Club> {
     Expression<String>? photoUrl,
     Expression<String>? supabaseId,
     Expression<DateTime>? createdAt,
+    Expression<String>? kind,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -7557,6 +7598,7 @@ class ClubsCompanion extends UpdateCompanion<Club> {
       if (photoUrl != null) 'photo_url': photoUrl,
       if (supabaseId != null) 'supabase_id': supabaseId,
       if (createdAt != null) 'created_at': createdAt,
+      if (kind != null) 'kind': kind,
     });
   }
 
@@ -7572,6 +7614,7 @@ class ClubsCompanion extends UpdateCompanion<Club> {
     Value<String?>? photoUrl,
     Value<String?>? supabaseId,
     Value<DateTime>? createdAt,
+    Value<String>? kind,
   }) {
     return ClubsCompanion(
       id: id ?? this.id,
@@ -7585,6 +7628,7 @@ class ClubsCompanion extends UpdateCompanion<Club> {
       photoUrl: photoUrl ?? this.photoUrl,
       supabaseId: supabaseId ?? this.supabaseId,
       createdAt: createdAt ?? this.createdAt,
+      kind: kind ?? this.kind,
     );
   }
 
@@ -7624,6 +7668,9 @@ class ClubsCompanion extends UpdateCompanion<Club> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
     return map;
   }
 
@@ -7640,7 +7687,8 @@ class ClubsCompanion extends UpdateCompanion<Club> {
           ..write('notes: $notes, ')
           ..write('photoUrl: $photoUrl, ')
           ..write('supabaseId: $supabaseId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -20929,6 +20977,7 @@ typedef $$ClubsTableCreateCompanionBuilder =
       Value<String?> photoUrl,
       Value<String?> supabaseId,
       Value<DateTime> createdAt,
+      Value<String> kind,
     });
 typedef $$ClubsTableUpdateCompanionBuilder =
     ClubsCompanion Function({
@@ -20943,6 +20992,7 @@ typedef $$ClubsTableUpdateCompanionBuilder =
       Value<String?> photoUrl,
       Value<String?> supabaseId,
       Value<DateTime> createdAt,
+      Value<String> kind,
     });
 
 final class $$ClubsTableReferences
@@ -21028,6 +21078,11 @@ class $$ClubsTableFilterComposer extends Composer<_$AppDatabase, $ClubsTable> {
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -21120,6 +21175,11 @@ class $$ClubsTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ClubsTableAnnotationComposer
@@ -21167,6 +21227,9 @@ class $$ClubsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   Expression<T> practiceShotsRefs<T extends Object>(
     Expression<T> Function($$PracticeShotsTableAnnotationComposer a) f,
@@ -21233,6 +21296,7 @@ class $$ClubsTableTableManager
                 Value<String?> photoUrl = const Value.absent(),
                 Value<String?> supabaseId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => ClubsCompanion(
                 id: id,
                 userId: userId,
@@ -21245,6 +21309,7 @@ class $$ClubsTableTableManager
                 photoUrl: photoUrl,
                 supabaseId: supabaseId,
                 createdAt: createdAt,
+                kind: kind,
               ),
           createCompanionCallback:
               ({
@@ -21259,6 +21324,7 @@ class $$ClubsTableTableManager
                 Value<String?> photoUrl = const Value.absent(),
                 Value<String?> supabaseId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => ClubsCompanion.insert(
                 id: id,
                 userId: userId,
@@ -21271,6 +21337,7 @@ class $$ClubsTableTableManager
                 photoUrl: photoUrl,
                 supabaseId: supabaseId,
                 createdAt: createdAt,
+                kind: kind,
               ),
           withReferenceMapper: (p0) => p0
               .map(

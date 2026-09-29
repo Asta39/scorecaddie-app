@@ -60,6 +60,10 @@ class Clubs extends Table {
   TextColumn get photoUrl => text().nullable()(); 
   TextColumn get supabaseId => text().nullable()(); 
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  /// 'club' for anything you hit a shot with; 'accessory' for the bag,
+  /// umbrella, alignment sticks and so on. Accessories stay out of practice,
+  /// scoring and the 14-club count.
+  TextColumn get kind => text().withDefault(const Constant('club'))();
 }
 
 class Friends extends Table {
@@ -401,7 +405,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 57;
+  int get schemaVersion => 58;
 
   @override
   MigrationStrategy get migration {
@@ -477,6 +481,11 @@ class AppDatabase extends _$AppDatabase {
         if (from < 57) {
           // v57: Nine-hole stroke index, entered by clubs on the portal.
           try { await m.addColumn(courseHoles, courseHoles.nineHoleIndex); } catch (_) {}
+        }
+
+        if (from < 58) {
+          // v58: Accessories in the bag. Everything already there is a club.
+          try { await m.addColumn(clubs, clubs.kind); } catch (_) {}
         }
       },
     );

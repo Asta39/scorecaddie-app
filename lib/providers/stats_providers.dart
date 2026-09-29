@@ -16,7 +16,15 @@ final clubsProvider = StreamProvider<List<db.Club>>((ref) {
   final database = ref.watch(databaseProvider);
   final user = ref.watch(authStateProvider).valueOrNull;
   if (user == null) return Stream.value([]);
-  return (database.select(database.clubs)..where((c) => c.userId.equals(user.id))).watch();
+  return (database.select(database.clubs)..where((c) => c.userId.equals(user.id) & c.kind.equals('club'))).watch();
+});
+
+/// Bag accessories (umbrella, alignment sticks…): never offered as a club to hit.
+final accessoriesProvider = StreamProvider<List<db.Club>>((ref) {
+  final database = ref.watch(databaseProvider);
+  final user = ref.watch(authStateProvider).valueOrNull;
+  if (user == null) return Stream.value([]);
+  return (database.select(database.clubs)..where((c) => c.userId.equals(user.id) & c.kind.equals('accessory'))).watch();
 });
 
 final singleRoundProvider = StreamProvider.family<db.Round, int>((ref, roundId) {
@@ -344,6 +352,7 @@ final practiceAnalyticsProvider = FutureProvider<PracticeStats>((ref) async {
         userId: '', 
         type: 'Unknown', 
         createdAt: DateTime.now(),
+        kind: 'club',
       ),
     );
     if (club.id == 0) continue;

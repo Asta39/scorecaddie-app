@@ -70,7 +70,7 @@ class _PracticeSessionScreenState extends ConsumerState<PracticeSessionScreen> {
     final database = ref.read(databaseProvider);
     final session = await (database.select(database.practiceSessions)..where((s) => s.id.equals(widget.sessionId))).get().then((list) => list.firstOrNull);
     if (session == null) return;
-    final clubs = await (database.select(database.clubs)..where((c) => c.userId.equals(session.userId))).get();
+    final clubs = await (database.select(database.clubs)..where((c) => c.userId.equals(session.userId) & c.kind.equals('club'))).get();
 
     db.Drill? drill;
     List<db.DrillStep> steps = [];

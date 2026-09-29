@@ -32,7 +32,7 @@ class AchievementService {
 
       final rawHoleScores = await _db.getUserHoleScores(userId);
       final friends = await _db.getFriends(userId);
-      final clubs = await (_db.select(_db.clubs)..where((c) => c.userId.equals(userId))).get();
+      final clubs = await (_db.select(_db.clubs)..where((c) => c.userId.equals(userId) & c.kind.equals('club'))).get();
 
       // CRITICAL: Filter out unplayed holes (score <= 0).
       // When a user finishes early, unplayed holes are stored with score=0.
