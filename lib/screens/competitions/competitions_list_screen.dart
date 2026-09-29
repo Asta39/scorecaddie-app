@@ -113,7 +113,8 @@ class _Note extends StatelessWidget {
       );
 }
 
-/// A lime dot that pulses: something is happening now.
+/// A lime dot that fades in and out: something is happening now. No halo:
+/// the design keeps glow off cards and buttons.
 class _Ping extends StatefulWidget {
   const _Ping();
 
@@ -137,14 +138,9 @@ class _PingState extends State<_Ping> with SingleTickerProviderStateMixin {
     }
     return AnimatedBuilder(
       animation: _c,
-      builder: (_, _) => Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          color: Ob.lime,
-          shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: Ob.lime.withValues(alpha: .6 * (1 - _c.value)), spreadRadius: 10 * _c.value)],
-        ),
+      builder: (_, _) => Opacity(
+        opacity: .35 + .65 * (1 - (2 * _c.value - 1).abs()),
+        child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Ob.lime, shape: BoxShape.circle)),
       ),
     );
   }

@@ -439,7 +439,7 @@ class _Banner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(color: color.withValues(alpha: .1), borderRadius: BorderRadius.circular(18), border: Border.all(color: color.withValues(alpha: .4))),
+        decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(18), border: Border.all(color: color, width: 1.5)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(padding: const EdgeInsets.only(top: 1), child: Icon(icon, size: 18, color: color)),
           const SizedBox(width: 10),
@@ -633,7 +633,6 @@ class _HoleRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          color: score == null ? Ob.warn.withValues(alpha: .08) : (hole.isFlagged ? Ob.warn.withValues(alpha: .05) : null),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(children: [
             SizedBox(width: 36, child: Text('${hole.hole}', style: Ob.display(16, color: Ob.creamA(.6)))),

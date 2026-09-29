@@ -253,7 +253,7 @@ class _EntryCard extends StatelessWidget {
     ].join(' · ');
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: color.withValues(alpha: .08), borderRadius: BorderRadius.circular(22), border: Border.all(color: color.withValues(alpha: .4))),
+      decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(22), border: Border.all(color: color, width: 1.5)),
       child: Row(children: [
         Icon(pending ? LucideIcons.clock : LucideIcons.checkCircle2, color: color),
         const SizedBox(width: 12),
@@ -397,9 +397,9 @@ class _Group extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
       decoration: BoxDecoration(
-        color: mine ? Ob.lime.withValues(alpha: .08) : Ob.cardFill,
+        color: Ob.cardFill,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: mine ? Ob.lime : Ob.creamA(.06), width: mine ? 2 : 1),
+        border: Border.all(color: mine ? Ob.lime : Ob.creamA(.06), width: mine ? 1.5 : 1),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -668,13 +668,12 @@ class _ResultRow extends StatelessWidget {
       if (!row.certified) 'Not certified',
     ].join(' · ');
     return Container(
-      color: isMe ? Ob.lime.withValues(alpha: .08) : null,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(children: [
         SizedBox(width: 28, child: Text('$pos', style: Ob.display(16, color: Ob.creamA(.55)))),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(isMe ? '${row.fullName ?? 'You'} (you)' : (row.fullName ?? 'Golfer'), maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700)),
+            Text(isMe ? '${row.fullName ?? 'You'} (you)' : (row.fullName ?? 'Golfer'), maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700, color: isMe ? Ob.lime : Ob.cream)),
             if (sub.isNotEmpty) Text(sub, style: Ob.body(12, color: Ob.creamA(.55))),
           ]),
         ),
@@ -832,7 +831,7 @@ class _CompetitionEntrySheetState extends ConsumerState<CompetitionEntrySheet> {
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .1), borderRadius: BorderRadius.circular(18), border: Border.all(color: Ob.lime.withValues(alpha: .3))),
+                decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(18), border: Border.all(color: Ob.lime, width: 1.5)),
                 child: Row(children: [
                   const CupertinoActivityIndicator(color: Ob.lime, radius: 8),
                   const SizedBox(width: 12),
