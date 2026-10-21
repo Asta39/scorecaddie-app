@@ -363,3 +363,96 @@ class ObGooSegmented<T> extends StatelessWidget {
     );
   }
 }
+
+/// An iOS grouped list section: optional grey caps header, white rounded
+/// group, hairline separators inset past the leading icon, optional footer.
+class ObGroup extends StatelessWidget {
+  const ObGroup({super.key, required this.children, this.header, this.footer, this.inset = 16});
+  final List<Widget> children;
+  final String? header;
+  final String? footer;
+
+  /// Where separators start: 16, or past a leading icon (60).
+  final double inset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (header != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 7),
+          child: Text(header!.toUpperCase(), style: Ob.eyebrow()),
+        ),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: ColoredBox(
+          color: Ob.cardFill,
+          child: Column(children: [
+            for (final (i, c) in children.indexed) ...[
+              if (i > 0) Padding(padding: EdgeInsets.only(left: inset), child: Container(height: .5, color: Ob.hairline)),
+              c,
+            ],
+          ]),
+        ),
+      ),
+      if (footer != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 7, 16, 0),
+          child: Text(footer!, style: Ob.body(13, color: Ob.creamA(.6))),
+        ),
+    ]);
+  }
+}
+
+/// One row of an [ObGroup]: title, optional subtitle, a value on the right
+/// in tabular digits, and a chevron when it opens something.
+class ObRow extends StatelessWidget {
+  const ObRow(this.title, {super.key, this.subtitle, this.value, this.valueColor, this.leading, this.trailing, this.onTap, this.titleColor});
+  final String title;
+  final String? subtitle;
+  final String? value;
+  final Color? valueColor;
+  final Color? titleColor;
+  final Widget? leading;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 14)],
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text(title, style: Ob.body(17, weight: FontWeight.w400, color: titleColor ?? Ob.cream)),
+              if (subtitle != null) Text(subtitle!, style: Ob.body(13, color: Ob.creamA(.6))),
+            ]),
+          ),
+          if (value != null) ...[const SizedBox(width: 10), Text(value!, style: Ob.body(17, weight: FontWeight.w400, color: valueColor ?? Ob.creamA(.6)))],
+          ?trailing,
+          if (onTap != null) ...[const SizedBox(width: 6), Icon(Icons.chevron_right_rounded, size: 22, color: Ob.creamA(.3))],
+        ]),
+      ),
+    );
+    if (onTap == null) return row;
+    return Semantics(button: true, child: InkWell(onTap: onTap, child: row));
+  }
+}
+
+/// The square, coloured icon iOS Settings puts at the start of a row.
+class ObRowIcon extends StatelessWidget {
+  const ObRowIcon(this.icon, this.color, {super.key});
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(7)),
+        child: Icon(icon, size: 17, color: Colors.white),
+      );
+}

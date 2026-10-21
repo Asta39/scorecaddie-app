@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:uuid/uuid.dart';
-import '../onboarding/ob_app.dart';
 import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
 import '../../providers/app_providers.dart';
@@ -347,10 +346,10 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
 
   Color _scoreColor(int score, int par) {
     if (score == 0) return Ob.creamA(.25);
-    if (score <= par - 2) return const Color(0xFFF5C531);
+    if (score <= par - 2) return const Color(0xFFB7791F);
     if (score == par - 1) return Ob.lime;
     if (score == par) return Ob.cream;
-    if (score == par + 1) return const Color(0xFF7DD3FC);
+    if (score == par + 1) return const Color(0xFF2563EB);
     return Ob.warn;
   }
 
@@ -468,19 +467,18 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
     final si = _nineHoleSI != null && index < _nineHoleSI!.length ? _nineHoleSI![index] : hole.handicapIndex;
     final color = _scoreColor(score, hole.par);
 
+    // On-course mode: big type for sunlight, controls within thumb reach.
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text('Hole ${hole.holeNumber}', style: Ob.display(34, height: 1)),
-          const SizedBox(width: 10),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text('Par ${hole.par}  ·  SI ${si ?? '–'}', style: Ob.body(14, weight: FontWeight.w700, color: Ob.creamA(.7))),
+        Column(children: [
+          Text('Hole', style: Ob.body(15, color: Ob.creamA(.6))),
+          Text('${hole.holeNumber}', style: Ob.display(64, height: 1.05)),
+          Text(
+            ['Par ${hole.par}', if ((hole.distance ?? 0) > 0) '${hole.distance} yd', 'SI ${si ?? '–'}', 'Max $cap'].join(' · '),
+            style: Ob.body(15, color: Ob.creamA(.6)),
           ),
-          const Spacer(),
-          ObChip('Max $cap', on: true, color: Ob.warn),
         ]),
         const SizedBox(height: 14),
         GPSYardageCard(
@@ -490,14 +488,11 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
           par: hole.par,
           teeDistance: hole.distance,
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 22),
+        Padding(padding: const EdgeInsets.only(left: 16, bottom: 7), child: Text('YOUR SCORE', style: Ob.eyebrow())),
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-          decoration: BoxDecoration(
-            color: Ob.cardFill,
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: score == 0 ? Colors.transparent : color.withValues(alpha: .35), width: 1.5),
-          ),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
           child: Column(children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               _StepperBtn(
@@ -508,11 +503,7 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
                   _updateScore(-1, index);
                 },
               ),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
-                child: Text(score == 0 ? '–' : '$score', key: ValueKey(score), style: Ob.display(96, color: color, height: 1)),
-              ),
+              Text(score == 0 ? '–' : '$score', style: Ob.display(72, color: score == 0 ? Ob.creamA(.3) : Ob.cream, height: 1)),
               _StepperBtn(
                 icon: LucideIcons.plus,
                 label: 'One more',
@@ -528,10 +519,10 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
               ),
             ]),
             const SizedBox(height: 6),
-            Text(_scoreName(score, hole.par), style: Ob.body(14, weight: FontWeight.w800, color: score == 0 ? Ob.creamA(.5) : color)),
+            Text(_scoreName(score, hole.par), style: Ob.body(15, weight: FontWeight.w600, color: score == 0 ? Ob.creamA(.5) : color)),
           ]),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 22),
         _buildHoleStats(index),
       ],
     );
@@ -552,7 +543,9 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
 
   Widget _buildHoleStats(int index) {
     final isPar3 = _masterHoles[index].par == 3;
-    return ObCard(
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
       child: Column(children: [
         _StatRow(label: 'Putts', value: _holePutts[index]?.toString(), options: const ['1', '2', '3', '4'], onSelect: (v) => setState(() => _holePutts[index] = int.parse(v))),
         if (!isPar3) ...[
@@ -569,23 +562,31 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
 
   Widget _buildBottomActionBar() {
     final isLast = _currentHoleIndex == _holeScores.length - 1;
+    final isFirst = _currentHoleIndex == 0;
+    void go(int i) => _pageController.animateToPage(i, duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 20, 14 + MediaQuery.of(context).padding.bottom),
-      child: SizedBox(
-        width: double.infinity,
-        child: ObButton(
-          tone: isLast ? ObButtonTone.lime : ObButtonTone.dark,
-          onPressed: _isSaving
-              ? null
-              : () => isLast
-                  ? _finishRound(useForAnalytics: true)
-                  : _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
-          child: Text(
-            _isSaving ? 'Saving…' : (isLast ? 'Finish round' : 'Next hole  →'),
-            style: Ob.label(17, weight: FontWeight.w800),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 14 + MediaQuery.of(context).padding.bottom),
+      child: Row(children: [
+        if (!isFirst) ...[
+          ObButton(
+            tone: ObButtonTone.dark,
+            height: 56,
+            radius: 16,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            onPressed: () => go(_currentHoleIndex - 1),
+            child: Text('Hole ${_masterHoles[_currentHoleIndex - 1].holeNumber}', style: Ob.label(17)),
+          ),
+          const SizedBox(width: 10),
+        ],
+        Expanded(
+          child: ObButton(
+            height: 56,
+            radius: 16,
+            onPressed: _isSaving ? null : () => isLast ? _finishRound(useForAnalytics: true) : go(_currentHoleIndex + 1),
+            child: Text(_isSaving ? 'Saving…' : (isLast ? 'Finish round' : 'Next hole'), style: Ob.label(17)),
           ),
         ),
-      ),
+      ]),
     );
   }
 
@@ -674,10 +675,10 @@ class _StepperBtn extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(color: primary ? Ob.lime : Ob.creamA(.08), shape: BoxShape.circle),
-          child: Icon(icon, color: primary ? Ob.ink : Ob.cream, size: 28),
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(color: primary ? Ob.lime : Ob.field, borderRadius: BorderRadius.circular(18)),
+          child: Icon(icon, color: primary ? Ob.ink : Ob.cream, size: 32),
         ),
       ),
     );
@@ -694,7 +695,7 @@ class _StatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      Expanded(child: Text(label, style: Ob.body(14, weight: FontWeight.w700, color: Ob.creamA(.75)))),
+      Expanded(child: Text(label, style: Ob.body(16, weight: FontWeight.w400))),
       for (final o in options)
         Padding(
           padding: const EdgeInsets.only(left: 6),
@@ -706,10 +707,10 @@ class _StatRow extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 160),
               constraints: const BoxConstraints(minWidth: 42),
-              height: 38,
+              height: 44,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               alignment: Alignment.center,
-              decoration: BoxDecoration(color: value == o ? Ob.lime : Ob.creamA(.07), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: value == o ? Ob.lime : Ob.field, borderRadius: BorderRadius.circular(10)),
               child: Text(o, style: Ob.body(13, weight: FontWeight.w800, color: value == o ? Ob.ink : Ob.cream)),
             ),
           ),
@@ -726,14 +727,14 @@ class _GIRRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      Expanded(child: Text('Green in regulation', style: Ob.body(14, weight: FontWeight.w700, color: Ob.creamA(.75)))),
+      Expanded(child: Text('Green in regulation', style: Ob.body(16, weight: FontWeight.w400))),
       GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           height: 38,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(color: isSelected ? Ob.lime : Ob.creamA(.07), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: isSelected ? Ob.lime : Ob.field, borderRadius: BorderRadius.circular(10)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             if (isSelected) ...[const Icon(LucideIcons.check, color: Ob.ink, size: 15), const SizedBox(width: 6)],
             Text(isSelected ? 'Yes' : 'No', style: Ob.body(13, weight: FontWeight.w800, color: isSelected ? Ob.ink : Ob.cream)),

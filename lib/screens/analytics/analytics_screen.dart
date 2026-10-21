@@ -37,7 +37,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           error: (e, _) => Center(child: Text('Couldn’t load your stats.', style: Ob.body(15, color: Ob.creamA(.7)))),
           data: (stats) => ListView(
             physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
             children: [
               ObTabHeader('Stats', actions: [
                 if (stats.roundsPlayed > 0) ObIconButton(icon: LucideIcons.share2, label: 'Share your stats', onPressed: () => _shareHighlight(context, ref, stats)),
@@ -52,7 +52,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   }
 
   List<Widget> _empty() => [
-        ObGuideRow(botAsset: ObBot.ball.idle, botLabel: 'Your golf-ball avatar', text: 'Play a round and your stats start here.').rise(1),
+        ObGroup(children: [const ObRow('No rounds yet', subtitle: 'Play a round and your stats start here')]),
         const SizedBox(height: 16),
         ObButton(
           onPressed: () => context.push('/select-course'),
@@ -64,161 +64,107 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final handicap = ref.watch(handicapProvider).valueOrNull;
     final scores = stats.recentScores;
     final shown = scores.length > _range ? scores.sublist(scores.length - _range) : scores;
-    final avg = shown.isEmpty ? null : shown.reduce((a, b) => a + b) / shown.length;
+    final before = scores.length > shown.length ? scores.sublist(math.max(0, scores.length - 2 * shown.length), scores.length - shown.length) : const <double>[];
+    double? mean(List<double> l) => l.isEmpty ? null : l.reduce((a, b) => a + b) / l.length;
+    final avg = mean(shown);
+    final prev = mean(before);
     final best = shown.isEmpty ? null : shown.reduce(math.min);
     String vsPar(double v) => v == 0 ? 'Level' : (v > 0 ? '+${v.toStringAsFixed(1)}' : v.toStringAsFixed(1));
+
+    // The chart's takeaway, in one sentence (as Apple Weather does).
+    final insight = avg == null
+        ? null
+        : prev == null
+            ? 'Averaging ${vsPar(avg)} over your last ${shown.length} ${shown.length == 1 ? 'round' : 'rounds'}.'
+            : (avg - prev).abs() < 0.05
+                ? 'Averaging ${vsPar(avg)}, the same as the ${before.length} rounds before.'
+                : 'Averaging ${vsPar(avg)}, ${(avg - prev).abs().toStringAsFixed(1)} ${avg < prev ? 'better' : 'worse'} than the ${before.length} rounds before.';
+
+    final idx = handicap?.currentIndex ?? stats.handicapIndex;
+    final needed = (5 - stats.roundsPlayedToHandicap).clamp(0, 5);
+
+    String perHole(int par) {
+      final a = stats.parAverages[par];
+      if (a == null) return '—';
+      final o = a - par;
+      return '${a.toStringAsFixed(1)}  (${o >= 0 ? '+' : ''}${o.toStringAsFixed(1)})';
+    }
 
     return [
       ObGooSegmented<int>(
         options: const [(5, 'Last 5'), (10, 'Last 10'), (20, 'Last 20')],
         selected: _range,
         onChanged: (v) => setState(() => _range = v),
-      ).rise(1),
+      ),
       const SizedBox(height: 16),
-      _indexHero(stats, handicap).rise(2),
-      const SizedBox(height: 16),
-      Row(children: [
-        Expanded(child: _tile('Average', avg == null ? '—' : vsPar(avg), sub: 'vs par')),
-        const SizedBox(width: 10),
-        Expanded(child: _tile('Best', best == null ? '—' : vsPar(best), sub: 'vs par', color: Ob.lime)),
-        const SizedBox(width: 10),
-        Expanded(child: _tile('Rounds', '${shown.length}', sub: 'of ${stats.roundsPlayed}')),
-      ]),
-      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Handicap Index', style: Ob.body(13, weight: FontWeight.w600, color: Ob.creamA(.6))),
+          const SizedBox(height: 4),
+          Text(idx?.toStringAsFixed(1) ?? '—', style: Ob.display(56, height: 1.05, color: idx == null ? Ob.creamA(.3) : Ob.cream)),
+          Text(
+            needed > 0 ? 'Play $needed more for an official index' : [if (handicap?.lowIndex != null) 'Low ${handicap!.lowIndex!.toStringAsFixed(1)}', 'World Handicap System'].join(' · '),
+            style: Ob.body(15, color: Ob.creamA(.6)),
+          ),
+        ]),
+      ),
+      if (insight != null) ...[
+        const SizedBox(height: 22),
+        Text(insight, style: Ob.body(17, weight: FontWeight.w600)),
+      ],
       if (shown.length >= 2) ...[
-        ObCard(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            ObEyebrow('Score vs par', trailing: Text('Last ${shown.length} rounds', style: Ob.body(12, color: Ob.creamA(.55)))),
-            const SizedBox(height: 12),
+            Text('Strokes vs par · last ${shown.length} rounds', style: Ob.body(13, color: Ob.creamA(.6))),
+            const SizedBox(height: 10),
             SizedBox(
               height: 150,
               child: Semantics(
-                label: 'Strokes over par in your last ${shown.length} rounds',
+                label: 'Strokes over par in your last ${shown.length} rounds: ${shown.map((v) => v.round()).join(', ')}',
                 child: CustomPaint(painter: _TrendPainter(shown)),
               ),
             ),
           ]),
         ),
-        const SizedBox(height: 16),
       ],
-      _bestEight(handicap),
-      const SizedBox(height: 24),
-      const ObEyebrow('Your game'),
-      const SizedBox(height: 12),
-      GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 1.9,
-        children: [
-          _tile('Fairways hit', '${stats.fairwayHitPercentage.toInt()}%', icon: LucideIcons.flag),
-          _tile('Greens in regulation', '${stats.greensInRegulationPercentage.toInt()}%', icon: LucideIcons.target),
-          _tile('Putts a hole', (stats.puttsPerRound / 18).toStringAsFixed(1), icon: LucideIcons.circle),
-          _tile('Penalties a round', stats.penaltiesPerRound.toStringAsFixed(1), icon: LucideIcons.triangleAlert),
-        ],
-      ),
-      const SizedBox(height: 24),
-      const ObEyebrow('Average by hole'),
-      const SizedBox(height: 12),
-      Row(children: [
-        for (final par in [3, 4, 5]) ...[
-          if (par > 3) const SizedBox(width: 10),
-          Expanded(child: _parTile(par, stats.parAverages[par])),
-        ],
+      const SizedBox(height: 26),
+      ObGroup(header: 'Scoring · last ${shown.length} rounds', children: [
+        ObRow('Average vs par', value: avg == null ? '—' : vsPar(avg)),
+        ObRow('Best vs par', value: best == null ? '—' : vsPar(best), valueColor: best != null && best <= 0 ? const Color(0xFF15803D) : null),
+        ObRow('Rounds played', value: '${stats.roundsPlayed}'),
       ]),
-      const SizedBox(height: 16),
-      ObSplitCards(
-        left: ObStat('Front 9', stats.front9Avg > 0 ? stats.front9Avg.toStringAsFixed(1) : '—', valueSize: 28),
-        right: ObStat('Back 9', stats.back9Avg > 0 ? stats.back9Avg.toStringAsFixed(1) : '—', valueSize: 28),
-      ),
-      const SizedBox(height: 12),
-      ObSplitCards(
-        left: ObStat('9-hole rounds · ${stats.nineHoleRoundsPlayed}', stats.nineHoleRoundsPlayed == 0 ? '—' : vsPar(stats.nineHoleAvgVsPar), valueSize: 28),
-        right: ObStat('18-hole rounds · ${stats.eighteenHoleRoundsPlayed}', stats.eighteenHoleRoundsPlayed == 0 ? '—' : vsPar(stats.eighteenHoleAvgVsPar), valueSize: 28),
-      ),
+      const SizedBox(height: 26),
+      ObGroup(header: 'Your game', children: [
+        ObRow('Fairways hit', value: '${stats.fairwayHitPercentage.toInt()}%'),
+        ObRow('Greens in regulation', value: '${stats.greensInRegulationPercentage.toInt()}%'),
+        ObRow('Putts per hole', value: (stats.puttsPerRound / 18).toStringAsFixed(1)),
+        ObRow('Penalties per round', value: stats.penaltiesPerRound.toStringAsFixed(1)),
+      ]),
+      const SizedBox(height: 26),
+      ObGroup(header: 'Average by hole', footer: 'In brackets: strokes over par per hole.', children: [
+        ObRow('Par 3s', value: perHole(3)),
+        ObRow('Par 4s', value: perHole(4)),
+        ObRow('Par 5s', value: perHole(5)),
+        ObRow('Front 9', value: stats.front9Avg > 0 ? stats.front9Avg.toStringAsFixed(1) : '—'),
+        ObRow('Back 9', value: stats.back9Avg > 0 ? stats.back9Avg.toStringAsFixed(1) : '—'),
+        ObRow('9-hole rounds', subtitle: '${stats.nineHoleRoundsPlayed} played', value: stats.nineHoleRoundsPlayed == 0 ? '—' : vsPar(stats.nineHoleAvgVsPar)),
+        ObRow('18-hole rounds', subtitle: '${stats.eighteenHoleRoundsPlayed} played', value: stats.eighteenHoleRoundsPlayed == 0 ? '—' : vsPar(stats.eighteenHoleAvgVsPar)),
+      ]),
+      const SizedBox(height: 26),
+      _bestEight(handicap),
       if (stats.courseStats.isNotEmpty) ...[
-        const SizedBox(height: 24),
-        ObEyebrow('By course', trailing: Text('${stats.courseStats.length}', style: Ob.label(12).copyWith(color: Ob.creamA(.55)))),
-        const SizedBox(height: 12),
-        ObCard(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(children: [
-            for (var i = 0; i < stats.courseStats.length; i++) ...[
-              if (i > 0) const ObHair(),
-              _courseRow(stats.courseStats[i]),
-            ],
-          ]),
-        ),
+        const SizedBox(height: 26),
+        ObGroup(header: 'By course', children: [
+          for (final cs in stats.courseStats)
+            ObRow(cs.courseName, subtitle: '${cs.roundsPlayed} ${cs.roundsPlayed == 1 ? 'round' : 'rounds'} · best ${cs.bestScore}', value: 'avg ${cs.avgScore.toStringAsFixed(1)}'),
+        ]),
       ],
     ];
-  }
-
-  Widget _indexHero(AdvancedStats stats, HandicapStatus? h) {
-    final idx = h?.currentIndex ?? stats.handicapIndex;
-    final needed = (5 - stats.roundsPlayedToHandicap).clamp(0, 5);
-    return ObHeroCard(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-      child: Row(children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('HANDICAP INDEX', style: Ob.eyebrow()),
-            const SizedBox(height: 2),
-            if (idx == null) Text('—', style: Ob.display(60, height: 1.05, color: Ob.creamA(.35))) else ObRollingNumber(value: idx, fontSize: 60),
-            Text(
-              needed > 0 ? 'Play $needed more for an official index' : [if (h?.lowIndex != null) 'Low ${h!.lowIndex!.toStringAsFixed(1)}', 'Official WHS'].join(' · '),
-              style: Ob.body(12, color: Ob.creamA(.6)),
-            ),
-          ]),
-        ),
-        BotImage(ObBot.ball.idle, size: 96),
-      ]),
-    );
-  }
-
-  Widget _tile(String label, String value, {String? sub, Color? color, IconData? icon}) => ObCard(
-        radius: 20,
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-          Row(children: [
-            if (icon != null) ...[Icon(icon, size: 14, color: Ob.lime), const SizedBox(width: 6)],
-            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(12, weight: FontWeight.w600, color: Ob.creamA(.6)))),
-          ]),
-          const SizedBox(height: 6),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(value, key: ValueKey(value), maxLines: 1, style: Ob.display(26, height: 1, color: color ?? Ob.cream)),
-          ),
-          if (sub != null) Text(sub, style: Ob.body(11, color: Ob.creamA(.5))),
-        ]),
-      );
-
-  Widget _parTile(int par, double? avg) {
-    final over = avg == null ? null : avg - par;
-    final worst = over != null && over >= 1.1;
-    return ObCard(
-      radius: 20,
-      padding: const EdgeInsets.all(14),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Par ${par}s', style: Ob.body(12, weight: FontWeight.w600, color: Ob.creamA(.6))),
-        const SizedBox(height: 8),
-        Text(avg?.toStringAsFixed(1) ?? '—', style: Ob.display(28, height: 1)),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: over == null ? 0 : (over / 1.5).clamp(0.0, 1.0),
-            minHeight: 8,
-            backgroundColor: Colors.white.withValues(alpha: .08),
-            valueColor: AlwaysStoppedAnimation(worst ? Ob.warn : Ob.lime),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(over == null ? 'No data yet' : '${over >= 0 ? '+' : ''}${over.toStringAsFixed(1)} a hole', style: Ob.body(11, color: Ob.creamA(.55))),
-      ]),
-    );
   }
 
   /// WHS: the index is the average of the best 8 differentials of the last 20.
@@ -226,10 +172,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final rounds = (ref.watch(recentRoundsProvider).valueOrNull ?? const <db.Round>[]).where((r) => r.scoreDifferential != null).take(20).toList();
     if (rounds.isEmpty || status == null) return const SizedBox.shrink();
     final counting = rounds.where((r) => status.bestRoundIds.contains(r.id)).map((r) => r.scoreDifferential!).toList()..sort();
-    return ObCard(
-      padding: const EdgeInsets.all(18),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        ObEyebrow('Best ${counting.length} of your last ${rounds.length}'),
+        Text('Best ${counting.length} of your last ${rounds.length} differentials', style: Ob.body(13, color: Ob.creamA(.6))),
         const SizedBox(height: 12),
         GridView.count(
           crossAxisCount: 5,
@@ -245,7 +192,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 child: Container(
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: status.bestRoundIds.contains(r.id) ? Ob.lime : Colors.white.withValues(alpha: .05),
+                    color: status.bestRoundIds.contains(r.id) ? Ob.lime : Ob.field,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(r.scoreDifferential!.toStringAsFixed(1),
@@ -258,30 +205,13 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         Text(
           counting.isEmpty
               ? 'Your index appears once you have enough rounds.'
-              : 'Your index is the average of the lime ones. Beat ${counting.last.toStringAsFixed(1)} and one of them drops out.',
+              : 'Your index is the average of the green ones. Beat ${counting.last.toStringAsFixed(1)} and one of them drops out.',
           style: Ob.body(13, height: 1.45, color: Ob.creamA(.62)),
         ),
       ]),
     );
   }
 
-  Widget _courseRow(CourseStat cs) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(children: [
-          ObCrest(cs.courseName, size: 40, radius: 12),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(cs.courseName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700)),
-              Text('${cs.roundsPlayed} ${cs.roundsPlayed == 1 ? 'round' : 'rounds'} · best ${cs.bestScore}', style: Ob.body(12, color: Ob.creamA(.55))),
-            ]),
-          ),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(cs.avgScore.toStringAsFixed(1), style: Ob.display(22, height: 1)),
-            Text('average', style: Ob.body(11, color: Ob.creamA(.55))),
-          ]),
-        ]),
-      );
 
   void _shareHighlight(BuildContext context, WidgetRef ref, AdvancedStats stats) {
     final userProfile = ref.read(userProfileProvider).valueOrNull;
@@ -377,7 +307,7 @@ class _TrendPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final lo = values.reduce(math.min) - 2, hi = values.reduce(math.max) + 2;
-    final grid = Paint()..color = const Color(0x0FFFFFFF);
+    final grid = Paint()..color = const Color(0x243C3C43);
     for (var i = 0; i < 3; i++) {
       final y = 14 + i * (size.height - 28) / 2;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);

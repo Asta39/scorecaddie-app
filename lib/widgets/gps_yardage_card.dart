@@ -135,7 +135,7 @@ class _GPSYardageCardState extends ConsumerState<GPSYardageCard> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildDistanceColumn('FRONT', '$frontDistance', AppColors.grey400),
-                  _buildDistanceColumn('CENTER', '$centerDistRound', Ob.lime, isMain: true),
+                  _buildDistanceColumn('MIDDLE', '$centerDistRound', Ob.cream, isMain: true),
                   _buildDistanceColumn('BACK', '$backDistance', AppColors.grey400),
                 ],
               ),
@@ -146,19 +146,19 @@ class _GPSYardageCardState extends ConsumerState<GPSYardageCard> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Target: Green Center • Par ${widget.par}',
-                    style: const TextStyle(color: AppColors.grey500, fontSize: 11, fontWeight: FontWeight.w500),
+                    'Yards to the green · Par ${widget.par}',
+                    style: TextStyle(color: Ob.creamA(.6), fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                   GestureDetector(
                     onTap: () => _showHoleMap(context),
                     child: Row(
-                      children: const [
+                      children: [
                         Text(
                           'View Hole Map',
-                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Ob.lime, fontSize: 14, fontWeight: FontWeight.w600),
                         ),
                         SizedBox(width: 4),
-                        Icon(LucideIcons.chevronRight, color: Colors.white, size: 14),
+                        Icon(LucideIcons.chevronRight, color: Ob.lime, size: 16),
                       ],
                     ),
                   ),
@@ -202,16 +202,17 @@ class _GPSYardageCardState extends ConsumerState<GPSYardageCard> {
       children: [
         Text(
           label,
-          style: const TextStyle(color: AppColors.grey500, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+          style: TextStyle(color: Ob.creamA(.6), fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: .4),
         ),
         const SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
             color: color,
-            fontSize: isMain ? 48 : 32,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -1,
+            fontSize: isMain ? 60 : 36,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -1.5,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
         const Text(
@@ -267,7 +268,7 @@ class _HoleMapBottomSheet extends StatelessWidget {
                 children: [
                   Text(
                     'HOLE $holeNumber MAP',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Ob.cardFill, letterSpacing: -0.5),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Ob.cream, letterSpacing: -0.5),
                   ),
                   Text(
                     'Par $par • $distanceYards yards to green center',
