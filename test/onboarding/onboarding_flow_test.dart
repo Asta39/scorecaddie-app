@@ -28,7 +28,7 @@ final _shots = Platform.environment['OB_SHOTS'];
 final _frame = GlobalKey();
 
 Future<void> _loadFonts() async {
-  for (final (family, file) in [('SourGummy', 'SourGummy-Variable.ttf'), ('Manrope', 'Manrope-Variable.ttf')]) {
+  for (final (family, file) in [('SourGummy', 'SourGummy-Variable.ttf'), ('Manrope', 'Manrope-Variable.ttf'), ('Roboto', 'Manrope-Variable.ttf')]) {
     await (FontLoader(family)..addFont(rootBundle.load('assets/fonts/$file'))).load();
   }
 }

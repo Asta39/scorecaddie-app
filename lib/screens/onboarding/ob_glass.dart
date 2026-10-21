@@ -39,8 +39,8 @@ class ObGlass extends StatelessWidget {
   final double blur;
   final double saturation;
 
-  static const _tintClear = Color(0x381E2A23); // dark glass, ~22%
-  static const _tintFrosted = Color(0x8C142019); // ~55%, keeps cream text at 4.5:1
+  static const _tintClear = Color(0x40FFFFFF); // light glass
+  static const _tintFrosted = Color(0xB8F9F9F9); // ~72% white, keeps labels at 4.5:1
 
   @override
   Widget build(BuildContext context) {
@@ -69,8 +69,8 @@ class ObGlass extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: r,
         boxShadow: const [
-          BoxShadow(color: Color(0x33000000), blurRadius: 2, offset: Offset(0, 1)),
-          BoxShadow(color: Color(0x80000000), blurRadius: 36, offset: Offset(0, 12), spreadRadius: -8),
+          BoxShadow(color: Color(0x0F000000), blurRadius: 2, offset: Offset(0, 1)),
+          BoxShadow(color: Color(0x38000000), blurRadius: 32, offset: Offset(0, 10), spreadRadius: -8),
         ],
       ),
       child: surface,
@@ -89,7 +89,7 @@ class ObGlass extends StatelessWidget {
   }
 }
 
-/// Opaline's `--glass-rim` (dark theme): bright top-left inner edge, dimmer
+/// Opaline's `--glass-rim` (light theme): bright top-left inner edge, dimmer
 /// bottom-right inner edge, a 0.5px hairline and a faint inner glow.
 class _GlassRim extends CustomPainter {
   _GlassRim(this.radius);
@@ -120,7 +120,7 @@ class _GlassRim extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white.withValues(alpha: .45), Colors.white.withValues(alpha: .06), Colors.white.withValues(alpha: .22)],
+          colors: [Colors.white.withValues(alpha: .95), Colors.white.withValues(alpha: .3), Colors.white.withValues(alpha: .6)],
           stops: const [0, .5, 1],
         ).createShader(rect),
     );
@@ -130,7 +130,7 @@ class _GlassRim extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = .5
-        ..color = Colors.white.withValues(alpha: .16),
+        ..color = Colors.black.withValues(alpha: .06),
     );
     canvas.restore();
   }
@@ -182,7 +182,7 @@ class ObGlassDock extends StatelessWidget {
                 top: 0,
                 bottom: 0,
                 width: w,
-                child: const ObGlass(frosted: false, shadow: false, tint: Color(0x29FFFFFF), child: SizedBox.expand()),
+                child: const ObGlass(frosted: false, shadow: false, tint: Color(0xD9FFFFFF), child: SizedBox.expand()),
               ),
               Row(children: [
                 for (var i = 0; i < n; i++)

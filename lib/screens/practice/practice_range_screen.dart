@@ -64,7 +64,7 @@ class PracticeRangeScreen extends ConsumerWidget {
       builder: (sheet) => Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
         decoration: const BoxDecoration(
-          color: Color(0xFF0D1A12),
+          color: Color(0xFFF2F2F7),
           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
           border: Border(top: BorderSide(color: Color(0x40A3E635))),
         ),

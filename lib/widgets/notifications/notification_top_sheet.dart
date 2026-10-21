@@ -73,7 +73,7 @@ class NotificationTopSheet extends ConsumerWidget {
             constraints: BoxConstraints(maxHeight: mq.size.height * .86),
             padding: EdgeInsets.fromLTRB(20, mq.padding.top + 12, 20, 14),
             decoration: const BoxDecoration(
-              color: Color(0xFF0D1A12),
+              color: Color(0xFFF2F2F7),
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
               border: Border(bottom: BorderSide(color: Color(0x40A3E635))),
             ),

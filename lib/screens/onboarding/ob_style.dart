@@ -5,80 +5,88 @@ import 'ob_glass.dart';
 
 /// Design tokens for the onboarding flow (splash → intro → sign-in → setup).
 ///
-/// Mirrors the approved prototype ("ScoreCaddie Onboarding Redesign" canvas):
-/// a flat night-green ground, lime reserved for actions and the guide, Sour
-/// Gummy for display type and numbers, Manrope for body copy.
+/// Apple light, as in the "ScoreCaddie Utility Redesign" mockups: grouped grey
+/// page, white cells, the platform font with even digits, and brand green
+/// reserved for actions and "you".
 class Ob {
   Ob._();
 
   // ── colour ────────────────────────────────────────────────────────────
-  static const bg = Color(0xFF06110B);
-  static const cream = Color(0xFFF4F7F2);
-  static const lime = Color(0xFFA3E635);
-  static const ink = Color(0xFF0B1A07);
-  static const warn = Color(0xFFFB923C);
-  static const dotGrey = Color(0xFF56625B);
-  static const roleFill = Color(0xFF18290F);
-  static const cardFill = Color(0xFF142519);
-  static const field = Color(0x0DFFFFFF); // white 5%
-  static const fieldBorder = Color(0x24FFFFFF); // white 14%
-  static const hairline = Color(0x14FFFFFF); // white 8%
+  // Apple light (iOS grouped style): a light grey page, white cells, black
+  // labels with grey secondary text. The brand green replaces the old lime
+  // so it reads as text on white (5:1) and carries white text as a fill.
+  static const bg = Color(0xFFF2F2F7); // systemGroupedBackground
+  static const cream = Color(0xFF000000); // label
+  static const lime = Color(0xFF3F7D0F); // brand green, AA on white
+  static const ink = Color(0xFFFFFFFF); // text on brand green
+  static const warn = Color(0xFFC2410C); // orange that reads on white
+  static const dotGrey = Color(0xFFC7C7CC);
+  static const roleFill = Color(0xFFFFFFFF); // hero cards are plain white
+  static const cardFill = Color(0xFFFFFFFF); // secondarySystemGroupedBackground
+  static const field = Color(0x0F767680); // tertiarySystemFill
+  static const fieldBorder = Color(0x1F3C3C43);
+  static const hairline = Color(0x2E3C3C43); // separator
 
-  static Color creamA(double a) => cream.withValues(alpha: a);
+  /// Secondary text and tints: iOS label colours are black at reduced opacity.
+  static Color creamA(double a) => const Color(0xFF3C3C43).withValues(alpha: (a * 1.05).clamp(0, 1));
+
+  /// The platform UI font: Roboto on Android; iOS has no Roboto, so it falls
+  /// back to the system font (SF Pro). Named so tests can load a stand-in.
+  static const sys = 'Roboto';
+
+  /// Even-width digits so scores and handicaps line up in columns.
+  static const _numbers = [FontFeature.tabularFigures()];
 
   // ── type ──────────────────────────────────────────────────────────────
-  /// Sour Gummy, weight 780, normal width. Used for headings, the speech
-  /// bubbles, the username and every number.
+  /// Headings and numbers, in the platform font (SF Pro on iPhone, Roboto
+  /// on Android): bold, slightly tightened as it grows, with even digits.
   static TextStyle display(double size, {Color color = cream, double? height}) => TextStyle(
-        fontFamily: 'SourGummy',
+        fontFamily: sys,
         fontSize: size,
         height: height,
         color: color,
-        fontWeight: FontWeight.w800,
-        fontVariations: const [FontVariation('wght', 780), FontVariation('wdth', 100)],
-        letterSpacing: -0.005 * size,
+        fontWeight: FontWeight.w700,
+        fontFeatures: _numbers,
+        letterSpacing: size >= 20 ? -0.02 * size : 0,
       );
 
   static TextStyle body(double size, {FontWeight weight = FontWeight.w500, Color color = cream, double? height, double? letterSpacing}) => TextStyle(
-        fontFamily: 'Manrope',
+        fontFamily: sys,
         fontSize: size,
         height: height,
         color: color,
-        fontWeight: weight,
-        fontVariations: [FontVariation('wght', weight.value.toDouble())],
-        letterSpacing: letterSpacing ?? 0,
+        // The old Manrope weights run heavy; the system font reads a step lighter.
+        fontWeight: weight == FontWeight.w800 ? FontWeight.w700 : (weight == FontWeight.w500 ? FontWeight.w400 : weight),
+        fontFeatures: _numbers,
+        letterSpacing: letterSpacing ?? (size <= 12 ? 0.1 : -0.01 * size / 4),
       );
 
-  /// A button label: no colour, so [ObButton] sets ink on lime, cream on dark.
+  /// A button label: no colour, so [ObButton] sets white on green, black on glass.
   static TextStyle label(double size, {FontWeight weight = FontWeight.w700}) => TextStyle(
-        fontFamily: 'Manrope',
+        fontFamily: sys,
         fontSize: size,
-        fontWeight: weight,
-        fontVariations: [FontVariation('wght', weight.value.toDouble())],
-        letterSpacing: 0,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.2,
       );
 
-  /// Root text style for these screens. Replaces (not merges) Material's
-  /// body style, whose 0.25 letter spacing and 1.43 line height would
-  /// otherwise leak into every label; line height falls back to the font's
-  /// own metrics, as CSS `line-height: normal` does in the prototype.
+  /// Root text style for these screens.
   static const textBase = TextStyle(
-    fontFamily: 'Manrope',
-    fontSize: 14,
+    fontFamily: sys,
+    fontSize: 15,
     color: cream,
     letterSpacing: 0,
     decoration: TextDecoration.none,
   );
 
-  /// The small lime capitals above headings.
-  static TextStyle eyebrow() => body(12, weight: FontWeight.w700, color: lime, letterSpacing: 12 * 0.14);
+  /// Section headers: grey capitals, as in iOS grouped lists.
+  static TextStyle eyebrow() => body(13, weight: FontWeight.w400, color: creamA(.6), letterSpacing: 0.2);
 
   static const overlay = SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    statusBarBrightness: Brightness.dark,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
     systemNavigationBarColor: bg,
-    systemNavigationBarIconBrightness: Brightness.light,
+    systemNavigationBarIconBrightness: Brightness.dark,
   );
 }
 
@@ -189,12 +197,12 @@ class _ObButtonState extends State<ObButton> {
     late final Color textColor;
     switch (widget.tone) {
       case ObButtonTone.lime:
-        grad = const [Color(0xFF8CC81F), Color(0xFFB4EE52)];
-        edge = const Color(0xFF6F9F1A);
-        highlight = Colors.white.withValues(alpha: 0.5);
+        grad = const [Color(0xFF36700B), Color(0xFF4A8A14)];
+        edge = const Color(0xFF326A0A);
+        highlight = Colors.white.withValues(alpha: 0.25);
         textColor = Ob.ink;
       case ObButtonTone.dark:
-        grad = const [Color(0xFF0B160F), Color(0xFF1F3326)];
+        grad = const [Color(0xFFFFFFFF), Color(0xFFF2F2F7)];
         edge = widget.selected ? Ob.lime : const Color(0xFF2F4A39);
         highlight = Colors.white.withValues(alpha: 0.08);
         textColor = widget.selected ? Ob.lime : Ob.cream;
@@ -209,8 +217,8 @@ class _ObButtonState extends State<ObButton> {
     if (!enabled && widget.tone == ObButtonTone.lime) {
       // Disabled primary actions stay flat.
       decoration = BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: const Color(0x14767680),
+        border: Border.all(color: const Color(0x0A000000)),
         borderRadius: r,
       );
     } else {
@@ -221,7 +229,7 @@ class _ObButtonState extends State<ObButton> {
         gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: colors),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: widget.tone == ObButtonTone.dark ? 0.8 : 0.7),
+            color: Colors.black.withValues(alpha: 0.18),
             offset: Offset(0, _down ? 3 : 8),
             blurRadius: _down ? 8 : 18,
             spreadRadius: _down ? -4 : -8,
@@ -258,7 +266,7 @@ class _ObButtonState extends State<ObButton> {
       body = ObGlass(
         radius: widget.radius,
         shadow: !_down,
-        tint: _down ? const Color(0xA6142019) : null,
+        tint: _down ? const Color(0xE6E5E5EA) : null,
         child: Container(
           height: widget.height,
           width: widget.width,
@@ -332,7 +340,7 @@ class _TopHighlightPainter extends BoxPainter {
     if (d.bottomShade) {
       canvas.drawRect(
         Rect.fromLTWH(rect.left, rect.bottom - 3, rect.width, 2),
-        Paint()..color = const Color(0x2E284600),
+        Paint()..color = const Color(0x1A000000),
       );
     }
     canvas.restore();

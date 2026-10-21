@@ -79,7 +79,7 @@ class ClubsScreen extends ConsumerWidget {
                     Container(
                       width: 76,
                       height: 76,
-                      decoration: const BoxDecoration(color: Color(0xFF0D1A12), shape: BoxShape.circle),
+                      decoration: const BoxDecoration(color: Color(0xFFF2F2F7), shape: BoxShape.circle),
                       child: AchievementAvatar(loaded, earned: full, size: 70),
                     ),
                 ]),
@@ -235,7 +235,7 @@ class _ItemRow extends ConsumerWidget {
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
-                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1D3322), Color(0xFF0B160F)]),
+                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1D3322), Color(0xFFFFFFFF)]),
                   ),
                   child: _photoOr(item.photoUrl, fallback),
                 ),

@@ -228,7 +228,7 @@ class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScree
             height: MediaQuery.of(sheet).size.height * .72,
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             decoration: const BoxDecoration(
-              color: Color(0xFF0D1A12),
+              color: Color(0xFFF2F2F7),
               borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
               border: Border(top: BorderSide(color: Color(0x40A3E635))),
             ),

@@ -296,7 +296,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       builder: (context) => Container(
         padding: const EdgeInsets.all(32),
         decoration: const BoxDecoration(
-          color: Color(0xFF0D1A12),
+          color: Color(0xFFF2F2F7),
           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         ),
         child: Column(

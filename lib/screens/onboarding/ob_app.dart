@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/utils/course_logo_helper.dart';
 import 'ob_goo.dart';
@@ -285,10 +286,11 @@ class _WeekPainter extends GooPainter {
   bool shouldRepaint(covariant _WeekPainter old) => old.today != today || old.played.join() != played.join();
 }
 
-/// A pill switch whose lime selection flows between options like liquid: the
-/// pill springs across and a droplet trails it, pinching off as it settles.
-class ObGooSegmented<T> extends StatefulWidget {
-  const ObGooSegmented({super.key, required this.options, required this.selected, required this.onChanged, this.height = 44, this.fontSize = 14, this.accent = Ob.lime});
+/// A plain iOS segmented control (the name is kept for its call sites): grey
+/// track, white selected segment, a short critically damped slide with no
+/// bounce, instant with Reduce Motion.
+class ObGooSegmented<T> extends StatelessWidget {
+  const ObGooSegmented({super.key, required this.options, required this.selected, required this.onChanged, this.height = 36, this.fontSize = 13, this.accent = Ob.lime});
   final List<(T, String)> options;
   final T selected;
   final ValueChanged<T> onChanged;
@@ -296,84 +298,55 @@ class ObGooSegmented<T> extends StatefulWidget {
   final Color accent;
 
   @override
-  State<ObGooSegmented<T>> createState() => _ObGooSegmentedState<T>();
-}
-
-class _ObGooSegmentedState<T> extends State<ObGooSegmented<T>> with SingleTickerProviderStateMixin {
-  late final ObSpring _pill = ObSpring(_index.toDouble(), w: 18, z: .62);
-  late final ObSpring _drop = ObSpring(_index.toDouble(), w: 9, z: .8);
-  // Created in initState: a lazy controller would first be built inside
-  // dispose() on screens that never switched, which throws.
-  late final AnimationController _loop;
-  Duration _last = Duration.zero;
-
-  @override
-  void initState() {
-    super.initState();
-    _loop = AnimationController.unbounded(vsync: this)..addListener(_tick);
-  }
-
-  int get _index => widget.options.indexWhere((o) => o.$1 == widget.selected).clamp(0, widget.options.length - 1);
-
-  @override
-  void didUpdateWidget(ObGooSegmented<T> old) {
-    super.didUpdateWidget(old);
-    final i = _index.toDouble();
-    if (_pill.target != i) {
-      _pill.target = i;
-      _drop.target = i;
-      if (MediaQuery.of(context).disableAnimations) {
-        _pill.x = i;
-        _drop.x = i;
-      } else {
-        _last = Duration.zero;
-        _loop.repeat(min: 0, max: 1, period: const Duration(seconds: 1));
-      }
-    }
-  }
-
-  void _tick() {
-    final now = _loop.lastElapsedDuration ?? Duration.zero;
-    final dt = _last == Duration.zero ? 1 / 60 : ((now - _last).inMicroseconds / 1e6).clamp(0.0, 0.05);
-    _last = now;
-    final a = _pill.step(dt), b = _drop.step(dt);
-    setState(() {});
-    if (!a && !b) _loop.stop();
-  }
-
-  @override
-  void dispose() {
-    _loop.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final n = widget.options.length;
+    final n = options.length;
+    final i = options.indexWhere((o) => o.$1 == selected).clamp(0, n - 1);
+    final h = height.clamp(32.0, 40.0);
+    final reduce = MediaQuery.of(context).disableAnimations;
     return Container(
-      height: widget.height,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .05),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: .08)),
-      ),
+      height: h,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(color: const Color(0x1F767680), borderRadius: BorderRadius.circular(9)),
       child: LayoutBuilder(builder: (context, box) {
-        final step = box.maxWidth / n;
+        final w = box.maxWidth / n;
         return Stack(children: [
-          Positioned.fill(child: CustomPaint(painter: _SegPainter(_pill.x, _drop.x, step, widget.height - 2, widget.accent))),
+          AnimatedPositioned(
+            duration: reduce ? Duration.zero : const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            left: i * w,
+            top: 0,
+            bottom: 0,
+            width: w,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: const Color(0x0A000000), width: .5),
+                boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 8, offset: Offset(0, 3)), BoxShadow(color: Color(0x0A000000), blurRadius: 1, offset: Offset(0, 1))],
+              ),
+            ),
+          ),
           Row(children: [
-            for (var i = 0; i < n; i++)
+            for (var k = 0; k < n; k++)
               Expanded(
                 child: Semantics(
                   button: true,
-                  selected: i == _index,
+                  selected: k == i,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => widget.onChanged(widget.options[i].$1),
+                    onTap: () {
+                      if (k != i) {
+                        HapticFeedback.selectionClick();
+                        onChanged(options[k].$1);
+                      }
+                    },
                     child: Center(
-                      child: Text(widget.options[i].$2,
-                          maxLines: 1,
-                          style: Ob.label(widget.fontSize, weight: FontWeight.w800).copyWith(color: i == _index ? Ob.ink : Ob.creamA(.72))),
+                      child: Text(
+                        options[k].$2,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Ob.body(fontSize, weight: k == i ? FontWeight.w600 : FontWeight.w500, color: Ob.cream),
+                      ),
                     ),
                   ),
                 ),
@@ -383,24 +356,4 @@ class _ObGooSegmentedState<T> extends State<ObGooSegmented<T>> with SingleTicker
       }),
     );
   }
-}
-
-class _SegPainter extends GooPainter {
-  _SegPainter(this.pill, this.drop, this.step, this.h, this.color) : super(sigma: 6);
-  final double pill, drop, step, h;
-  final Color color;
-
-  @override
-  EdgeInsets get overflow => const EdgeInsets.all(16);
-
-  @override
-  void paintShapes(Canvas c, Size s) {
-    final p = Paint()..color = color;
-    final bw = step - 8, bh = h - 8;
-    c.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(pill * step + 4, 4, bw, bh), Radius.circular(bh / 2)), p);
-    c.drawCircle(Offset(drop * step + step / 2, h / 2), bh / 2 - 3, p);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SegPainter old) => old.pill != pill || old.drop != drop || old.step != step || old.color != color;
 }

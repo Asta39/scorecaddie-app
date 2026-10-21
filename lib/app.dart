@@ -64,34 +64,11 @@ class ScoreCaddieApp extends ConsumerWidget {
 
   Widget _scaled(BuildContext context, Widget? child) {
         return AnnotatedRegion<SystemUiOverlayStyle>(
-          // The app is dark throughout; light status/nav icons everywhere.
+          // The app is light throughout; dark status/nav icons everywhere.
           value: Ob.overlay,
-          child: child != null
-              ? LayoutBuilder(
-                  builder: (context, constraints) {
-                    final mediaQuery = MediaQuery.of(context);
-                    final width = mediaQuery.size.width;
-                    final height = mediaQuery.size.height;
-                    
-                    // Design baseline: 390 width (standard modern mobile screen)
-                    const double baselineWidth = 390.0;
-                    
-                    if (width < baselineWidth && width > 0) {
-                      final double scale = width / baselineWidth;
-                      return FittedBox(
-                        fit: BoxFit.fitWidth,
-                        alignment: Alignment.topCenter,
-                        child: SizedBox(
-                          width: baselineWidth,
-                          height: height / scale,
-                          child: child,
-                        ),
-                      );
-                    }
-                    return child;
-                  },
-                )
-              : const SizedBox.shrink(),
+          // No shrink-to-fit: the layout follows the phone's own text size
+          // (Dynamic Type), as Apple's guidelines ask.
+          child: child ?? const SizedBox.shrink(),
         );
   }
 }

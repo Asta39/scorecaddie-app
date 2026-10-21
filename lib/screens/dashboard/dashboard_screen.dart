@@ -132,7 +132,7 @@ class _PlayerDashboardViewState extends ConsumerState<PlayerDashboardView> {
         height: 44,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xFF0B160F), Color(0xFF1F3326)]),
+          gradient: const LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xFFFFFFFF), Color(0xFFF2F2F7)]),
           border: Border.all(color: const Color(0xFF2F4A39)),
         ),
         child: const Center(child: NotificationBell(color: Ob.cream)),

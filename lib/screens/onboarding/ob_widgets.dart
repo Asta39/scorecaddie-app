@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import 'ob_goo.dart';
 import 'ob_style.dart';
@@ -58,9 +57,9 @@ class BotImage extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 
 extension ObRise on Widget {
-  Widget rise([int step = 0]) => animate(delay: Duration(milliseconds: 60 * step))
-      .fadeIn(duration: 550.ms, curve: ObCurves.rise)
-      .moveY(begin: 18, end: 0, duration: 550.ms, curve: ObCurves.rise);
+  /// Content used to rise in on every visit. A utility app stays still:
+  /// screens appear complete, so this is now a no-op kept for call sites.
+  Widget rise([int step = 0]) => this;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
