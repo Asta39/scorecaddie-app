@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../core/theme/app_theme.dart';
 import 'voice_orb_visualizer.dart' show OrbState;
 
 /// The mic control for the voice screens: shows "talk" when idle and "send"
@@ -31,21 +30,18 @@ class VoiceMicButton extends StatelessWidget {
           height: 88,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
+            // Light theme: green when ready, dark when listening, grey when busy.
             color: listening
-                ? Colors.white
-                : Colors.white.withValues(alpha: busy ? 0.04 : 0.08),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: listening ? 0 : 0.14),
-            ),
+                ? const Color(0xFF1C1C1E)
+                : busy
+                ? const Color(0x1F767680)
+                : const Color(0xFF3F7D0F),
+            boxShadow: busy ? null : const [BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 8))],
           ),
           child: Icon(
             listening ? LucideIcons.arrowUp : LucideIcons.mic,
             size: 32,
-            color: listening
-                ? Colors.black
-                : busy
-                ? Colors.white24
-                : AppColors.golfLime,
+            color: busy ? const Color(0x663C3C43) : Colors.white,
           ),
         ),
       ),

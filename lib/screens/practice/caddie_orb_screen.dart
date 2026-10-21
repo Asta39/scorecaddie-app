@@ -1,13 +1,14 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../onboarding/ob_style.dart';
+import '../onboarding/ob_app.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/utils/audio_source_utils.dart';
 import '../../core/services/ai_caddie_service.dart';
 import '../../widgets/voice_orb_visualizer.dart';
@@ -157,237 +158,141 @@ class _CaddieOrbScreenState extends ConsumerState<CaddieOrbScreen> {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: Ob.overlay,
       child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            // Background iOS-style Dark Blur
-            Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0, -0.3),
-                  radius: 1.5,
-                  colors: [Color(0xFF0F1A0F), Color(0xFF050505), Colors.black],
-                ),
+        backgroundColor: Ob.bg,
+        body: DefaultTextStyle(
+          style: Ob.textBase,
+          child: Stack(
+            children: [
+              // Voice glow along the bottom edge, for both the player and Daniel.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 300,
+                child: IgnorePointer(child: VoiceBeam(state: _orbState, level: _audioLevel)),
               ),
-            ),
-
-            // Voice glow along the bottom edge, for both the player and Daniel.
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 360,
-              child: IgnorePointer(
-                child: VoiceBeam(state: _orbState, level: _audioLevel),
-              ),
-            ),
-
-            SafeArea(
-              child: Column(
-                children: [
-                  _buildIOSHeader(),
-                  const Spacer(),
-                  
-                  // THE ORB (Siri Style)
-                  GestureDetector(
-                    onTap: () {
-                      if (_orbState == OrbState.idle) {
-                        _startListening();
-                      } else if (_orbState == OrbState.listening) {
-                        _stopAndProcess();
-                      }
-                    },
-                    child: VoiceMicButton(state: _orbState),
-                  ),
-
-                  const SizedBox(height: 32),
-                  
-                  // IOS Style Status Text
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: Text(
-                      _statusText.toUpperCase(),
-                      key: ValueKey(_statusText),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
+              SafeArea(
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Row(children: [
+                        ObIconButton(icon: LucideIcons.chevronDown, label: 'Close', onPressed: () => Navigator.pop(context)),
+                        Expanded(child: Text('Daniel', textAlign: TextAlign.center, style: Ob.body(17, weight: FontWeight.w600))),
+                        _buildVoiceToggle(),
+                      ]),
+                    ),
+                    const Spacer(),
+                    Semantics(
+                      button: true,
+                      label: _orbState == OrbState.listening ? 'Stop and send' : 'Speak to Daniel',
+                      child: GestureDetector(
+                        onTap: () {
+                          if (_orbState == OrbState.idle) {
+                            _startListening();
+                          } else if (_orbState == OrbState.listening) {
+                            _stopAndProcess();
+                          }
+                        },
+                        child: VoiceMicButton(state: _orbState),
                       ),
                     ),
-                  ),
-
-                  const SizedBox(height: 48),
-
-                  if (_caddieFeedback != null && !_isProcessing) _buildDanielFeedbackCard(),
-
-                  const Spacer(),
-                  
-                  if (_orbState == OrbState.idle && _extractedShot != null) 
-                    _buildIOSActionArea(),
-
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 20),
+                    Text(_statusText, style: Ob.body(15, color: Ob.creamA(.6))),
+                    const SizedBox(height: 28),
+                    if (_caddieFeedback != null && !_isProcessing) _buildDanielFeedbackCard(),
+                    const Spacer(),
+                    if (_orbState == OrbState.idle && _extractedShot != null) _buildIOSActionArea(),
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildIOSHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(LucideIcons.chevronDown, color: Colors.white54, size: 28),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const Spacer(),
-          Text(
-            'DANIEL AI CADDIE',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.2),
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 3,
-            ),
-          ),
-          const Spacer(),
-          _buildVoiceToggle(),
-        ],
       ),
     );
   }
 
   Widget _buildVoiceToggle() {
-    return GestureDetector(
-      onTap: () {
-        setState(() => _voiceEnabled = !_voiceEnabled);
-        AICaddieService.setVoiceEnabled(_voiceEnabled);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: _voiceEnabled ? AppColors.golfLime.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: _voiceEnabled ? AppColors.golfLime.withValues(alpha: 0.3) : Colors.white12),
-        ),
-        child: Row(
-          children: [
-            Icon(_voiceEnabled ? LucideIcons.volume2 : LucideIcons.volumeX, size: 16, color: _voiceEnabled ? AppColors.golfLime : Colors.white38),
-            const SizedBox(width: 8),
-            Text(
-              _voiceEnabled ? 'VOICE ON' : 'TEXT ONLY',
-              style: TextStyle(
-                color: _voiceEnabled ? AppColors.golfLime : Colors.white38,
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
+    return Semantics(
+      button: true,
+      label: _voiceEnabled ? 'Daniel speaks out loud. Turn off' : 'Daniel replies in text. Turn voice on',
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _voiceEnabled = !_voiceEnabled);
+          AICaddieService.setVoiceEnabled(_voiceEnabled);
+        },
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(color: Ob.field, borderRadius: BorderRadius.circular(999)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(_voiceEnabled ? LucideIcons.volume2 : LucideIcons.volumeX, size: 16, color: _voiceEnabled ? Ob.lime : Ob.creamA(.6)),
+            const SizedBox(width: 6),
+            Text(_voiceEnabled ? 'Voice' : 'Text', style: Ob.body(14, weight: FontWeight.w600, color: _voiceEnabled ? Ob.lime : Ob.creamA(.6))),
+          ]),
         ),
       ),
     );
   }
 
   Widget _buildDanielFeedbackCard() {
+    final club = _extractedShot?['club']?.toString();
+    final dist = _extractedShot?['distance'];
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
+          child: Text(_caddieFeedback!, style: Ob.body(17, height: 1.4)),
         ),
-        child: Column(
-          children: [
-            Text(
-              '"$_caddieFeedback"',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                fontStyle: FontStyle.italic,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildMiniPill('CLUB', _extractedShot?['club']?.toString().toUpperCase() ?? '—'),
-                const SizedBox(width: 12),
-                _buildMiniPill('DIST', '${_extractedShot?['distance'] ?? '—'}Y'),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMiniPill(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 8, fontWeight: FontWeight.w900)),
-          const SizedBox(width: 6),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+        if (club != null || dist != null) ...[
+          const SizedBox(height: 12),
+          ObGroup(children: [
+            if (club != null) ObRow('Club', value: club),
+            if (dist != null) ObRow('Distance', value: '$dist yd'),
+          ]),
         ],
-      ),
+      ]),
     );
   }
 
   Widget _buildIOSActionArea() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Row(
-        children: [
-          Expanded(
-            child: CupertinoButton(
-              color: AppColors.golfLime,
-              borderRadius: BorderRadius.circular(20),
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              onPressed: () {
-                widget.onShotSaved(_extractedShot!);
-                setState(() {
-                  _extractedShot = null;
-                  _caddieFeedback = null;
-                });
-                HapticFeedback.mediumImpact();
-              },
-              child: const Text('Save Shot', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
-            ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(children: [
+        Expanded(
+          child: ObButton(
+            height: 54,
+            radius: 14,
+            onPressed: () {
+              widget.onShotSaved(_extractedShot!);
+              setState(() {
+                _extractedShot = null;
+                _caddieFeedback = null;
+              });
+              HapticFeedback.mediumImpact();
+            },
+            child: Text('Save shot', style: Ob.label(17)),
           ),
-          const SizedBox(width: 12),
-          CupertinoButton(
-            color: Colors.white.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(20),
-            padding: const EdgeInsets.all(20),
-            onPressed: () => setState(() {
-              _extractedShot = null;
-              _caddieFeedback = null;
-              _orbState = OrbState.idle;
-            }),
-            child: const Icon(LucideIcons.refreshCw, color: Colors.white, size: 20),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 10),
+        ObIconButton(
+          icon: LucideIcons.refreshCw,
+          label: 'Discard and try again',
+          size: 54,
+          onPressed: () => setState(() {
+            _extractedShot = null;
+            _caddieFeedback = null;
+            _orbState = OrbState.idle;
+          }),
+        ),
+      ]),
     );
   }
 }

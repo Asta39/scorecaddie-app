@@ -240,8 +240,8 @@ class _VoiceBeamPainter extends CustomPainter {
 
     // Screen rather than plus: overlapping lobes brighten without adding up
     // to flat white.
-    final bloom = Paint()..blendMode = BlendMode.screen;
-    final inner = Paint()..blendMode = BlendMode.screen;
+    final bloom = Paint()..blendMode = BlendMode.srcOver;
+    final inner = Paint()..blendMode = BlendMode.srcOver;
 
     for (var i = 0; i < _lobes.length; i++) {
       final lobe = _lobes[i];
@@ -300,7 +300,7 @@ class _VoiceBeamPainter extends CustomPainter {
     canvas.drawOval(
       Rect.fromCenter(center: coreCenter, width: coreW * 2, height: coreH * 2),
       Paint()
-        ..blendMode = BlendMode.screen
+        ..blendMode = BlendMode.srcOver
         ..shader = ui.Gradient.radial(
           coreCenter, 1,
           [Colors.white.withValues(alpha: coreAlpha), Colors.white.withValues(alpha: coreAlpha * 0.3), Colors.white.withValues(alpha: 0)],
@@ -347,7 +347,7 @@ class _VoiceBeamPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 6 * s
-        ..blendMode = BlendMode.plus
+        ..blendMode = BlendMode.srcOver
         ..shader = shader
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6 * s),
     );
@@ -357,7 +357,7 @@ class _VoiceBeamPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6 * s
         ..strokeCap = StrokeCap.round
-        ..blendMode = BlendMode.plus
+        ..blendMode = BlendMode.srcOver
         ..shader = shader,
     );
   }
