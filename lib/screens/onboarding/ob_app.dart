@@ -96,7 +96,7 @@ class ObGuideRow extends StatelessWidget {
             child: ObBubble(
               maxWidth: maxBubble,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Text(text, style: Ob.display(fontSize, color: Ob.ink, height: 1.15)),
+              child: Text(text, style: Ob.display(fontSize * .85, color: Ob.cream, height: 1.25).copyWith(fontWeight: FontWeight.w600)),
             ),
           ),
         ),
@@ -166,7 +166,7 @@ class ObCrest extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final asset = CourseLogoHelper.getLogoAssetPath(courseName);
-    final initial = Center(child: Text(courseName.isEmpty ? '?' : courseName[0].toUpperCase(), style: Ob.display(size * .45, color: Ob.ink)));
+    final initial = Center(child: Text(courseName.isEmpty ? '?' : courseName[0].toUpperCase(), style: Ob.display(size * .45, color: Ob.creamA(.7))));
     Widget img;
     if (logoUrl != null && logoUrl!.isNotEmpty) {
       img = Image.network(logoUrl!, fit: BoxFit.contain, errorBuilder: (_, _, _) => initial);
@@ -180,7 +180,7 @@ class ObCrest extends StatelessWidget {
       height: size,
       padding: EdgeInsets.all(size * .07),
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(radius)),
+      decoration: BoxDecoration(color: const Color(0xFFF2F2F7), borderRadius: BorderRadius.circular(radius), border: Border.all(color: Ob.hairline, width: .5)),
       child: img,
     );
   }

@@ -685,7 +685,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
             children: [
-              ObTabHeader('Profile', actions: [
+              ObTabHeader('You', actions: [
                 ObIconButton(icon: LucideIcons.qrCode, label: 'My friend code', onPressed: () => showMyFriendCode(context, ref)),
                 ObIconButton(icon: LucideIcons.settings, label: 'Settings', onPressed: () => context.push('/profile/settings')),
               ]).rise(),
@@ -829,7 +829,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
             children: [
-              ObTabHeader('Profile', actions: [
+              ObTabHeader('You', actions: [
                 if (provider != null)
                   ObIconButton(
                     icon: LucideIcons.share2,
