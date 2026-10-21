@@ -104,13 +104,17 @@ class ClubsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 10),
               ] else
-                for (final c in clubs) _ItemRow(item: c, onTap: () => _openItem(context, ref, accessory: false, existing: c), onDelete: () => _delete(ref, c.id)),
+                ObGroup(inset: 80, children: [for (final c in clubs) _ItemRow(item: c, onTap: () => _openItem(context, ref, accessory: false, existing: c), onDelete: () => _delete(ref, c.id))]),
+              const SizedBox(height: 10),
               if (!full)
                 _AddRow(icon: LucideIcons.camera, text: 'Add a club with a photo', onTap: () => _openItem(context, ref, accessory: false)),
               const SizedBox(height: 24),
               ObEyebrow('Accessories', trailing: Text('Not used for shots', style: Ob.body(12, color: Ob.creamA(.5)))),
               const SizedBox(height: 10),
-              for (final a in accessories) _ItemRow(item: a, onTap: () => _openItem(context, ref, accessory: true, existing: a), onDelete: () => _delete(ref, a.id)),
+              if (accessories.isNotEmpty) ...[
+                ObGroup(inset: 80, children: [for (final a in accessories) _ItemRow(item: a, onTap: () => _openItem(context, ref, accessory: true, existing: a), onDelete: () => _delete(ref, a.id))]),
+                const SizedBox(height: 10),
+              ],
               _AddRow(icon: LucideIcons.backpack, text: 'Add the bag, sticks, rangefinder…', onTap: () => _openItem(context, ref, accessory: true)),
               if (clubs.isNotEmpty || accessories.isNotEmpty) ...[
                 const SizedBox(height: 10),
@@ -209,7 +213,7 @@ class _ItemRow extends ConsumerWidget {
     ].whereType<String>().where((x) => x.isNotEmpty).join(' · ').ifBlank('Tap to add details and a photo');
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.zero,
       child: Dismissible(
         key: ValueKey(item.id),
         direction: DismissDirection.endToStart,
@@ -226,15 +230,15 @@ class _ItemRow extends ConsumerWidget {
           child: GestureDetector(
             onTap: onTap,
             child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(20), border: Border.all(color: Ob.creamA(.06))),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              color: Ob.cardFill,
               child: Row(children: [
                 Container(
-                  width: 54,
-                  height: 54,
+                  width: 52,
+                  height: 52,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFF2F2F7), Color(0xFFE5E5EA)]),
                   ),
                   child: _photoOr(item.photoUrl, fallback),
@@ -242,8 +246,8 @@ class _ItemRow extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(item.type, style: Ob.body(15, weight: FontWeight.w800)),
-                    Text(details, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(12, color: Ob.creamA(.55))),
+                    Text(item.type, style: Ob.body(17, weight: FontWeight.w400)),
+                    Text(details, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(13, color: Ob.creamA(.6))),
                   ]),
                 ),
                 if (!accessory)

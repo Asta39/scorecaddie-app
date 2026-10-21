@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/providers/club_feed_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -74,7 +75,7 @@ class _PlayerDashboardViewState extends ConsumerState<PlayerDashboardView> {
     final streak = ref.watch(streakProvider).valueOrNull;
     final upcoming = _upcomingTeeTimes(ref.watch(casualTeeTimeBookingsProvider).valueOrNull ?? const []);
 
-    final homeClub = profile?.homeCourseName;
+    final homeClub = ref.watch(homeClubNameProvider);
     final avg = ref.watch(averageScoreProvider).valueOrNull;
     final total = ref.watch(totalRoundsProvider).valueOrNull;
 

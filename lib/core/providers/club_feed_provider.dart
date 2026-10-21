@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../providers/auth_providers.dart';
 
 class ClubPost {
   final String id;
@@ -291,4 +292,15 @@ final activeClubMembersListProvider = FutureProvider.autoDispose<List<ClubMember
       .eq('club_id', activeClub.clubId);
 
   return (response as List).map((m) => ClubMember.fromJson(m)).toList();
+});
+
+/// The player's home club name for display. The approved home-club
+/// membership wins over the profile's own field, which older accounts never
+/// filled in (so You said "Not set" while Club showed Nyeri as home).
+final homeClubNameProvider = Provider<String?>((ref) {
+  final memberships = ref.watch(userClubMembershipsProvider).valueOrNull ?? const <UserClubMembership>[];
+  final home = memberships.where((m) => m.isHomeClub && m.status != 'pending').firstOrNull;
+  if (home != null && home.clubName.isNotEmpty) return home.clubName;
+  final name = ref.watch(userProfileProvider).valueOrNull?.homeCourseName;
+  return (name == null || name.isEmpty) ? null : name;
 });

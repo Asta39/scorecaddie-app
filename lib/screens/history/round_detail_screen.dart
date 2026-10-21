@@ -116,27 +116,17 @@ class RoundDetailScreen extends ConsumerWidget {
           ]),
         ]),
       ).rise(1),
-      const SizedBox(height: 12),
-      Row(children: [
-        _mini('Birdies+', birdies, Ob.lime),
-        _mini('Pars', pars, Ob.cream),
-        _mini('Bogeys', bogeys, const Color(0xFF2563EB)),
-        _mini('Worse', worse, Ob.warn),
+      const SizedBox(height: 22),
+      ObGroup(header: 'Round stats', children: [
+        ObRow('Birdies or better', value: '$birdies', valueColor: birdies > 0 ? Ob.lime : null),
+        ObRow('Pars', value: '$pars'),
+        ObRow('Bogeys', value: '$bogeys'),
+        ObRow('Double bogey or worse', value: '$worse', valueColor: worse > 0 ? Ob.warn : null),
+        if (putts > 0) ObRow('Putts', value: '$putts'),
+        if (fwTotal > 0) ObRow('Fairways hit', value: '$fwHit of $fwTotal'),
+        if (gir > 0 || putts > 0) ObRow('Greens in regulation', value: '$gir'),
+        if (penalties > 0) ObRow('Penalties', value: '$penalties', valueColor: Ob.warn),
       ]),
-      if (putts > 0 || fwTotal > 0) ...[
-        const SizedBox(height: 12),
-        ObSplitCards(
-          left: ObStat('Putts', putts > 0 ? '$putts' : '—'),
-          right: ObStat('Fairways', fwTotal > 0 ? '$fwHit/$fwTotal' : '—'),
-        ),
-      ],
-      if (gir > 0 || penalties > 0) ...[
-        const SizedBox(height: 10),
-        ObSplitCards(
-          left: ObStat('Greens hit', '$gir'),
-          right: ObStat('Penalties', '$penalties', valueColor: penalties > 0 ? Ob.warn : null),
-        ),
-      ],
       if (round.notes.isNotEmpty) ...[
         const SizedBox(height: 22),
         const ObEyebrow('Your notes'),
@@ -162,18 +152,6 @@ class RoundDetailScreen extends ConsumerWidget {
       ],
     ];
   }
-
-  Widget _mini(String label, int n, Color c) => Expanded(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(18)),
-          child: Column(children: [
-            Text('$n', style: Ob.display(22, color: c)),
-            Text(label, style: Ob.body(11, color: Ob.creamA(.55))),
-          ]),
-        ),
-      );
 
   Widget _nine(String label, List<HoleScore> holes) {
     final par = holes.fold(0, (a, s) => a + s.par);

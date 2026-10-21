@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../core/providers/club_feed_provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -703,7 +704,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     Text(profile?.name ?? 'Golfer', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.display(22, height: 1.15)),
                     const SizedBox(height: 2),
                     Text(
-                      [if (index != null) 'HI ${index.toStringAsFixed(1)}', profile?.homeCourseName ?? 'No home club yet'].join(' · '),
+                      [if (index != null) 'HI ${index.toStringAsFixed(1)}', ref.watch(homeClubNameProvider) ?? 'No home club yet'].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Ob.body(15, color: Ob.creamA(.6)),
@@ -723,7 +724,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const CoachingPanel(),
               const SizedBox(height: 22),
               ObGroup(inset: 60, children: [
-                ObRow('Home club', value: profile?.homeCourseName ?? 'Not set', leading: const ObRowIcon(LucideIcons.mapPin, Color(0xFF30B0C7)), onTap: _showCoursePicker),
+                ObRow('Home club', value: ref.watch(homeClubNameProvider) ?? 'Not set', leading: const ObRowIcon(LucideIcons.mapPin, Color(0xFF30B0C7)), onTap: _showCoursePicker),
                 ObRow('Settings', leading: const ObRowIcon(LucideIcons.settings, Color(0xFF8E8E93)), onTap: () => context.push('/profile/settings')),
                 ObRow('Help', leading: const ObRowIcon(LucideIcons.circleHelp, Color(0xFF0A84FF)), onTap: () => context.push('/help')),
               ]),

@@ -41,14 +41,13 @@ class TeeTimesScreen extends ConsumerWidget {
             onRefresh: () async => ref.invalidate(casualTeeTimeBookingsProvider),
             child: ListView(
               physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
               children: [
                 ObTopBar('My tee times', onBack: () => context.pop(), actions: [
                   ObIconButton(icon: LucideIcons.plus, label: 'Book a tee time', onPressed: () => context.push('/book-tee-time')),
                 ]),
                 const SizedBox(height: 18),
-                const ObEyebrow('Coming up'),
-                const SizedBox(height: 10),
+                Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 7), child: Text('COMING UP', style: Ob.eyebrow())),
                 if (async.isLoading && all.isEmpty)
                   const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
                 else if (async.hasError && all.isEmpty)
@@ -63,79 +62,32 @@ class TeeTimesScreen extends ConsumerWidget {
                     ]),
                   )
                 else
-                  for (final b in upcoming) Padding(padding: const EdgeInsets.only(bottom: 10), child: _Upcoming(booking: b).rise()),
+                  ObGroup(children: [
+                    for (final b in upcoming)
+                      ObRow(
+                        DateFormat('EEE d MMM · HH:mm').format(teeDateTime(b)),
+                        subtitle: b.courseName,
+                        value: b.paymentStatus.toUpperCase() == 'PAID' ? 'Paid' : 'Pay at shop',
+                      ),
+                  ]),
                 if (past.isNotEmpty) ...[
                   const SizedBox(height: 22),
-                  const ObEyebrow('Past and cancelled'),
-                  const SizedBox(height: 10),
-                  ObCard(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(children: [
-                      for (final (i, b) in past.indexed) ...[
-                        if (i > 0) const ObHair(),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Row(children: [
-                            Expanded(
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(
-                                  DateFormat('EEE d MMM · HH:mm').format(teeDateTime(b)),
-                                  style: Ob.body(14, weight: FontWeight.w700, color: b.status == 'CANCELLED' ? Ob.creamA(.45) : Ob.cream).copyWith(
-                                    decoration: b.status == 'CANCELLED' ? TextDecoration.lineThrough : null,
-                                  ),
-                                ),
-                                Text(b.courseName, style: Ob.body(12, color: Ob.creamA(.55))),
-                              ]),
-                            ),
-                            Text(
-                              b.status == 'CANCELLED' ? 'Cancelled' : 'Played',
-                              style: Ob.body(12, weight: FontWeight.w800, color: b.status == 'CANCELLED' ? Ob.warn : Ob.creamA(.55)),
-                            ),
-                          ]),
-                        ),
-                      ],
-                    ]),
-                  ),
+                  ObGroup(header: 'Past and cancelled', children: [
+                    for (final b in past)
+                      ObRow(
+                        DateFormat('EEE d MMM · HH:mm').format(teeDateTime(b)),
+                        subtitle: b.courseName,
+                        titleColor: b.status == 'CANCELLED' ? Ob.creamA(.45) : null,
+                        value: b.status == 'CANCELLED' ? 'Cancelled' : 'Played',
+                        valueColor: b.status == 'CANCELLED' ? Ob.warn : null,
+                      ),
+                  ]),
                 ],
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Upcoming extends StatelessWidget {
-  const _Upcoming({required this.booking});
-  final CasualTeeTimeBooking booking;
-
-  @override
-  Widget build(BuildContext context) {
-    final at = teeDateTime(booking);
-    return ObCard(
-      padding: const EdgeInsets.all(14),
-      child: Row(children: [
-        Container(
-          width: 56,
-          height: 62,
-          decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(16)),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(DateFormat('EEE').format(at).toUpperCase(), style: Ob.body(11, weight: FontWeight.w800, color: Ob.lime)),
-            Text('${at.day}', style: Ob.display(26, height: 1, color: Ob.lime)),
-          ]),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(DateFormat.Hm().format(at), style: Ob.display(22, height: 1)),
-            const SizedBox(height: 3),
-            Text(booking.courseName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(13, weight: FontWeight.w700)),
-            Text(booking.paymentStatus.toUpperCase() == 'PAID' ? 'Paid' : 'Pay at the pro shop', style: Ob.body(12, color: Ob.creamA(.55))),
-          ]),
-        ),
-        ObCrest(booking.courseName, size: 40),
-      ]),
     );
   }
 }
