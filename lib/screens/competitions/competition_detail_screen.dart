@@ -166,7 +166,13 @@ class _Overview extends ConsumerWidget {
           const SizedBox(height: 22),
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(c.posterUrl!, fit: BoxFit.fitWidth, errorBuilder: (_, _, _) => const SizedBox.shrink()),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: ColoredBox(
+                color: Ob.cardFill,
+                child: Center(child: Image.network(c.posterUrl!, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox.shrink())),
+              ),
+            ),
           ),
         ],
         const SizedBox(height: 22),
