@@ -15,7 +15,6 @@ import '../../widgets/top_notification.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
-import '../onboarding/ob_widgets.dart';
 
 enum _Tab { overview, sheet, results }
 
@@ -55,16 +54,10 @@ class _CompetitionDetailScreenState extends ConsumerState<CompetitionDetailScree
     } else if (c == null) {
       body = Padding(
         padding: const EdgeInsets.all(20),
-        child: ObCard(
-          padding: const EdgeInsets.all(18),
-          child: ObGuideRow(
-            botAsset: ObBot.ball.sleep,
-            botLabel: 'Your golf-ball avatar',
-            text: async.hasError ? 'Couldn\'t load this competition. Go back and try again.' : 'This competition isn\'t there any more.',
-            size: 72,
-            fontSize: 16,
+        child: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: ObGroup(children: [Padding(padding: const EdgeInsets.all(16), child: Text(async.hasError ? 'Couldn\'t load this competition. Go back and try again.' : 'This competition isn\'t there any more.', style: Ob.body(16, color: Ob.creamA(.6))))]),
           ),
-        ),
       );
     } else {
       body = switch (tab) {
@@ -127,28 +120,13 @@ class _Overview extends ConsumerWidget {
     final c = competition;
     final hi = ref.watch(userProfileProvider).valueOrNull?.handicap;
     final rules = c.rulesConfig;
-    final (String status, bool statusOn) = switch (c.status) {
+    final (String status, bool _) = switch (c.status) {
       'open_for_entry' => ('Open for entry', true),
       'in_progress' => ('Live now', true),
       'upcoming' => ('Coming up', false),
       'cancelled' => ('Cancelled', false),
       _ => ('Finished', false),
     };
-    final stats = <(String, String)>[
-      (c.entryFee > 0 ? _money(c) : 'Free', 'Entry'),
-      if (c.entryDeadline != null) (DateFormat('EEE d').format(c.entryDeadline!), 'Entries close'),
-      if (c.entryCount != null) ('${c.entryCount}', 'Entered'),
-    ];
-
-    Widget line(String k, String v) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: Text(k, style: Ob.body(14, color: Ob.creamA(.6)))),
-            const SizedBox(width: 12),
-            Flexible(child: Text(v, textAlign: TextAlign.right, style: Ob.body(14, weight: FontWeight.w800))),
-          ]),
-        );
-
     final lines = <(String, String)>[
       ('Format', c.formatLabel),
       ('Handicap allowance', '${_allowance(c)}%'),
@@ -157,115 +135,58 @@ class _Overview extends ConsumerWidget {
       if (c.endDate != null && !DateUtils.isSameDay(c.endDate, c.startDate)) ('Ends', DateFormat('EEE d MMM').format(c.endDate!)),
     ];
 
+    final ph = hi == null ? null : _playingHandicap(hi, c);
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
       children: [
-        Container(
-          clipBehavior: Clip.antiAlias,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(30), border: Border.all(color: Ob.lime.withValues(alpha: .2))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Wrap(spacing: 6, runSpacing: 6, children: [ObChip(status, on: statusOn), ObChip(c.formatLabel)]),
-            const SizedBox(height: 12),
-            Text(c.name, style: Ob.display(32, height: 1.05)),
-            const SizedBox(height: 6),
-            Text(
-              [DateFormat('EEEE d MMMM').format(c.startDate), if (c.startDate.hour != 0 || c.startDate.minute != 0) 'from ${DateFormat.Hm().format(c.startDate)}', if (c.clubName != null) c.clubName!].join(' · '),
-              style: Ob.body(14, color: Ob.creamA(.7)),
-            ),
-            const SizedBox(height: 14),
-            Row(children: [
-              for (final (i, s) in stats.indexed) ...[
-                if (i > 0) const SizedBox(width: 8),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(color: Ob.bg.withValues(alpha: .45), borderRadius: BorderRadius.circular(16)),
-                    child: Column(children: [
-                      FittedBox(child: Text(s.$1, style: Ob.display(20, height: 1))),
-                      const SizedBox(height: 2),
-                      Text(s.$2, style: Ob.body(11, color: Ob.creamA(.55))),
-                    ]),
-                  ),
-                ),
-              ],
-            ]),
-          ]),
-        ).rise(),
-        if (entry != null) ...[
-          const SizedBox(height: 12),
-          _EntryCard(entry: entry!, competition: c),
-        ],
+        Text(
+          [DateFormat('EEE d MMM').format(c.startDate), if (c.startDate.hour != 0 || c.startDate.minute != 0) 'from ${DateFormat.Hm().format(c.startDate)}', c.formatLabel, status].join(' · '),
+          style: Ob.body(15, color: Ob.creamA(.6)),
+        ),
+        const SizedBox(height: 14),
+        ObGroup(children: [
+          ObRow('Entry', value: c.entryFee > 0 ? _money(c) : 'Free'),
+          if (c.entryDeadline != null) ObRow('Entries close', value: DateFormat('EEE d MMM').format(c.entryDeadline!)),
+          if (c.entryCount != null) ObRow('Entered', value: '${c.entryCount}'),
+          if (entry != null)
+            ObRow(
+              entry!.isPending ? 'Your entry is waiting for the club' : 'You’re in',
+              titleColor: entry!.isPending ? Ob.warn : Ob.lime,
+              subtitle: [
+                if (entry!.teeColor != null) '${_cap(entry!.teeColor!)} tees',
+                if (entry!.flightName != null) '${entry!.flightName} flight',
+              ].join(' · ').ifEmpty(null),
+              value: entry!.playingHandicap == null ? null : 'HC ${entry!.playingHandicap!.round()}',
+            )
+          else if (ph != null && (c.isOpenForEntry || c.status == 'upcoming'))
+            ObRow('Your playing handicap', subtitle: '${_allowance(c)}% of $hi', value: '$ph'),
+        ]),
         if (c.posterUrl != null && c.posterUrl!.isNotEmpty) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 22),
           ClipRRect(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(12),
             child: Image.network(c.posterUrl!, fit: BoxFit.fitWidth, errorBuilder: (_, _, _) => const SizedBox.shrink()),
           ),
         ],
-        const SizedBox(height: 12),
-        ObCard(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(children: [
-            for (final (i, l) in lines.indexed) ...[if (i > 0) const ObHair(), line(l.$1, l.$2)],
-          ]),
-        ),
+        const SizedBox(height: 22),
+        ObGroup(header: 'Rules', children: [for (final l in lines) ObRow(l.$1, value: l.$2)]),
         if (c.description != null && c.description!.trim().isNotEmpty) ...[
-          const SizedBox(height: 12),
-          ObCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const ObEyebrow('About'),
-              const SizedBox(height: 8),
-              Text(c.description!.trim(), style: Ob.body(14, height: 1.55, color: Ob.creamA(.78))),
-            ]),
-          ),
-        ],
-        if (hi != null && entry == null && (c.isOpenForEntry || c.status == 'upcoming')) ...[
-          const SizedBox(height: 16),
-          ObGuideRow(
-            botAsset: ObBot.ball.idle,
-            botLabel: 'Your golf-ball avatar',
-            text: 'At ${_allowance(c)}% you\'d play off about ${_playingHandicap(hi, c)}.',
-            size: 80,
-            fontSize: 16,
-          ),
+          const SizedBox(height: 22),
+          ObGroup(header: 'About', children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(c.description!.trim(), style: Ob.body(16, height: 1.45)),
+            ),
+          ]),
         ],
       ],
     );
   }
 }
 
-class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.entry, required this.competition});
-  final CompetitionEntry entry;
-  final Competition competition;
-
-  @override
-  Widget build(BuildContext context) {
-    final pending = entry.isPending;
-    final color = pending ? Ob.warn : Ob.lime;
-    final details = [
-      if (entry.playingHandicap != null) 'Playing handicap ${entry.playingHandicap!.round()}',
-      if (entry.teeColor != null) '${_cap(entry.teeColor!)} tees',
-      if (entry.flightName != null) '${entry.flightName} flight',
-    ].join(' · ');
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(22), border: Border.all(color: color, width: 1.5)),
-      child: Row(children: [
-        Icon(pending ? LucideIcons.clock : LucideIcons.checkCircle2, color: color),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(pending ? 'Entry waiting for the club' : 'You\'re in', style: Ob.body(15, weight: FontWeight.w800)),
-            if (details.isNotEmpty) Text(details, style: Ob.body(12, color: Ob.creamA(.6))),
-          ]),
-        ),
-      ]),
-    );
-  }
+extension on String {
+  String? ifEmpty(String? other) => isEmpty ? other : this;
 }
 
 String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
@@ -335,16 +256,10 @@ class _StartSheet extends ConsumerWidget {
           if (async.isLoading && rows.isEmpty)
             const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
           else if (rows.isEmpty)
-            ObCard(
-              padding: const EdgeInsets.all(18),
-              child: ObGuideRow(
-                botAsset: ObBot.ball.sleep,
-                botLabel: 'Your golf-ball avatar',
-                text: async.hasError ? 'Couldn\'t load the start sheet. Pull down to try again.' : 'The start sheet isn\'t out yet. The club publishes it before the day.',
-                size: 72,
-                fontSize: 16,
-              ),
-            )
+            Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: ObGroup(children: [Padding(padding: const EdgeInsets.all(16), child: Text(async.hasError ? 'Couldn\'t load the start sheet. Pull down to try again.' : 'The start sheet isn\'t out yet. The club publishes it before the day.', style: Ob.body(16, color: Ob.creamA(.6))))]),
+          )
           else ...[
             Row(children: [
               Expanded(child: Text(DateFormat('EEE d MMM').format(c.startDate), style: Ob.body(14, weight: FontWeight.w700, color: Ob.creamA(.7)))),
@@ -398,8 +313,8 @@ class _Group extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
       decoration: BoxDecoration(
         color: Ob.cardFill,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: mine ? Ob.lime : Ob.creamA(.06), width: mine ? 1.5 : 1),
+        borderRadius: BorderRadius.circular(12),
+        border: mine ? Border.all(color: Ob.lime, width: 1.5) : null,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -585,20 +500,14 @@ class _ResultsState extends ConsumerState<_Results> {
           if (async.isLoading && all.isEmpty)
             const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
           else if (all.isEmpty)
-            ObCard(
-              padding: const EdgeInsets.all(18),
-              child: ObGuideRow(
-                botAsset: ObBot.star.idle,
-                botLabel: 'Star avatar',
-                text: async.hasError
+            Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: ObGroup(children: [Padding(padding: const EdgeInsets.all(16), child: Text(async.hasError
                     ? 'Couldn\'t load the results. Pull down to try again.'
                     : c.isInProgress
                         ? 'No cards in yet. Scores show here as players hand them in.'
-                        : 'Results appear once play starts.',
-                size: 72,
-                fontSize: 16,
-              ),
-            )
+                        : 'Results appear once play starts.', style: Ob.body(16, color: Ob.creamA(.6))))]),
+          )
           else ...[
             Text(
               [if (c.isInProgress) 'Live', '$certified of ${all.length} cards certified', if (points) 'Stableford points'].join(' · '),
@@ -637,7 +546,8 @@ class _ResultsState extends ConsumerState<_Results> {
             ],
             const SizedBox(height: 12),
             ObCard(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              radius: 12,
+              padding: EdgeInsets.zero,
               child: Column(children: [
                 for (final (i, r) in rows.indexed) ...[
                   if (i > 0) const ObHair(),
@@ -758,7 +668,7 @@ class _CompetitionEntrySheetState extends ConsumerState<CompetitionEntrySheet> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Container(
               padding: const EdgeInsets.fromLTRB(18, 12, 10, 12),
-              decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(22), border: Border.all(color: Ob.lime.withValues(alpha: .2))),
+              decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(12)),
               child: Row(children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

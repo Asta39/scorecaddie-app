@@ -36,13 +36,9 @@ class CompetitionsListScreen extends ConsumerWidget {
     final loading = clubIdAsync.isLoading || (compsAsync?.isLoading ?? false) && comps.isEmpty;
     final error = clubIdAsync.hasError || (compsAsync?.hasError ?? false) && comps.isEmpty;
 
-    Widget section(Widget eyebrow, List<Competition> list) => Padding(
+    Widget section(String title, List<Competition> list) => Padding(
           padding: const EdgeInsets.only(top: 22),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            eyebrow,
-            const SizedBox(height: 10),
-            for (final (i, c) in list.indexed) Padding(padding: const EdgeInsets.only(bottom: 10), child: CompetitionRow(competition: c).rise(i)),
-          ]),
+          child: ObGroup(header: title, children: [for (final c in list) CompetitionRow(competition: c)]),
         );
 
     return Scaffold(
@@ -59,7 +55,7 @@ class CompetitionsListScreen extends ConsumerWidget {
             },
             child: ListView(
               physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 140),
               children: [
                 ObTopBar('Competitions', onBack: context.canPop() ? () => context.pop() : null),
                 if (profile?.homeCourseName != null) ...[
@@ -79,18 +75,10 @@ class CompetitionsListScreen extends ConsumerWidget {
                 else if (comps.isEmpty)
                   _Note(bot: ObBot.ball.sleep, text: 'No competitions yet. When your club posts one, it shows up here.')
                 else ...[
-                  if (live.isNotEmpty)
-                    section(
-                      Row(children: [
-                        const _Ping(),
-                        const SizedBox(width: 8),
-                        Text('LIVE NOW', style: Ob.eyebrow()),
-                      ]),
-                      live,
-                    ),
-                  if (open.isNotEmpty) section(const ObEyebrow('Open for entry'), open),
-                  if (soon.isNotEmpty) section(const ObEyebrow('Coming up'), soon),
-                  if (past.isNotEmpty) section(const ObEyebrow('Finished'), past),
+                  if (live.isNotEmpty) section('Live now', live),
+                  if (open.isNotEmpty) section('Open for entry', open),
+                  if (soon.isNotEmpty) section('Coming up', soon),
+                  if (past.isNotEmpty) section('Finished', past),
                 ],
               ],
             ),
@@ -159,10 +147,10 @@ class CompetitionRow extends ConsumerWidget {
 
     final (String tag, Color tagColor) = switch (c.status) {
       'in_progress' => ('Live', Ob.lime),
-      'open_for_entry' => entered ? ('Entered', Ob.lime) : ('Enter', Ob.cream),
-      'upcoming' => entered ? ('Entered', Ob.lime) : ('Soon', Ob.creamA(.5)),
+      'open_for_entry' => entered ? ('Entered', Ob.creamA(.6)) : ('Enter', Ob.lime),
+      'upcoming' => entered ? ('Entered', Ob.creamA(.6)) : ('Soon', Ob.creamA(.6)),
       'cancelled' => ('Cancelled', Ob.warn),
-      _ => ('Results', Ob.creamA(.5)),
+      _ => ('Results', Ob.creamA(.6)),
     };
 
     final meta = [
@@ -176,31 +164,31 @@ class CompetitionRow extends ConsumerWidget {
     return Semantics(
       button: true,
       label: '${c.name}, $tag',
-      child: GestureDetector(
+      child: InkWell(
         onTap: () => context.push('/competitions/${c.id}'),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
-          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(24), border: Border.all(color: Ob.creamA(.06))),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
           child: Row(children: [
             Container(
-              width: 54,
-              height: 60,
-              decoration: BoxDecoration(color: live ? Ob.lime : Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(16)),
+              width: 44,
+              height: 48,
+              decoration: BoxDecoration(color: live ? Ob.lime : Ob.field, borderRadius: BorderRadius.circular(10)),
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(DateFormat('MMM').format(c.startDate).toUpperCase(), style: Ob.body(11, weight: FontWeight.w800, color: live ? Ob.ink : Ob.lime)),
-                Text('${c.startDate.day}', style: Ob.display(25, height: 1, color: live ? Ob.ink : Ob.lime)),
+                Text(DateFormat('MMM').format(c.startDate).toUpperCase(), style: Ob.body(10, weight: FontWeight.w700, color: live ? Ob.ink : Ob.lime)),
+                Text('${c.startDate.day}', style: Ob.display(19, height: 1.05, color: live ? Ob.ink : Ob.cream)),
               ]),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(c.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w800)),
-                const SizedBox(height: 3),
-                Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(12, color: Ob.creamA(.58))),
+                Text(c.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.body(17, weight: FontWeight.w400)),
+                Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(13, color: Ob.creamA(.6))),
               ]),
             ),
             const SizedBox(width: 8),
-            Text(tag, style: Ob.body(12, weight: FontWeight.w800, color: tagColor)),
+            Text(tag, style: Ob.body(15, weight: FontWeight.w500, color: tagColor)),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, size: 22, color: Ob.creamA(.3)),
           ]),
         ),
       ),
