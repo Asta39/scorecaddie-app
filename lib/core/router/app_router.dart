@@ -228,6 +228,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Practice and caddies left the tab bar (five tabs, per the HIG); they
       // open as pages from Play and Club.
       GoRoute(
+        path: '/leaderboard',
+        builder: (context, state) => const LeaderboardScreen(),
+      ),
+      GoRoute(
+        path: '/competitions-list',
+        builder: (context, state) => const CompetitionsListScreen(),
+      ),
+      GoRoute(
         path: '/range',
         builder: (context, state) => const PracticeRangeScreen(),
       ),
@@ -253,12 +261,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/analytics',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: AnalyticsScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/leaderboard',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: LeaderboardScreen(),
             ),
           ),
           GoRoute(

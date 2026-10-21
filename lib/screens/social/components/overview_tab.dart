@@ -12,7 +12,6 @@ import '../../../widgets/post_card.dart';
 import '../../../widgets/top_notification.dart';
 import '../../onboarding/ob_app.dart';
 import '../../onboarding/ob_style.dart';
-import '../../onboarding/ob_widgets.dart';
 
 /// Club → Overview: your membership, the club at a glance, what's coming up,
 /// the restaurant, the latest result and news, and your other clubs.
@@ -39,78 +38,50 @@ class ClubOverviewTab extends ConsumerWidget {
         final latestResult = posts.where((p) => p.postType == 'result').firstOrNull;
         final latestNews = posts.where((p) => p.postType != 'competition' && p.postType != 'result').firstOrNull;
 
+        final next = upcoming.firstOrNull;
+        final open = comps.where((c) => c.status == 'open_for_entry').length;
         return ListView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 120),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
           children: [
             if (activeClub == null)
-              ObCard(child: Text('You haven’t joined a club yet. Find yours below.', style: Ob.body(14, color: Ob.creamA(.7))))
-            else ...[
-              if (activeClub.status == 'pending') ...[
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: Ob.warn.withValues(alpha: .1), borderRadius: BorderRadius.circular(18), border: Border.all(color: Ob.warn.withValues(alpha: .4))),
-                  child: Row(children: [
-                    const Icon(LucideIcons.clock, size: 18, color: Ob.warn),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text('Your membership is waiting for the club to approve it.', style: Ob.body(14, weight: FontWeight.w700))),
-                  ]),
+              ObGroup(children: [ObRow('No club yet', subtitle: 'Find yours below and ask to join')])
+            else if (activeClub.status == 'pending')
+              ObGroup(children: [ObRow('Waiting for the club', subtitle: 'Your membership needs the club’s approval', leading: const ObRowIcon(LucideIcons.clock, Color(0xFFFF9F0A)))]),
+            if (next != null) ...[
+              const SizedBox(height: 4),
+              Semantics(
+                button: true,
+                child: GestureDetector(
+                  onTap: () => context.push('/competitions/${next.id}'),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Next at the club', style: Ob.body(13, weight: FontWeight.w600, color: Ob.creamA(.6))),
+                      const SizedBox(height: 4),
+                      Text(next.name, style: Ob.display(22, height: 1.2)),
+                      const SizedBox(height: 2),
+                      Text('${DateFormat('EEE d MMM').format(next.startDate)} · ${next.formatLabel} · ${next.statusLabel}', style: Ob.body(15, color: Ob.creamA(.6))),
+                    ]),
+                  ),
                 ),
-                const SizedBox(height: 12),
-              ],
-              _MembershipCard(club: activeClub),
+              ),
             ],
-            const SizedBox(height: 16),
-            ObSplitCards(
-              left: ObStat('Members', activeMembers > 0 ? '$activeMembers' : '—'),
-              right: ObStat('Coming up', '${upcoming.length}'),
-            ),
-            const SizedBox(height: 24),
-            const ObEyebrow('Upcoming events'),
-            const SizedBox(height: 12),
-            if (upcoming.isEmpty)
-              ObCard(child: Text('No events on the calendar yet.', style: Ob.body(14, color: Ob.creamA(.62))))
-            else
-              for (final c in upcoming.take(3)) Padding(padding: const EdgeInsets.only(bottom: 10), child: _EventRow(comp: c)),
-            const SizedBox(height: 14),
-            ObCard(
-              onTap: () => context.push('/pros'),
-              child: Row(children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(color: const Color(0xFF30B0C7).withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(LucideIcons.users, size: 20, color: Color(0xFF1C8DA3)),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Caddies and coaches', style: Ob.body(15, weight: FontWeight.w700)),
-                    Text('Find, call or book a pro', style: Ob.body(12, color: Ob.creamA(.58))),
-                  ]),
-                ),
-                Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
+            const SizedBox(height: 22),
+            ObGroup(header: 'At the club', inset: 60, children: [
+              ObRow('Competitions', subtitle: open > 0 ? '$open open for entry' : '${upcoming.length} coming up', leading: const ObRowIcon(LucideIcons.trophy, Color(0xFFFF375F)), onTap: () => context.push('/competitions-list')),
+              ObRow('Caddies and coaches', subtitle: 'Find, call or book a pro', leading: const ObRowIcon(LucideIcons.users, Color(0xFF30B0C7)), onTap: () => context.push('/pros')),
+              ObRow('Restaurant', subtitle: 'Menu and table bookings', leading: const ObRowIcon(LucideIcons.utensils, Color(0xFFFF9F0A)), onTap: () => context.push('/restaurant')),
+              ObRow('Leaderboard', subtitle: 'Club, friends and Kenya', leading: const ObRowIcon(LucideIcons.chartColumn, Color(0xFF5E5CE6)), onTap: () => context.push('/leaderboard')),
+              ObRow('Members', value: activeMembers > 0 ? '$activeMembers' : '—', leading: const ObRowIcon(LucideIcons.contact, Color(0xFF8E8E93))),
+            ]),
+            if (upcoming.isNotEmpty) ...[
+              const SizedBox(height: 22),
+              ObGroup(header: 'Upcoming events', children: [
+                for (final c in upcoming.take(4))
+                  ObRow(c.name, subtitle: '${DateFormat('EEE d MMM').format(c.startDate)} · ${c.formatLabel}', value: c.status == 'open_for_entry' ? 'Enter' : null, valueColor: Ob.lime, onTap: () => context.push('/competitions/${c.id}')),
               ]),
-            ),
-            const SizedBox(height: 10),
-            ObCard(
-              onTap: () => context.push('/restaurant'),
-              child: Row(children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(color: Ob.warn.withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(LucideIcons.utensils, size: 20, color: Ob.warn),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Clubhouse restaurant', style: Ob.body(15, weight: FontWeight.w700)),
-                    Text('Browse the menu or book a table', style: Ob.body(12, color: Ob.creamA(.58))),
-                  ]),
-                ),
-                Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
-              ]),
-            ),
+            ],
             const SizedBox(height: 24),
             const ObEyebrow('Latest result'),
             const SizedBox(height: 12),
@@ -163,7 +134,7 @@ class ClubOverviewTab extends ConsumerWidget {
           child: Consumer(builder: (context, ref, _) {
             final available = ref.watch(availableClubsProvider);
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Center(child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .18), borderRadius: BorderRadius.circular(3)))),
+              Center(child: Container(width: 40, height: 5, decoration: BoxDecoration(color: const Color(0x4D3C3C43), borderRadius: BorderRadius.circular(3)))),
               const SizedBox(height: 16),
               Text('Join a club', style: Ob.display(26)),
               const SizedBox(height: 4),
@@ -231,79 +202,6 @@ class ClubOverviewTab extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _MembershipCard extends StatelessWidget {
-  const _MembershipCard({required this.club});
-  final UserClubMembership club;
-
-  @override
-  Widget build(BuildContext context) {
-    final details = [
-      if (club.membershipNumber != null && club.membershipNumber!.isNotEmpty) 'No. ${club.membershipNumber}',
-      if (club.renewalDate != null) 'Renews ${DateFormat('MMM yyyy').format(club.renewalDate!)}',
-    ];
-    return ObHeroCard(
-      edge: club.isHomeClub ? null : const Color(0x33FFFFFF),
-      child: Row(children: [
-        ObCrest(club.clubName, size: 60, radius: 18),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(club.isHomeClub ? 'HOME CLUB' : 'GUEST MEMBER', style: Ob.eyebrow()),
-            const SizedBox(height: 2),
-            Text(club.clubName, style: Ob.display(22, height: 1.1)),
-            if (details.isNotEmpty) ...[const SizedBox(height: 4), Text(details.join(' · '), style: Ob.body(12, color: Ob.creamA(.6)))],
-          ]),
-        ),
-        if (club.status == 'pending') const ObChip('Pending', on: true, color: Ob.warn),
-      ]),
-    );
-  }
-}
-
-class _EventRow extends StatelessWidget {
-  const _EventRow({required this.comp});
-  final Competition comp;
-
-  @override
-  Widget build(BuildContext context) {
-    final live = comp.status == 'in_progress';
-    return ObCard(
-      padding: const EdgeInsets.all(14),
-      onTap: () => context.push('/competitions/${comp.id}'),
-      child: Row(children: [
-        Container(
-          width: 52,
-          height: 58,
-          decoration: BoxDecoration(color: live ? Ob.lime : Ob.lime.withValues(alpha: .12), borderRadius: BorderRadius.circular(16)),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(DateFormat('MMM').format(comp.startDate).toUpperCase(), style: Ob.label(11, weight: FontWeight.w800).copyWith(color: live ? Ob.ink : Ob.lime)),
-            Text('${comp.startDate.day}', style: Ob.display(26, height: 1, color: live ? Ob.ink : Ob.lime)),
-          ]),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(comp.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700)),
-            const SizedBox(height: 2),
-            Text(live ? 'Live now' : _format(comp.competitionType), style: Ob.body(12, color: live ? Ob.lime : Ob.creamA(.58))),
-          ]),
-        ),
-        Text(live ? 'Leaderboard' : comp.status == 'open_for_entry' ? 'Enter' : 'View', style: Ob.label(13, weight: FontWeight.w800).copyWith(color: Ob.lime)),
-      ]),
-    );
-  }
-
-  static String _format(String t) => switch (t) {
-        'strokeplay' => 'Stroke play',
-        'stableford' => 'Stableford',
-        'matchplay' => 'Match play',
-        'betterball' => 'Better ball',
-        'foursome' => 'Foursomes',
-        'bogey' => 'Bogey competition',
-        _ => t,
-      };
 }
 
 class _OtherClubCard extends ConsumerWidget {

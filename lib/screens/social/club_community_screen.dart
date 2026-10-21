@@ -34,22 +34,18 @@ class _ClubCommunityScreenState extends ConsumerState<ClubCommunityScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Row(children: [
-                ObCrest(activeClub?.clubName ?? '?', size: 56, radius: 16),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(activeClub?.isHomeClub == false ? 'GUEST CLUB' : 'HOME CLUB', style: Ob.eyebrow()),
-                    const SizedBox(height: 2),
-                    Text(activeClub?.clubName ?? 'Your club', maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.display(25, height: 1.05)),
-                  ]),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                ObTabHeader('Club', actions: [ObIconButton(icon: LucideIcons.repeat, label: 'Switch club', onPressed: _showSwitcher)]),
+                const SizedBox(height: 2),
+                Text(
+                  [activeClub?.clubName ?? 'No club yet', if (activeClub != null) (activeClub.isHomeClub ? 'Home club' : 'Guest')].join(' · '),
+                  style: Ob.body(15, color: Ob.creamA(.6)),
                 ),
-                ObIconButton(icon: LucideIcons.repeat, label: 'Switch club', onPressed: _showSwitcher),
               ]),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
               child: ObGooSegmented<String>(
                 options: const [('overview', 'Overview'), ('feed', 'Feed'), ('events', 'Events'), ('members', 'Members')],
                 selected: _tab,
