@@ -73,6 +73,26 @@ class ClubOverviewTab extends ConsumerWidget {
               for (final c in upcoming.take(3)) Padding(padding: const EdgeInsets.only(bottom: 10), child: _EventRow(comp: c)),
             const SizedBox(height: 14),
             ObCard(
+              onTap: () => context.push('/pros'),
+              child: Row(children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: const Color(0xFF30B0C7).withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
+                  child: const Icon(LucideIcons.users, size: 20, color: Color(0xFF1C8DA3)),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Caddies and coaches', style: Ob.body(15, weight: FontWeight.w700)),
+                    Text('Find, call or book a pro', style: Ob.body(12, color: Ob.creamA(.58))),
+                  ]),
+                ),
+                Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
+              ]),
+            ),
+            const SizedBox(height: 10),
+            ObCard(
               onTap: () => context.push('/restaurant'),
               child: Row(children: [
                 Container(

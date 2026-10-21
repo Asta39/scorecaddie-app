@@ -19,6 +19,7 @@ import '../../screens/scanner/scanner_review_screen.dart';
 import '../../screens/history/round_detail_screen.dart';
 import '../../screens/analytics/analytics_screen.dart';
 import '../../screens/practice/practice_range_screen.dart';
+import '../../screens/play/play_screen.dart';
 import '../../screens/practice/practice_session_screen.dart';
 import '../../screens/practice/session_summary_screen.dart';
 import '../../screens/practice/practice_analytics_screen.dart';
@@ -224,6 +225,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/restaurant',
         builder: (context, state) => const RestaurantScreen(),
       ),
+      // Practice and caddies left the tab bar (five tabs, per the HIG); they
+      // open as pages from Play and Club.
+      GoRoute(
+        path: '/range',
+        builder: (context, state) => const PracticeRangeScreen(),
+      ),
+      GoRoute(
+        path: '/pros',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return CaddieMarketplaceScreen(initialRole: extra?['role'] as String? ?? 'all');
+        },
+      ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
@@ -232,20 +246,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const DashboardScreen(),
           ),
           GoRoute(
-            path: '/caddie',
-            pageBuilder: (context, state) {
-              final extra = state.extra as Map<String, dynamic>?;
-              final role = extra?['role'] as String? ?? 'all';
-              return NoTransitionPage(
-                child: CaddieMarketplaceScreen(initialRole: role),
-              );
-            },
-          ),
-          GoRoute(
-            path: '/practice',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: PracticeRangeScreen(),
-            ),
+            path: '/play',
+            pageBuilder: (context, state) => const NoTransitionPage(child: PlayScreen()),
           ),
           GoRoute(
             path: '/analytics',

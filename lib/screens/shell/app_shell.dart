@@ -28,6 +28,7 @@ import '../provider/coach_students_screen.dart';
 import '../provider/coach_drills_screen.dart';
 import '../provider/coach_payment_management_screen.dart';
 import '../social/club_community_screen.dart';
+import '../play/play_screen.dart';
 
 /// Main app shell with frosted glass bottom navigation bar and swipe navigation.
 class AppShell extends ConsumerStatefulWidget {
@@ -36,12 +37,11 @@ class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
 
   static const _playerTabs = [
-    ('/', 'Home', LucideIcons.home),
-    ('/practice', 'Practice', LucideIcons.target),
-    ('/analytics', 'Stats', LucideIcons.barChart2),
+    ('/', 'Today', LucideIcons.house),
+    ('/play', 'Play', LucideIcons.flag),
+    ('/analytics', 'Stats', LucideIcons.chartColumn),
     ('/competitions', 'Club', LucideIcons.users),
-    ('/caddie', 'Caddie', LucideIcons.briefcase),
-    ('/profile', 'Profile', LucideIcons.user),
+    ('/profile', 'You', LucideIcons.circleUserRound),
   ];
 
   static const _coachTabs = [
@@ -58,7 +58,7 @@ class AppShell extends ConsumerStatefulWidget {
     if (role == 'coach') {
       return const [DashboardScreen(), CoachSessionsScreen(), CoachStudentsScreen(), CoachDrillsScreen(), CoachPaymentManagementScreen(), ProfileScreen()];
     } else {
-      return const [DashboardScreen(), PracticeRangeScreen(), AnalyticsScreen(), ClubCommunityScreen(), CaddieMarketplaceScreen(), ProfileScreen()];
+      return const [DashboardScreen(), PlayScreen(), AnalyticsScreen(), ClubCommunityScreen(), ProfileScreen()];
     }
   }
 

@@ -25,7 +25,7 @@ class SessionSummaryScreen extends ConsumerWidget {
         title: const Text('Session Summary', style: TextStyle(fontWeight: FontWeight.bold)),
         leading: IconButton(
           icon: const Icon(LucideIcons.x),
-          onPressed: () => context.go('/practice'),
+          onPressed: () => context.go('/play'),
         ),
       ),
       body: FutureBuilder<Map<String, dynamic>>(

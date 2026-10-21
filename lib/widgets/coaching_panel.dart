@@ -377,7 +377,7 @@ class _CoachingPanelState extends ConsumerState<CoachingPanel> with SingleTicker
     return InkWell(
       onTap: () {
         ref.read(marketplaceRoleFilterProvider.notifier).state = 'coach';
-        context.go('/caddie', extra: {'role': 'coach'});
+        context.push('/pros', extra: {'role': 'coach'});
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
@@ -469,7 +469,7 @@ class _EmptyState extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           onPressed: () {
             ref.read(marketplaceRoleFilterProvider.notifier).state = 'coach';
-            context.go('/caddie', extra: {'role': 'coach'});
+            context.push('/pros', extra: {'role': 'coach'});
           },
           child: Text('Find', style: Ob.label(14, weight: FontWeight.w800)),
         ),

@@ -56,7 +56,7 @@ class _PracticeAnalyticsScreenState extends ConsumerState<PracticeAnalyticsScree
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     ObGuideRow(botAsset: ObBot.clover.idle, botLabel: 'Daniel the clover', text: 'Hit a practice session and I\'ll start charting it.', size: 76, fontSize: 16),
                     const SizedBox(height: 14),
-                    ObButton(onPressed: () => context.go('/practice'), child: Text('Go practise', style: Ob.label(15, weight: FontWeight.w800))),
+                    ObButton(onPressed: () => context.push('/range'), child: Text('Go practise', style: Ob.label(15, weight: FontWeight.w800))),
                   ]),
                 )
               else

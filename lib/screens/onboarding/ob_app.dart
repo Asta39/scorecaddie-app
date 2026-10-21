@@ -117,6 +117,12 @@ class ObTabHeader extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 48),
       child: Row(
         children: [
+          // Tab screens can also open as pages (Range, Caddies); give those a way back.
+          if (ModalRoute.of(context)?.canPop ?? false)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: ObIconButton(icon: Icons.chevron_left_rounded, label: 'Back', onPressed: () => Navigator.of(context).maybePop()),
+            ),
           Expanded(child: Semantics(header: true, child: Text(title, style: Ob.display(34, height: 1.05)))),
           for (final a in actions) Padding(padding: const EdgeInsets.only(left: 10), child: a),
         ],

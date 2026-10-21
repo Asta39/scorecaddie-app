@@ -119,7 +119,7 @@ class _BubblePainter extends GooPainter {
 
   @override
   void paintShapes(Canvas c, Size s) {
-    final p = Paint()..color = Ob.cream;
+    final p = Paint()..color = Colors.white;
     // Body grows from its bottom-left corner, from 6% × 12% to full size.
     final g = grow.value;
     final sx = .06 + (1 - .06) * g, sy = .12 + (1 - .12) * g;
@@ -260,7 +260,7 @@ class _ObGuideState extends State<ObGuide> with SingleTickerProviderStateMixin {
                 child: ObBubble(
                   key: ValueKey(widget.text),
                   maxWidth: 230,
-                  child: Text(widget.text, style: Ob.display(23, color: Ob.ink, height: 1.15)),
+                  child: Text(widget.text, style: Ob.display(19, color: Ob.cream, height: 1.25).copyWith(fontWeight: FontWeight.w600)),
                 ),
               ),
             ),
