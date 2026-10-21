@@ -16,7 +16,7 @@ import 'ob_style.dart';
 enum ObBot {
   clover('clover', Ob.lime, 'Daniel the clover'),
   ball('ball', Color(0xFFF2F5EE), 'your golf-ball avatar'),
-  star('star', Color(0xFFF5C531), 'your star coach avatar');
+  star('star', Color(0xFFB7791F), 'your star coach avatar');
 
   const ObBot(this.file, this.color, this.label);
   final String file;

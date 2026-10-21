@@ -105,7 +105,7 @@ class _SessionCard extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           booked ? 'You\'re booked in' : (left == 0 ? 'Full' : '$left ${left == 1 ? 'place' : 'places'} left'),
-          style: Ob.body(12, weight: FontWeight.w700, color: booked ? Ob.lime : (left == 0 ? Ob.warn : (left <= 2 ? const Color(0xFFF5C531) : Ob.creamA(.7)))),
+          style: Ob.body(12, weight: FontWeight.w700, color: booked ? Ob.lime : (left == 0 ? Ob.warn : (left <= 2 ? const Color(0xFFB7791F) : Ob.creamA(.7)))),
         ),
       ]),
     );

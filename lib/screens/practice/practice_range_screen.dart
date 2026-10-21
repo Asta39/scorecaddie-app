@@ -120,7 +120,7 @@ class PracticeRangeScreen extends ConsumerWidget {
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
           children: [
-            ObTabHeader('Practice', actions: [
+            ObTabHeader('Range', actions: [
               ObIconButton(icon: LucideIcons.chartColumn, label: 'Practice stats', onPressed: () => context.push('/practice/analytics')),
               ObIconButton(icon: LucideIcons.plus, label: 'Build a drill', onPressed: () => context.push('/practice/drills/new')),
             ]).rise(),

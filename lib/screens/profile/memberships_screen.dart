@@ -92,7 +92,7 @@ class _MembershipsScreenState extends ConsumerState<MembershipsScreen> {
                             ),
                           ]),
                         ),
-                        ObChip(home.status == 'active' ? 'Member' : 'Pending', on: true, color: home.status == 'active' ? Ob.lime : const Color(0xFFF5C531)),
+                        ObChip(home.status == 'active' ? 'Member' : 'Pending', on: true, color: home.status == 'active' ? Ob.lime : const Color(0xFFB7791F)),
                       ]),
                     ),
                   if (others.isNotEmpty) ...[
@@ -109,7 +109,7 @@ class _MembershipsScreenState extends ConsumerState<MembershipsScreen> {
                             const SizedBox(width: 12),
                             Expanded(child: Text(m.clubName, style: Ob.body(15, weight: FontWeight.w800))),
                             Text(m.status == 'active' ? 'Active' : 'Pending',
-                                style: Ob.body(12, weight: FontWeight.w800, color: m.status == 'active' ? Ob.lime : const Color(0xFFF5C531))),
+                                style: Ob.body(12, weight: FontWeight.w800, color: m.status == 'active' ? Ob.lime : const Color(0xFFB7791F))),
                           ]),
                         ),
                       ),

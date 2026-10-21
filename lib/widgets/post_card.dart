@@ -39,8 +39,8 @@ class PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final (IconData icon, Color color, String label) = switch (type) {
       'announcement' => (LucideIcons.megaphone, Ob.lime, 'Announcement'),
-      'fixture' || 'competition' => (LucideIcons.calendar, const Color(0xFF7DD3FC), 'Event'),
-      'result' => (LucideIcons.trophy, const Color(0xFFF5C531), 'Result'),
+      'fixture' || 'competition' => (LucideIcons.calendar, const Color(0xFF2563EB), 'Event'),
+      'result' => (LucideIcons.trophy, const Color(0xFFB7791F), 'Result'),
       _ => (LucideIcons.messageSquare, Ob.creamA(.7), 'Notice'),
     };
     return Padding(

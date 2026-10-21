@@ -156,7 +156,7 @@ class _AddCourseScreenState extends ConsumerState<AddCourseScreen> {
                       itemCount: _totalHoles,
                       itemBuilder: (_, i) {
                         final p = _holePars[i];
-                        final c = p == 3 ? const Color(0xFF7DD3FC) : (p == 5 ? const Color(0xFFF5C531) : Ob.lime);
+                        final c = p == 3 ? const Color(0xFF2563EB) : (p == 5 ? const Color(0xFFB7791F) : Ob.lime);
                         return Semantics(
                           button: true,
                           label: 'Hole ${i + 1}, par $p',

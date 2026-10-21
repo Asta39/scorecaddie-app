@@ -118,8 +118,8 @@ class FriendsScreen extends ConsumerWidget {
                                 Expanded(
                                   child: Row(children: [
                                     Flexible(child: Text(f.friendName ?? 'Golfer', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, weight: FontWeight.w700))),
-                                    if (f.isCoach) ...[const SizedBox(width: 6), const ObChip('Coach', on: true, color: Color(0xFFF5C531))],
-                                    if (f.isStudent) ...[const SizedBox(width: 6), const ObChip('Student', on: true, color: Color(0xFF7DD3FC))],
+                                    if (f.isCoach) ...[const SizedBox(width: 6), const ObChip('Coach', on: true, color: Color(0xFFB7791F))],
+                                    if (f.isStudent) ...[const SizedBox(width: 6), const ObChip('Student', on: true, color: Color(0xFF2563EB))],
                                   ]),
                                 ),
                                 Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
@@ -137,9 +137,9 @@ class FriendsScreen extends ConsumerWidget {
                     child: Row(children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Ob.cream, borderRadius: BorderRadius.circular(14)),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Ob.hairline)),
                         child: me?.friendCode == null
-                            ? const SizedBox(width: 56, height: 56, child: Icon(LucideIcons.qrCode, color: Ob.ink, size: 36))
+                            ? const SizedBox(width: 56, height: 56, child: Icon(LucideIcons.qrCode, color: Ob.cream, size: 36))
                             : QrImageView(data: 'scorecaddie://friend/add/${me!.friendCode}', size: 56, padding: EdgeInsets.zero),
                       ),
                       const SizedBox(width: 14),

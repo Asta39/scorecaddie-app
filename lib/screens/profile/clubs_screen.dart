@@ -235,7 +235,7 @@ class _ItemRow extends ConsumerWidget {
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
-                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1D3322), Color(0xFFFFFFFF)]),
+                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFF2F2F7), Color(0xFFE5E5EA)]),
                   ),
                   child: _photoOr(item.photoUrl, fallback),
                 ),

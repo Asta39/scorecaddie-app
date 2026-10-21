@@ -119,7 +119,7 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
               Text(p.name, textAlign: TextAlign.center, style: Ob.display(32, height: 1.05)),
               const SizedBox(height: 8),
               Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: [
-                ObChip(coach ? 'Coach' : 'Caddie', on: true, color: coach ? const Color(0xFFF5C531) : Ob.lime),
+                ObChip(coach ? 'Coach' : 'Caddie', on: true, color: coach ? const Color(0xFFB7791F) : Ob.lime),
                 if (!coach && (p.personalityType ?? '').isNotEmpty) ObChip(p.personalityType!),
                 if (coach && p.hasCertification) ObChip(p.certificationName ?? 'Certified'),
                 ObChip(p.isAvailable ? 'Available now' : 'Offline', on: p.isAvailable),
@@ -136,7 +136,7 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
             ]).rise(),
             const SizedBox(height: 18),
             Row(children: [
-              _stat(p.rating == 0 ? '—' : p.rating.toStringAsFixed(1), 'Rating', const Color(0xFFF5C531)),
+              _stat(p.rating == 0 ? '—' : p.rating.toStringAsFixed(1), 'Rating', const Color(0xFFB7791F)),
               const SizedBox(width: 8),
               _stat(_compact(p.totalBookings), coach ? 'Bookings' : 'Rounds', Ob.cream),
               const SizedBox(width: 8),
@@ -203,8 +203,8 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: BoxDecoration(color: const Color(0xFFF5C531).withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
-                    child: const Icon(LucideIcons.award, color: Color(0xFFF5C531), size: 20),
+                    decoration: BoxDecoration(color: const Color(0xFFB7791F).withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
+                    child: const Icon(LucideIcons.award, color: Color(0xFFB7791F), size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -307,7 +307,7 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
                     child: AnimatedScale(
                       scale: i < rating ? 1.1 : 1,
                       duration: const Duration(milliseconds: 200),
-                      child: Icon(Icons.star_rounded, size: 44, color: i < rating ? const Color(0xFFF5C531) : Ob.creamA(.15)),
+                      child: Icon(Icons.star_rounded, size: 44, color: i < rating ? const Color(0xFFB7791F) : Ob.creamA(.15)),
                     ),
                   ),
                 ),
@@ -393,9 +393,9 @@ class _ReviewCard extends StatelessWidget {
                 Text(DateFormat('d MMM yyyy').format(review.createdAt), style: Ob.body(11, color: Ob.creamA(.5))),
               ]),
             ),
-            const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF5C531)),
+            const Icon(Icons.star_rounded, size: 16, color: Color(0xFFB7791F)),
             const SizedBox(width: 3),
-            Text('${review.rating}', style: Ob.body(13, weight: FontWeight.w800, color: const Color(0xFFF5C531))),
+            Text('${review.rating}', style: Ob.body(13, weight: FontWeight.w800, color: const Color(0xFFB7791F))),
           ]),
           const SizedBox(height: 8),
           Text(review.comment, style: Ob.body(14, height: 1.5, color: Ob.creamA(.8))),

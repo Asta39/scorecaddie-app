@@ -743,7 +743,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   // ── Coach profile (dark, gold) ─────────────────────────────────────────────
 
-  static const _gold = Color(0xFFF5C531);
+  static const _gold = Color(0xFFB7791F);
 
   Widget _buildDarkCoach(BuildContext context, UserProfile? profile) {
     final provider = ref.watch(currentProviderProvider).valueOrNull;

@@ -22,9 +22,9 @@ final _intelProvider = FutureProvider.autoDispose.family<_Intel, int>((ref, id) 
 Color teeColor(String name) {
   final n = name.toLowerCase();
   if (n.contains('white')) return const Color(0xFFE8ECE6);
-  if (n.contains('yellow') || n.contains('gold')) return const Color(0xFFF5C531);
+  if (n.contains('yellow') || n.contains('gold')) return const Color(0xFFB7791F);
   if (n.contains('red')) return const Color(0xFFF26B5B);
-  if (n.contains('blue')) return const Color(0xFF7DD3FC);
+  if (n.contains('blue')) return const Color(0xFF2563EB);
   if (n.contains('green')) return Ob.lime;
   if (n.contains('simba')) return const Color(0xFFF59E0B);
   return Ob.creamA(.5);
@@ -129,9 +129,9 @@ class CourseIntelScreen extends ConsumerWidget {
           ObCard(
             child: Column(children: [
               Row(children: [
-                _parCount('Par 3s', p3, const Color(0xFF7DD3FC)),
+                _parCount('Par 3s', p3, const Color(0xFF2563EB)),
                 _parCount('Par 4s', p4, Ob.lime),
-                _parCount('Par 5s', p5, const Color(0xFFF5C531)),
+                _parCount('Par 5s', p5, const Color(0xFFB7791F)),
               ]),
               const SizedBox(height: 12),
               ClipRRect(
@@ -139,9 +139,9 @@ class CourseIntelScreen extends ConsumerWidget {
                 child: SizedBox(
                   height: 10,
                   child: Row(children: [
-                    if (p3 > 0) Expanded(flex: p3, child: Container(color: const Color(0xFF7DD3FC))),
+                    if (p3 > 0) Expanded(flex: p3, child: Container(color: const Color(0xFF2563EB))),
                     if (p4 > 0) Expanded(flex: p4, child: Container(color: Ob.lime)),
-                    if (p5 > 0) Expanded(flex: p5, child: Container(color: const Color(0xFFF5C531))),
+                    if (p5 > 0) Expanded(flex: p5, child: Container(color: const Color(0xFFB7791F))),
                   ]),
                 ),
               ),

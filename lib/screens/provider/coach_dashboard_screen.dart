@@ -13,7 +13,7 @@ import '../onboarding/ob_style.dart';
 import '../onboarding/ob_widgets.dart';
 
 /// The coach's colour: the star's gold.
-const coachGold = Color(0xFFF5C531);
+const coachGold = Color(0xFFB7791F);
 
 /// When a recurring session next runs, or null once it has finished.
 DateTime? nextOccurrence(CoachingSession s, [DateTime? from]) {
@@ -231,7 +231,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
               child: Row(children: [
                 if (mpesa > 0) Expanded(flex: (mpesa * 100 ~/ total).clamp(1, 100), child: Container(color: Ob.lime)),
                 if (cash > 0) Expanded(flex: (cash * 100 ~/ total).clamp(1, 100), child: Container(color: coachGold)),
-                if (bank > 0) Expanded(flex: (bank * 100 ~/ total).clamp(1, 100), child: Container(color: const Color(0xFF7DD3FC))),
+                if (bank > 0) Expanded(flex: (bank * 100 ~/ total).clamp(1, 100), child: Container(color: const Color(0xFF2563EB))),
               ]),
             ),
           )
@@ -241,7 +241,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('M-Pesa ${_kes.format(mpesa)}', style: Ob.body(12, weight: FontWeight.w700, color: Ob.lime)),
           Text('Cash ${_kes.format(cash)}', style: Ob.body(12, weight: FontWeight.w700, color: coachGold)),
-          Text('Bank ${_kes.format(bank)}', style: Ob.body(12, weight: FontWeight.w700, color: const Color(0xFF7DD3FC))),
+          Text('Bank ${_kes.format(bank)}', style: Ob.body(12, weight: FontWeight.w700, color: const Color(0xFF2563EB))),
         ]),
       ]),
     );

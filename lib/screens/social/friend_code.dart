@@ -39,17 +39,17 @@ class _MyCodeSheet extends ConsumerWidget {
         Center(
           child: Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Ob.cream, borderRadius: BorderRadius.circular(28)),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Ob.hairline)),
             child: SizedBox(
               width: 210,
               height: 210,
               child: code == null
-                  ? const Center(child: CupertinoActivityIndicator(color: Ob.ink))
+                  ? const Center(child: CupertinoActivityIndicator(color: Ob.lime))
                   : QrImageView(
                       data: '$_prefix$code',
                       version: QrVersions.auto,
-                      eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Ob.ink),
-                      dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: Ob.ink),
+                      eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
+                      dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: Colors.black),
                     ),
             ),
           ),

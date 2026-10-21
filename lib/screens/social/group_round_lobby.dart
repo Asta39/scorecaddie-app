@@ -153,7 +153,7 @@ class _GroupRoundLobbyScreenState extends ConsumerState<GroupRoundLobbyScreen> {
                                     ProfileImage(url: (p['user'] as Map?)?['avatarUrl'], name: (p['user'] as Map?)?['name'], size: 36, isCircle: true),
                                     const SizedBox(width: 12),
                                     Expanded(child: Text('${(p['user'] as Map?)?['name'] ?? 'Golfer'}', style: Ob.body(14, weight: FontWeight.w700))),
-                                    if (p['role'] == 'CAPTAIN') const ObChip('Captain', on: true, color: Color(0xFFF5C531)),
+                                    if (p['role'] == 'CAPTAIN') const ObChip('Captain', on: true, color: Color(0xFFB7791F)),
                                   ]),
                                 ),
                               ],

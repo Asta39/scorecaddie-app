@@ -618,7 +618,7 @@ class _HoleRow extends StatelessWidget {
     final color = diff == null
         ? Ob.warn
         : diff <= -2
-            ? const Color(0xFFF5C531)
+            ? const Color(0xFFB7791F)
             : diff == -1
                 ? Ob.lime
                 : diff == 0

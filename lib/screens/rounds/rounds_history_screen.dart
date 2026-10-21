@@ -12,7 +12,7 @@ import '../onboarding/ob_style.dart';
 import '../onboarding/ob_widgets.dart';
 
 /// Colour for a score relative to par.
-Color toParColor(int toPar) => toPar < 0 ? Ob.lime : (toPar <= 5 ? Ob.cream : (toPar <= 15 ? const Color(0xFF7DD3FC) : Ob.warn));
+Color toParColor(int toPar) => toPar < 0 ? Ob.lime : (toPar <= 5 ? Ob.cream : (toPar <= 15 ? const Color(0xFF2563EB) : Ob.warn));
 String toParText(int toPar) => toPar == 0 ? 'E' : (toPar > 0 ? '+$toPar' : '$toPar');
 
 class RoundsHistoryScreen extends ConsumerWidget {

@@ -438,7 +438,7 @@ Color _teeColor(String color) => switch (color.toLowerCase()) {
       'blue' => const Color(0xFF3B82F6),
       'black' => const Color(0xFF111111),
       'white' => const Color(0xFFF4F4F4),
-      'gold' => const Color(0xFFF5C531),
+      'gold' => const Color(0xFFB7791F),
       _ => const Color(0xFF22C55E),
     };
 
@@ -600,7 +600,7 @@ class _ResultRow extends StatelessWidget {
   }
 }
 
-const _gold = Color(0xFFF5C531);
+const _gold = Color(0xFFB7791F);
 
 // ─── Entry ───────────────────────────────────────────────────────────────────
 

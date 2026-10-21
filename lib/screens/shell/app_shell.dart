@@ -410,7 +410,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
                       }
                     },
                     items: [for (final t in tabs) (t.$2, t.$3)],
-                    accent: role == 'coach' ? const Color(0xFFF5C531) : Ob.lime,
+                    accent: role == 'coach' ? const Color(0xFFB7791F) : Ob.lime,
                   ),
                 ),
               ),

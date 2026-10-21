@@ -413,9 +413,9 @@ class _PracticeSessionScreenState extends ConsumerState<PracticeSessionScreen> {
         Row(children: [
           _buildQualityIOSButton('GREAT', Ob.lime),
           const SizedBox(width: 8),
-          _buildQualityIOSButton('GOOD', const Color(0xFF7DD3FC)),
+          _buildQualityIOSButton('GOOD', const Color(0xFF2563EB)),
           const SizedBox(width: 8),
-          _buildQualityIOSButton('OKAY', const Color(0xFFF5C531)),
+          _buildQualityIOSButton('OKAY', const Color(0xFFB7791F)),
           const SizedBox(width: 8),
           _buildQualityIOSButton('MISS', Ob.warn),
         ]),

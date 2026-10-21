@@ -237,13 +237,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/range',
-        builder: (context, state) => const PracticeRangeScreen(),
+        builder: (context, state) => const _PageSafe(child: PracticeRangeScreen()),
       ),
       GoRoute(
         path: '/pros',
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
-          return CaddieMarketplaceScreen(initialRole: extra?['role'] as String? ?? 'all');
+          return _PageSafe(child: CaddieMarketplaceScreen(initialRole: extra?['role'] as String? ?? 'all'));
         },
       ),
       ShellRoute(
@@ -753,4 +753,18 @@ class _FriendAddHandleScreenState extends ConsumerState<FriendAddHandleScreen> {
       ),
     );
   }
+}
+
+
+/// Screens built as tabs (where the shell supplies the top inset) opened as
+/// standalone pages: keep them below the status bar on the page background.
+class _PageSafe extends StatelessWidget {
+  const _PageSafe({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: const Color(0xFFF2F2F7),
+        child: SafeArea(bottom: false, child: child),
+      );
 }

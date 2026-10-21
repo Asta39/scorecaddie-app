@@ -336,7 +336,7 @@ class _ProviderCard extends ConsumerWidget {
               Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.display(21, height: 1.1)),
               const SizedBox(height: 4),
               Row(children: [
-                const Icon(LucideIcons.star, size: 14, color: Color(0xFFF5C531)),
+                const Icon(LucideIcons.star, size: 14, color: Color(0xFFB7791F)),
                 const SizedBox(width: 4),
                 Text(p.rating.toStringAsFixed(1), style: Ob.label(13, weight: FontWeight.w800)),
                 Flexible(

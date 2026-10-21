@@ -120,7 +120,7 @@ class RoundDetailScreen extends ConsumerWidget {
       Row(children: [
         _mini('Birdies+', birdies, Ob.lime),
         _mini('Pars', pars, Ob.cream),
-        _mini('Bogeys', bogeys, const Color(0xFF7DD3FC)),
+        _mini('Bogeys', bogeys, const Color(0xFF2563EB)),
         _mini('Worse', worse, Ob.warn),
       ]),
       if (putts > 0 || fwTotal > 0) ...[
@@ -156,7 +156,7 @@ class RoundDetailScreen extends ConsumerWidget {
         Wrap(spacing: 14, runSpacing: 6, children: [
           _legend(Ob.lime, 'Under par', circle: true),
           _legend(Ob.cream, 'Par'),
-          _legend(const Color(0xFF7DD3FC), 'Bogey', square: true),
+          _legend(const Color(0xFF2563EB), 'Bogey', square: true),
           _legend(Ob.warn, 'Double+', square: true),
         ]),
       ],
@@ -213,7 +213,7 @@ class RoundDetailScreen extends ConsumerWidget {
   /// Classic scorecard marks: circles under par, squares over.
   Widget _scoreMark(int score, int par) {
     final d = score - par;
-    final c = d < 0 ? Ob.lime : (d == 0 ? Ob.cream : (d == 1 ? const Color(0xFF7DD3FC) : Ob.warn));
+    final c = d < 0 ? Ob.lime : (d == 0 ? Ob.cream : (d == 1 ? const Color(0xFF2563EB) : Ob.warn));
     return Container(
       width: 26,
       height: 26,
