@@ -133,7 +133,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         ),
       ],
       const SizedBox(height: 26),
-      ObGroup(header: 'Scoring · last ${shown.length} rounds', children: [
+      ObGroup(header: 'Scoring · last ${shown.length} ${shown.length == 1 ? 'round' : 'rounds'}', children: [
         ObRow('Average vs par', value: avg == null ? '—' : vsPar(avg)),
         ObRow('Best vs par', value: best == null ? '—' : vsPar(best), valueColor: best != null && best <= 0 ? const Color(0xFF15803D) : null),
         ObRow('Rounds played', value: '${stats.roundsPlayed}'),
