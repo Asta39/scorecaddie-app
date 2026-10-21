@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'ob_glass.dart';
+
 /// Design tokens for the onboarding flow (splash → intro → sign-in → setup).
 ///
 /// Mirrors the approved prototype ("ScoreCaddie Onboarding Redesign" canvas):
@@ -249,6 +251,29 @@ class _ObButtonState extends State<ObButton> {
         ),
       ),
     );
+
+    if (widget.tone == ObButtonTone.dark) {
+      // Secondary and icon buttons are Opaline liquid glass (see ob_glass.dart);
+      // "on" is marked with a solid lime edge, never a glow.
+      body = ObGlass(
+        radius: widget.radius,
+        shadow: !_down,
+        tint: _down ? const Color(0xA6142019) : null,
+        child: Container(
+          height: widget.height,
+          width: widget.width,
+          padding: widget.padding,
+          foregroundDecoration: widget.selected ? BoxDecoration(borderRadius: r, border: Border.all(color: Ob.lime, width: 1.5)) : null,
+          child: Center(
+            widthFactor: 1,
+            child: DefaultTextStyle.merge(
+              style: TextStyle(color: fg),
+              child: IconTheme.merge(data: IconThemeData(color: fg), child: widget.child),
+            ),
+          ),
+        ),
+      );
+    }
 
     if (!enabled && widget.tone != ObButtonTone.lime) {
       body = Opacity(opacity: 0.55, child: body);

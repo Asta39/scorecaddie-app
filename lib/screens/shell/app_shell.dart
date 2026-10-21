@@ -13,7 +13,7 @@ import '../../core/database/database.dart' as db;
 import '../../widgets/booking_check_sheet.dart';
 import '../../widgets/top_notification.dart';
 import 'package:intl/intl.dart';
-import '../onboarding/ob_nav.dart';
+import '../onboarding/ob_glass.dart';
 import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
 
@@ -384,7 +384,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
                 right: 14,
                 bottom: 20,
                 child: RepaintBoundary(
-                  child: ObGooNavBar(
+                  child: ObGlassDock(
                     currentIndex: _currentIndex,
                     onTap: (index) {
                       if (index == _currentIndex) return;
