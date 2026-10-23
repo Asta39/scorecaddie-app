@@ -125,8 +125,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    // Photo slides get white type and a light status bar.
+    final onPhoto = !_signIn && _slides[_slide].image != null;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: Ob.overlay,
+      value: onPhoto ? SystemUiOverlayStyle.light : Ob.overlay,
       child: Scaffold(
         backgroundColor: Ob.bg,
         resizeToAvoidBottomInset: true,
@@ -138,6 +140,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
   Widget _buildIntro(BuildContext context) {
     final slide = _slides[_slide];
     final pad = MediaQuery.of(context).padding;
+    final photo = slide.image != null;
+    final ink = photo ? Colors.white : Ob.cream;
     return Stack(
       children: [
         // Background: photo with a slow Ken Burns, or Daniel on the last slide.
@@ -167,19 +171,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                   ),
                 ),
         ),
-        // Scrim so the copy reads over any photo.
-        const Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x9906110B), Color(0x0006110B), Color(0x0006110B), Color(0xF006110B), Ob.bg],
-                stops: [0, .2, .44, .68, 1],
+        // Scrim so white copy reads over any photo: dark at the top for the
+        // logo and status bar, clear through the middle, dark under the text.
+        if (photo)
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x8C000000), Color(0x00000000), Color(0x00000000), Color(0xCC000000), Color(0xF2000000)],
+                  stops: [0, .22, .45, .72, 1],
+                ),
               ),
             ),
           ),
-        ),
         Positioned(
           left: 24,
           right: 24,
@@ -188,7 +194,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
             children: [
               Image.asset('assets/images/logo_mark.png', height: 46, excludeFromSemantics: true),
               const SizedBox(width: 10),
-              Text('ScoreCaddie', style: Ob.display(30, height: 1)),
+              Text('ScoreCaddie', style: Ob.display(30, height: 1, color: ink)),
               const Spacer(),
               ObButton(
                 tone: ObButtonTone.dark,
@@ -213,11 +219,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(slide.eyebrow.toUpperCase(), style: Ob.eyebrow()).rise(),
+                    Text(slide.eyebrow.toUpperCase(), style: Ob.eyebrow().copyWith(color: photo ? const Color(0xCCFFFFFF) : null)).rise(),
                     const SizedBox(height: 12),
-                    Semantics(header: true, child: Text(slide.title, style: Ob.display(48, height: 1.02)).rise(1)),
+                    Semantics(header: true, child: Text(slide.title, style: Ob.display(48, height: 1.02, color: ink)).rise(1)),
                     const SizedBox(height: 12),
-                    Text(slide.body, style: Ob.body(16, height: 1.5, color: Ob.creamA(.78))).rise(2),
+                    Text(slide.body, style: Ob.body(17, height: 1.45, color: photo ? const Color(0xE6FFFFFF) : Ob.creamA(.7))).rise(2),
                   ],
                 ),
               ),
