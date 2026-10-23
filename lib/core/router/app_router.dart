@@ -151,6 +151,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     // All routing rules live in route_guard.dart as a pure, unit-tested
     // function (test/route_guard_test.dart). This only gathers live state.
     redirect: (context, state) {
+      // Links like scorecaddie://marketplace/provider/<id> arrive with the
+      // first path segment as the host; turn them into app paths.
+      final link = state.uri;
+      if (link.scheme == 'scorecaddie' && link.host.isNotEmpty && link.host != 'login-callback') {
+        return Uri(path: '/${link.host}${link.path}', query: link.hasQuery ? link.query : null).toString();
+      }
       final authState = ref.read(authStateProvider);
       final profileAsync = ref.read(userProfileProvider);
       return resolveRedirect(
