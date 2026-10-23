@@ -425,19 +425,6 @@ class FriendService {
         return _mapProfileData(response.first);
       }
 
-      // --- Fallback: legacy firebaseUid ---
-      debugPrint('FriendService: id lookup failed, trying firebaseUid');
-      final fallback = await _supabase
-          .from('User')
-          .select('id, name, avatarUrl, handicapIndex, skillLevel, playStyle, friendCode')
-          .eq('firebaseUid', identifier)
-          .limit(1);
-
-      if ((fallback as List).isNotEmpty) {
-        debugPrint('FriendService: Found profile by firebaseUid');
-        return _mapProfileData(fallback.first);
-      }
-
       debugPrint('FriendService: No profile found in User table for: $identifier');
       return null;
     } catch (e, stack) {
