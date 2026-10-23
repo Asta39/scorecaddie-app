@@ -120,7 +120,7 @@ class _CoachDrillBuilderScreenState extends ConsumerState<CoachDrillBuilderScree
 
       if (mounted) {
         TopNotification.showSuccess(context, widget.drill == null ? 'Drill saved' : 'Drill updated');
-        context.pop();
+        Navigator.of(context).pop();
       }
     } catch (e) {
       setState(() => _isSaving = false);
@@ -201,7 +201,7 @@ class _CoachDrillBuilderScreenState extends ConsumerState<CoachDrillBuilderScree
                       ? Padding(
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                           child: Column(children: [
-                            ObTopBar(title, onBack: () => context.pop()),
+                            ObTopBar(title, onBack: () => Navigator.of(context).pop()),
                             const Spacer(),
                             Text('Couldn’t load this drill’s steps', textAlign: TextAlign.center, style: Ob.display(22)),
                             const SizedBox(height: 8),
@@ -217,7 +217,7 @@ class _CoachDrillBuilderScreenState extends ConsumerState<CoachDrillBuilderScree
                             physics: const BouncingScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                             children: [
-                              ObTopBar(title, onBack: () => context.pop()),
+                              ObTopBar(title, onBack: () => Navigator.of(context).pop()),
                               const SizedBox(height: 14),
                               ObGroup(children: [
                                 TextFormField(
