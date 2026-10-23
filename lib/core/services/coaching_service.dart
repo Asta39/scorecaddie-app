@@ -641,7 +641,7 @@ class CoachingService {
         .select('''
           *,
           coaching_sessions!inner(coach_id, name),
-          profile:User!session_enrollments_player_id_fkey(id, name, email, avatarUrl)
+          profile:User!session_enrollments_player_id_fkey(id, name, avatarUrl)
         ''')
         .eq('coaching_sessions.coach_id', coachId);
 

@@ -433,7 +433,7 @@ class ObRow extends StatelessWidget {
           ),
           if (value != null) ...[const SizedBox(width: 10), Text(value!, style: Ob.body(17, weight: FontWeight.w400, color: valueColor ?? Ob.creamA(.6)))],
           ?trailing,
-          if (onTap != null) ...[const SizedBox(width: 6), Icon(Icons.chevron_right_rounded, size: 22, color: Ob.creamA(.3))],
+          if (onTap != null && trailing == null && titleColor == null) ...[const SizedBox(width: 6), Icon(Icons.chevron_right_rounded, size: 22, color: Ob.creamA(.3))],
         ]),
       ),
     );
