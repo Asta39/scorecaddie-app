@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,18 +8,16 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/database/database.dart' as db;
 import '../../core/services/interaction_service.dart';
-import '../../core/utils/url_helper.dart';
 import '../../providers/app_providers.dart';
-import '../../widgets/loading_spinner.dart';
 import '../../widgets/profile_image.dart';
 import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
-import '../onboarding/ob_widgets.dart';
 
 final marketplaceRoleFilterProvider = StateProvider<String>((ref) => 'all');
 
-/// Caddie tab: find caddies and coaches, the ones you've contacted, and the
-/// ones you've played with.
+/// Find a caddie or coach. One list: anything waiting on you first, then the
+/// pros you've played with, then everyone, narrowed by search and filters.
 class CaddieMarketplaceScreen extends ConsumerStatefulWidget {
   final String initialRole;
 
@@ -30,266 +29,210 @@ class CaddieMarketplaceScreen extends ConsumerStatefulWidget {
 
 class _CaddieMarketplaceScreenState extends ConsumerState<CaddieMarketplaceScreen> {
   static const _personalities = ['Talkative & Fun', 'Strategic', 'Quiet & Focused', 'Laid-back'];
-  static const _feeMin = 500.0, _feeMax = 5000.0;
+  static const _prices = [1000.0, 2000.0, 3000.0];
 
-  late String _selectedRole = widget.initialRole;
-  final _searchController = TextEditingController();
-  String _section = 'discover';
-  int? _requiredExperience;
-  String? _selectedPersonality;
-  String? _selectedCourse;
-  double _maxFee = _feeMax;
+  late String _role = widget.initialRole;
+  String _query = '';
+  double? _maxPrice;
+  int? _minYears;
+  String? _personality;
+  String? _course;
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  bool get _filtered => _maxPrice != null || _minYears != null || _personality != null || _course != null;
+
+  bool _matches(db.Provider p) {
+    if (_role != 'all' && p.role.toLowerCase() != _role) return false;
+    final q = _query.toLowerCase();
+    if (q.isNotEmpty && !p.name.toLowerCase().contains(q) && !p.coursesJson.toLowerCase().contains(q)) return false;
+    if (_minYears != null && p.experience < _minYears!) return false;
+    if (_personality != null && p.personalityType != _personality) return false;
+    if (_course != null && !p.coursesJson.contains(_course!)) return false;
+    if (_maxPrice != null && (p.price ?? 0) > _maxPrice!) return false;
+    return true;
   }
-
-  bool get _hasFilters => _requiredExperience != null || _selectedCourse != null;
 
   @override
   Widget build(BuildContext context) {
     ref.listen<String>(marketplaceRoleFilterProvider, (prev, next) {
-      if (next != _selectedRole) setState(() => _selectedRole = next);
+      if (next != _role) setState(() => _role = next);
     });
+
+    final async = ref.watch(allProvidersProvider);
+    final all = async.valueOrNull ?? const <db.Provider>[];
+    final shown = all.where(_matches).toList()..sort((a, b) => b.rating.compareTo(a.rating));
+    final pending = ref.watch(pendingInteractionsProvider).valueOrNull ?? const <db.Interaction>[];
+    final recent = (ref.watch(recentProsProvider).valueOrNull ?? const <db.Provider>[]).where(_matches).toList();
+    final searching = _query.isNotEmpty || _filtered;
 
     return Scaffold(
       backgroundColor: Ob.bg,
       body: DefaultTextStyle(
         style: Ob.textBase,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: ObTabHeader('Caddies & coaches', actions: [
-              Stack(clipBehavior: Clip.none, children: [
-                ObIconButton(icon: LucideIcons.slidersHorizontal, label: 'Filters', onPressed: _showFilterSheet),
-                if (_hasFilters) Positioned(right: 2, top: 2, child: Container(width: 10, height: 10, decoration: BoxDecoration(color: Ob.lime, shape: BoxShape.circle, border: Border.all(color: Ob.bg, width: 2)))),
-              ]),
+        child: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+          children: [
+            ObTabHeader('Caddies & coaches', actions: [
+              ObIconButton(
+                icon: _filtered ? LucideIcons.listFilterPlus : LucideIcons.listFilter,
+                label: _filtered ? 'Filters, on' : 'Filters',
+                onPressed: _showFilters,
+              ),
             ]),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-            child: ObGooSegmented<String>(
-              options: const [('discover', 'Discover'), ('inquiries', 'Inquiries'), ('recent', 'Recent')],
-              selected: _section,
-              onChanged: (v) => setState(() => _section = v),
-            ),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: const ['discover', 'inquiries', 'recent'].indexOf(_section),
-              children: [_discover(), _inquiries(), _recent()],
-            ),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  // ── discover ────────────────────────────────────────────────────────────
-  Widget _discover() {
-    final providersAsync = ref.watch(allProvidersProvider);
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
-      children: [
-        Row(children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              style: Ob.body(15),
-              cursorColor: Ob.lime,
-              decoration: _fieldDecoration('Name or course', LucideIcons.search),
-            ),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 176,
-            child: ObGooSegmented<String>(
-              height: 50,
-              fontSize: 12,
+            const SizedBox(height: 12),
+            CupertinoSearchTextField(placeholder: 'Name or course', style: Ob.body(17), onChanged: (v) => setState(() => _query = v)),
+            const SizedBox(height: 12),
+            ObGooSegmented<String>(
               options: const [('all', 'All'), ('caddie', 'Caddies'), ('coach', 'Coaches')],
-              selected: _selectedRole,
+              selected: _role,
               onChanged: (r) {
-                setState(() => _selectedRole = r);
+                setState(() => _role = r);
                 ref.read(marketplaceRoleFilterProvider.notifier).state = r;
               },
             ),
-          ),
-        ]),
-        const SizedBox(height: 14),
-        ObCard(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            ObEyebrow(_selectedRole == 'coach' ? 'Most per hour' : 'Most you’ll pay',
-                trailing: Text(_maxFee >= _feeMax ? 'Any price' : 'KES ${_fmt(_maxFee)}', style: Ob.display(22, height: 1))),
-            const SizedBox(height: 4),
-            ObLiquidSlider(
-              value: _maxFee,
-              min: _feeMin,
-              max: _feeMax,
-              labels: const ['500', '2,000', '3,500', 'Any'],
-              onChanged: (v) => setState(() => _maxFee = (v / 100).round() * 100),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 14),
-        SizedBox(
-          height: 42,
-          child: ListView(scrollDirection: Axis.horizontal, clipBehavior: Clip.none, children: [
-            for (final p in _personalities)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ObButton(
-                  tone: _selectedPersonality == p ? ObButtonTone.lime : ObButtonTone.dark,
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  onPressed: () => setState(() => _selectedPersonality = _selectedPersonality == p ? null : p),
-                  child: Text(p, style: Ob.label(14)),
-                ),
-              ),
-          ]),
-        ),
-        const SizedBox(height: 20),
-        providersAsync.when(
-          loading: () => const SizedBox(height: 200, child: LoadingSpinner()),
-          error: (e, _) => Text('Couldn’t load pros.', style: Ob.body(14, color: Ob.creamA(.7))),
-          data: (providers) {
-            if (providers.isEmpty) return _blobSays('No pros on ScoreCaddie yet. They’re on their way.');
-            final q = _searchController.text.toLowerCase();
-            final filtered = providers.where((p) {
-              if (_selectedRole != 'all' && p.role.toLowerCase() != _selectedRole) return false;
-              if (q.isNotEmpty && !p.name.toLowerCase().contains(q) && !p.coursesJson.toLowerCase().contains(q)) return false;
-              if (_requiredExperience != null && p.experience < _requiredExperience!) return false;
-              if (_selectedPersonality != null && p.personalityType != _selectedPersonality) return false;
-              if (_selectedCourse != null && !p.coursesJson.contains(_selectedCourse!)) return false;
-              if (_maxFee < _feeMax && (p.price ?? 0) > _maxFee) return false;
-              return true;
-            }).toList();
-            if (filtered.isEmpty) return _blobSays('Nobody matches that. Try widening the budget or filters.');
-            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              ObEyebrow('${filtered.length} ${filtered.length == 1 ? 'pro' : 'pros'}'),
+            if (_filtered) ...[
               const SizedBox(height: 12),
-              for (final p in filtered) Padding(padding: const EdgeInsets.only(bottom: 12), child: _ProviderCard(provider: p)),
-            ]);
-          },
-        ),
-      ],
-    );
-  }
-
-  // ── inquiries and recent ────────────────────────────────────────────────
-  Widget _inquiries() => ref.watch(pendingInteractionsProvider).when(
-        loading: () => const LoadingSpinner(),
-        error: (e, _) => Center(child: Text('Couldn’t load inquiries.', style: Ob.body(14, color: Ob.creamA(.7)))),
-        data: (pending) => pending.isEmpty
-            ? ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 120), children: [_blobSays('Quiet out here. Message a pro and they’ll show up here.')])
-            : ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 120), children: [for (final i in pending) _InquiryCard(interaction: i)]),
-      );
-
-  Widget _recent() => ref.watch(recentProsProvider).when(
-        loading: () => const LoadingSpinner(),
-        error: (e, _) => Center(child: Text('Couldn’t load your pros.', style: Ob.body(14, color: Ob.creamA(.7)))),
-        data: (pros) => pros.isEmpty
-            ? ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 120), children: [_blobSays('Pros you book show up here, ready to book again.')])
-            : ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 120), children: [for (final p in pros) Padding(padding: const EdgeInsets.only(bottom: 12), child: _ProviderCard(provider: p))]),
-      );
-
-  /// The caddie blob, dozing, for empty states.
-  Widget _blobSays(String text) => ObGuideRow(botAsset: 'assets/bots/cast_blob.webp', botLabel: 'The caddie blob, dozing', text: text, size: 96, fontSize: 18);
-
-  // ── filters ─────────────────────────────────────────────────────────────
-  InputDecoration _fieldDecoration(String hint, IconData icon) => InputDecoration(
-        hintText: hint,
-        hintStyle: Ob.body(15, color: Ob.creamA(.35)),
-        prefixIcon: Icon(icon, size: 18, color: Ob.creamA(.5)),
-        filled: true,
-        fillColor: Ob.field,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Ob.fieldBorder, width: 2)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Ob.lime, width: 2)),
-      );
-
-  void _showFilterSheet() {
-    final courses = {...(ref.read(coursesProvider).valueOrNull ?? const []).map((c) => c.name)}.toList()..sort();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheet) => StatefulBuilder(
-        builder: (sheet, setSheet) {
-          void set(VoidCallback f) {
-            setSheet(f);
-            setState(() {});
-          }
-
-          return Container(
-            height: MediaQuery.of(sheet).size.height * .72,
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF2F2F7),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-              border: Border(top: BorderSide(color: Color(0x40A3E635))),
-            ),
-            child: DefaultTextStyle(
-              style: Ob.textBase,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Center(child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .18), borderRadius: BorderRadius.circular(3)))),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(child: Text('Filters', style: Ob.display(26))),
-                  GestureDetector(
-                    onTap: () => set(() {
-                      _requiredExperience = null;
-                      _selectedCourse = null;
-                    }),
-                    child: Text('Reset', style: Ob.label(14).copyWith(color: Ob.warn)),
-                  ),
-                ]),
-                const SizedBox(height: 18),
-                const ObEyebrow('Experience'),
-                const SizedBox(height: 10),
-                Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (final (v, l) in const [(null, 'Any'), (2, '2+ years'), (3, '3+ years'), (5, '5+ years')])
-                    ObButton(
-                      tone: _requiredExperience == v ? ObButtonTone.lime : ObButtonTone.dark,
-                      height: 40,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      onPressed: () => set(() => _requiredExperience = v),
-                      child: Text(l, style: Ob.label(14)),
-                    ),
-                ]),
-                const SizedBox(height: 20),
-                const ObEyebrow('Knows this course'),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: ListView(children: [
-                    for (final c in [null, ...courses])
-                      GestureDetector(
-                        onTap: () => set(() => _selectedCourse = c),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: _selectedCourse == c ? Ob.lime.withValues(alpha: .08) : Ob.cardFill,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: _selectedCourse == c ? Ob.lime : const Color(0x0FFFFFFF), width: 2),
-                          ),
-                          child: Text(c ?? 'Any course', style: Ob.body(15, weight: FontWeight.w700)),
-                        ),
-                      ),
-                  ]),
-                ),
-                const SizedBox(height: 12),
-                ObButton(onPressed: () => Navigator.pop(sheet), child: Text('Show pros', style: Ob.label(16, weight: FontWeight.w800))),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                if (_maxPrice != null) _token('Up to KES ${_fmt(_maxPrice!)}', () => setState(() => _maxPrice = null)),
+                if (_minYears != null) _token('$_minYears+ years', () => setState(() => _minYears = null)),
+                if (_personality != null) _token(_personality!, () => setState(() => _personality = null)),
+                if (_course != null) _token(_course!, () => setState(() => _course = null)),
               ]),
-            ),
-          );
-        },
+            ],
+            if (pending.isNotEmpty && !searching) ...[
+              const SizedBox(height: 22),
+              ObGroup(
+                header: 'Did you book them?',
+                footer: 'Tell us so your pros and history stay right.',
+                children: [for (final i in pending) _InquiryRow(interaction: i, all: all)],
+              ),
+            ],
+            if (recent.isNotEmpty && !searching) ...[
+              const SizedBox(height: 22),
+              ObGroup(header: 'Played with', children: [for (final p in recent.take(3)) _ProRow(provider: p)]),
+            ],
+            const SizedBox(height: 22),
+            if (async.isLoading && all.isEmpty)
+              const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
+            else if (async.hasError && all.isEmpty)
+              ObGroup(children: [ObRow('Couldn’t load pros', subtitle: 'Tap to try again', onTap: () => ref.invalidate(allProvidersProvider))])
+            else if (shown.isEmpty)
+              ObGroup(children: [
+                ObRow(all.isEmpty ? 'No pros here yet' : 'Nobody matches that',
+                    subtitle: all.isEmpty ? 'Caddies and coaches show up as they join' : 'Try a wider price or fewer filters'),
+                if (_filtered) ObRow('Clear filters', titleColor: Ob.lime, onTap: _clear),
+              ])
+            else
+              ObGroup(
+                header: '${shown.length} ${_role == 'caddie' ? (shown.length == 1 ? 'caddie' : 'caddies') : _role == 'coach' ? (shown.length == 1 ? 'coach' : 'coaches') : (shown.length == 1 ? 'pro' : 'pros')}',
+                footer: 'Caddie prices are per round, coach prices per hour.',
+                children: [for (final p in shown) _ProRow(provider: p)],
+              ),
+          ],
+        ),
       ),
     );
   }
+
+  void _clear() => setState(() {
+        _maxPrice = null;
+        _minYears = null;
+        _personality = null;
+        _course = null;
+      });
+
+  /// An active filter, with an x to remove it.
+  Widget _token(String label, VoidCallback onRemove) => Semantics(
+        button: true,
+        label: 'Remove filter $label',
+        child: GestureDetector(
+          onTap: onRemove,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 7, 8, 7),
+            decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(999)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(label, style: Ob.body(15)),
+              const SizedBox(width: 4),
+              Icon(CupertinoIcons.xmark_circle_fill, size: 18, color: Ob.creamA(.35)),
+            ]),
+          ),
+        ),
+      );
+
+  Future<T?> _pick<T>(String title, List<(T?, String)> options, T? current) => showCupertinoModalPopup<T>(
+        context: context,
+        builder: (ctx) => CupertinoActionSheet(
+          title: Text(title),
+          actions: [
+            for (final (v, l) in options)
+              CupertinoActionSheetAction(isDefaultAction: v == current, onPressed: () => Navigator.pop(ctx, v), child: Text(l)),
+          ],
+          cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        ),
+      );
+
+  /// Filters as a short settings list; each row opens its choices.
+  void _showFilters() {
+    final courses = {...(ref.read(coursesProvider).valueOrNull ?? const []).map((c) => c.name)}.toList()..sort();
+    showObSheet<void>(
+      context,
+      (sheet) => StatefulBuilder(builder: (sheet, setSheet) {
+        // Choices apply straight away, so the count behind the sheet updates.
+        Future<void> choose<T>(String title, List<(T?, String)> options, T? current, void Function(T?) apply) async {
+          final v = await _pick<Object>(title, [for (final (o, l) in options) (o ?? _any, l)], current ?? _any);
+          if (v == null) return;
+          setState(() => apply(v == _any ? null : v as T));
+          setSheet(() {});
+        }
+
+        return ObSheet(
+          title: 'Filters',
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            ObGroup(children: [
+              ObRow('Price', value: _maxPrice == null ? 'Any' : 'Up to KES ${_fmt(_maxPrice!)}', onTap: () => choose<double>(
+                    'Most you’ll pay',
+                    [(null, 'Any price'), for (final p in _prices) (p, 'Up to KES ${_fmt(p)}')],
+                    _maxPrice,
+                    (v) => _maxPrice = v,
+                  )),
+              ObRow('Experience', value: _minYears == null ? 'Any' : '$_minYears+ years', onTap: () => choose<int>(
+                    'Experience',
+                    const [(null, 'Any'), (2, '2+ years'), (3, '3+ years'), (5, '5+ years')],
+                    _minYears,
+                    (v) => _minYears = v,
+                  )),
+              if (_role != 'coach')
+                ObRow('Caddie style', value: _personality ?? 'Any', onTap: () => choose<String>(
+                      'Caddie style',
+                      [(null, 'Any'), for (final p in _personalities) (p, p)],
+                      _personality,
+                      (v) => _personality = v,
+                    )),
+              ObRow('Knows the course', value: _course ?? 'Any', onTap: () => choose<String>(
+                    'Knows the course',
+                    [(null, 'Any course'), for (final c in courses) (c, c)],
+                    _course,
+                    (v) => _course = v,
+                  )),
+            ]),
+            const SizedBox(height: 12),
+            if (_filtered)
+              CupertinoButton(
+                onPressed: () {
+                  _clear();
+                  setSheet(() {});
+                },
+                child: Text('Clear filters', style: Ob.body(17, color: Ob.warn)),
+              ),
+            ObButton(height: 50, radius: 14, onPressed: () => Navigator.pop(sheet), child: Text('Done', style: Ob.label(17))),
+          ]),
+        );
+      }),
+    );
+  }
+
+  static const _any = '__any__';
 }
 
 String _fmt(double v) => v.round().toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
@@ -297,86 +240,48 @@ String _fmt(double v) => v.round().toString().replaceAllMapped(RegExp(r'\B(?=(\d
 String _courses(String json) {
   try {
     final list = (jsonDecode(json) as List).whereType<String>().toList();
-    return list.take(2).join(', ');
+    return list.take(1).join(', ');
   } catch (_) {
     return json.replaceAll(RegExp(r'[\[\]"]'), '');
   }
 }
 
-class _ProviderCard extends ConsumerWidget {
+/// A caddie or coach as one list row: who, what they are, where, and price.
+class _ProRow extends StatelessWidget {
+  const _ProRow({required this.provider});
   final db.Provider provider;
-  const _ProviderCard({required this.provider});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final p = provider;
     final caddie = p.role.toLowerCase() == 'caddie';
-    final courses = _courses(p.coursesJson);
-    return ObCard(
-      onTap: () => context.push('/marketplace/provider/${p.userId}'),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Stack(clipBehavior: Clip.none, children: [
-            _ProviderAvatar(userId: p.userId, avatarUrl: p.avatarUrl),
-            if (p.hasCertification || p.isAvailable)
-              Positioned(
-                right: -2,
-                bottom: -2,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(color: p.hasCertification ? Ob.lime : Ob.lime, shape: BoxShape.circle, border: Border.all(color: Ob.cardFill, width: 3)),
-                  child: p.hasCertification ? const Icon(LucideIcons.check, size: 11, color: Ob.ink) : null,
-                ),
+    final course = _courses(p.coursesJson);
+    return ObRow(
+      p.name,
+      subtitle: [
+        caddie ? 'Caddie' : 'Coach',
+        if (p.experience > 0) '${p.experience} yrs',
+        if (p.rating > 0) '★ ${p.rating.toStringAsFixed(1)}',
+        if (course.isNotEmpty) course,
+      ].join(' · '),
+      leading: Stack(clipBehavior: Clip.none, children: [
+        _ProviderAvatar(userId: p.userId, avatarUrl: p.avatarUrl),
+        if (p.hasCertification)
+          Positioned(
+            right: -3,
+            bottom: -3,
+            child: Semantics(
+              label: 'Verified',
+              child: Container(
+                padding: const EdgeInsets.all(1.5),
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: const Icon(CupertinoIcons.checkmark_seal_fill, size: 16, color: Color(0xFF2563EB)),
               ),
-          ]),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.display(21, height: 1.1)),
-              const SizedBox(height: 4),
-              Row(children: [
-                const Icon(LucideIcons.star, size: 14, color: Color(0xFFB7791F)),
-                const SizedBox(width: 4),
-                Text(p.rating.toStringAsFixed(1), style: Ob.label(13, weight: FontWeight.w800)),
-                Flexible(
-                  child: Text(' · ${p.experience} yrs${courses.isNotEmpty ? ' · $courses' : ''}',
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(13, color: Ob.creamA(.66))),
-                ),
-              ]),
-              const SizedBox(height: 8),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                ObChip(caddie ? 'Caddie' : 'Coach', on: true),
-                if (p.personalityType != null) ObChip(p.personalityType!),
-              ]),
-            ]),
+            ),
           ),
-        ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(
-            child: p.price == null
-                ? Text('Price on request', style: Ob.body(13, color: Ob.creamA(.55)))
-                : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('KES ${_fmt(p.price!)}', style: Ob.display(24, height: 1)),
-                    Text(caddie ? 'per round' : 'per hour', style: Ob.body(11, color: Ob.creamA(.55))),
-                  ]),
-          ),
-          ObButton(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            onPressed: () async {
-              await UrlHelper.launchCaller(p.phone);
-              ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'call');
-            },
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(LucideIcons.phone, size: 16),
-              const SizedBox(width: 6),
-              Text('Call', style: Ob.label(15, weight: FontWeight.w800)),
-            ]),
-          ),
-        ]),
       ]),
+      value: p.price == null ? null : 'KES ${_fmt(p.price!)}',
+      onTap: () => context.push('/marketplace/provider/${p.userId}'),
     );
   }
 }
@@ -389,57 +294,35 @@ class _ProviderAvatar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final url = ref.watch(specificUserProfileProvider(userId)).valueOrNull?.avatarUrl ?? avatarUrl;
-    return ProfileImage(url: url, size: 64, isCircle: true);
+    return ProfileImage(url: url, size: 44, isCircle: true);
   }
 }
 
-class _InquiryCard extends ConsumerWidget {
+/// A pro the golfer called: did it turn into a booking?
+class _InquiryRow extends ConsumerWidget {
+  const _InquiryRow({required this.interaction, required this.all});
   final db.Interaction interaction;
-  const _InquiryCard({required this.interaction});
+  final List<db.Provider> all;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final provider = (ref.watch(allProvidersProvider).valueOrNull ?? const <db.Provider>[]).where((p) => p.userId == interaction.providerId).firstOrNull;
+    final provider = all.where((p) => p.userId == interaction.providerId).firstOrNull;
     if (provider == null) return const SizedBox.shrink();
-    final via = switch (interaction.type.toLowerCase()) { 'call' => 'You called', 'whatsapp' => 'You messaged on WhatsApp', _ => 'You messaged' };
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: ObCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            _ProviderAvatar(userId: provider.userId, avatarUrl: provider.avatarUrl),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(provider.name, style: Ob.display(20, height: 1.1)),
-                const SizedBox(height: 2),
-                Text(via, style: Ob.body(13, color: Ob.creamA(.6))),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 12),
-          Text('Did you book ${provider.name.split(' ').first}?', style: Ob.body(14, weight: FontWeight.w700)),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: ObButton(
-                tone: ObButtonTone.dark,
-                height: 44,
-                onPressed: () => ref.read(interactionServiceProvider).ignoreInteraction(interaction.id),
-                child: Text('Not booked', style: Ob.label(14)),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ObButton(
-                height: 44,
-                onPressed: () => ref.read(interactionServiceProvider).confirmBooking(interaction.id, true),
-                child: Text('Yes, booked', style: Ob.label(14, weight: FontWeight.w800)),
-              ),
-            ),
-          ]),
-        ]),
-      ),
+    final service = ref.read(interactionServiceProvider);
+    Widget answer(String label, Color color, VoidCallback onTap) => CupertinoButton(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          minimumSize: const Size(44, 44),
+          onPressed: onTap,
+          child: Text(label, style: Ob.body(17, weight: FontWeight.w600, color: color)),
+        );
+    return ObRow(
+      provider.name,
+      subtitle: 'You called ${provider.role.toLowerCase() == 'caddie' ? 'this caddie' : 'this coach'}',
+      leading: _ProviderAvatar(userId: provider.userId, avatarUrl: provider.avatarUrl),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        answer('No', Ob.creamA(.6), () => service.ignoreInteraction(interaction.id)),
+        answer('Yes', Ob.lime, () => service.confirmBooking(interaction.id, true)),
+      ]),
     );
   }
 }

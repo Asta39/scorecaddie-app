@@ -9,7 +9,6 @@ import 'package:drift/drift.dart' as drift;
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
-import '../onboarding/ob_widgets.dart';
 import '../../providers/app_providers.dart';
 import '../../core/cloud/api_service.dart';
 import 'package:intl/intl.dart';
@@ -81,195 +80,115 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
     final reviews = ref.watch(providerReviewsProvider(p.userId)).valueOrNull ?? const <db.Review>[];
     final price = p.price == null || p.price == 0 ? null : 'KES ${NumberFormat('#,###').format(p.price)}';
 
+    Future<void> call() async {
+      ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'call');
+      await UrlHelper.launchCaller(p.phone);
+    }
+
     return Column(children: [
       Expanded(
         child: ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            Row(children: [
-              ObIconButton(icon: LucideIcons.chevronLeft, label: 'Back', onPressed: () => context.pop()),
-              const Spacer(),
+            ObTopBar('', onBack: () => context.pop(), actions: [
               ObIconButton(
-                icon: LucideIcons.share2,
+                icon: LucideIcons.share,
                 label: 'Share profile',
                 onPressed: () => UrlHelper.shareProfile(userId: p.userId, name: p.name, role: p.role),
               ),
             ]),
-            Column(children: [
-              Stack(clipBehavior: Clip.none, children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Ob.lime.withValues(alpha: .6), width: 3)),
-                  child: ProfileImage(url: p.avatarUrl, name: p.name, size: 106, isCircle: true),
-                ),
-                if (p.profileComplete)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(color: Ob.lime, shape: BoxShape.circle, border: Border.all(color: Ob.bg, width: 4)),
-                      child: const Icon(LucideIcons.check, size: 14, color: Ob.ink),
-                    ),
-                  ),
-              ]),
-              const SizedBox(height: 10),
-              Text(p.name, textAlign: TextAlign.center, style: Ob.display(32, height: 1.05)),
-              const SizedBox(height: 8),
-              Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: [
-                ObChip(coach ? 'Coach' : 'Caddie', on: true, color: coach ? const Color(0xFFB7791F) : Ob.lime),
-                if (!coach && (p.personalityType ?? '').isNotEmpty) ObChip(p.personalityType!),
-                if (coach && p.hasCertification) ObChip(p.certificationName ?? 'Certified'),
-                ObChip(p.isAvailable ? 'Available now' : 'Offline', on: p.isAvailable),
-              ]),
-              const SizedBox(height: 6),
-              Text(
-                [
-                  if (p.experience > 0) '${p.experience} years ${coach ? 'coaching' : 'on the bag'}',
-                  if (courses.isNotEmpty) courses.first,
-                ].join(' · '),
-                textAlign: TextAlign.center,
-                style: Ob.body(14, color: Ob.creamA(.62)),
-              ),
-            ]).rise(),
+            const SizedBox(height: 8),
+            Center(child: ProfileImage(url: p.avatarUrl, name: p.name, size: 96, isCircle: true)),
+            const SizedBox(height: 12),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Flexible(child: Text(p.name, textAlign: TextAlign.center, style: Ob.display(28, height: 1.1))),
+              if (p.hasCertification) ...[
+                const SizedBox(width: 6),
+                Semantics(label: 'Verified', child: const Icon(CupertinoIcons.checkmark_seal_fill, size: 22, color: Color(0xFF2563EB))),
+              ],
+            ]),
+            const SizedBox(height: 4),
+            Text(
+              [
+                coach ? 'Coach' : 'Caddie',
+                if (p.experience > 0) '${p.experience} years',
+                if (courses.isNotEmpty) courses.first,
+              ].join(' · '),
+              textAlign: TextAlign.center,
+              style: Ob.body(15, color: Ob.creamA(.6)),
+            ),
+            const SizedBox(height: 4),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(width: 8, height: 8, decoration: BoxDecoration(color: p.isAvailable ? const Color(0xFF34C759) : Ob.creamA(.3), shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Text(p.isAvailable ? 'Available now' : 'Not taking bookings', style: Ob.body(15, color: Ob.creamA(.6))),
+            ]),
             const SizedBox(height: 18),
-            Row(children: [
-              _stat(p.rating == 0 ? '—' : p.rating.toStringAsFixed(1), 'Rating', const Color(0xFFB7791F)),
-              const SizedBox(width: 8),
-              _stat(_compact(p.totalBookings), coach ? 'Bookings' : 'Rounds', Ob.cream),
-              const SizedBox(width: 8),
-              _stat(_compact(p.views), 'Profile views', Ob.cream),
-            ]).rise(1),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(12)),
+              child: Row(children: [
+                _stat(p.rating == 0 ? '—' : '★ ${p.rating.toStringAsFixed(1)}', '${p.totalReviews} reviews'),
+                _stat(price ?? '—', coach ? 'per hour' : 'per round'),
+                _stat(_compact(p.totalBookings), coach ? 'bookings' : 'rounds'),
+              ]),
+            ),
             if (coach) ...[
-              const SizedBox(height: 14),
-              GestureDetector(
-                onTap: () => context.push('/marketplace/coach/${p.userId}/sessions'),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: Ob.lime.withValues(alpha: .08), borderRadius: BorderRadius.circular(24), border: Border.all(color: Ob.lime, width: 2)),
-                  child: Row(children: [
-                    Image.asset(ObBot.star.happy, width: 52, height: 52),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('See $first\'s sessions', style: Ob.body(16, weight: FontWeight.w800)),
-                        Text('Group programmes and private lessons', style: Ob.body(12, color: Ob.creamA(.6))),
-                      ]),
-                    ),
-                    Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.5)),
-                  ]),
-                ),
-              ),
+              const SizedBox(height: 22),
+              ObGroup(children: [
+                ObRow('$first’s sessions', subtitle: 'Group programmes and private lessons',
+                    leading: const ObRowIcon(LucideIcons.calendar, Ob.lime),
+                    onTap: () => context.push('/marketplace/coach/${p.userId}/sessions')),
+              ]),
             ],
             if ((p.bio ?? '').isNotEmpty) ...[
-              const SizedBox(height: 14),
-              ObCard(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  ObEyebrow('About $first'),
-                  const SizedBox(height: 8),
-                  Text(p.bio!, style: Ob.body(14, height: 1.55, color: Ob.creamA(.8))),
-                ]),
-              ),
-            ],
-            if (coach && specs.isNotEmpty) ...[
               const SizedBox(height: 22),
-              const ObEyebrow('Coaches'),
-              const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 8, children: [for (final t in specs) ObChip(t)]),
-            ],
-            if (courses.isNotEmpty) ...[
-              const SizedBox(height: 22),
-              ObEyebrow(coach ? 'Where $first coaches' : 'Where $first caddies'),
-              const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final c in courses)
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(5, 5, 12, 5),
-                    decoration: BoxDecoration(color: Ob.creamA(.06), borderRadius: BorderRadius.circular(999)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      ObCrest(c, size: 28, radius: 999),
-                      const SizedBox(width: 8),
-                      Text(c, style: Ob.body(13, weight: FontWeight.w700)),
-                    ]),
-                  ),
-              ]),
-            ],
-            if (coach && p.hasCertification) ...[
-              const SizedBox(height: 14),
-              ObCard(
-                child: Row(children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(color: const Color(0xFFB7791F).withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
-                    child: const Icon(LucideIcons.award, color: Color(0xFFB7791F), size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(p.certificationName ?? 'Certified professional', style: Ob.body(15, weight: FontWeight.w800)),
-                      Text('Certificate on file with ScoreCaddie', style: Ob.body(12, color: Ob.creamA(.58))),
-                    ]),
-                  ),
-                  const Icon(LucideIcons.check, color: Ob.lime, size: 18),
-                ]),
-              ),
+              ObGroup(header: 'About', children: [ObRow(p.bio!)]),
             ],
             const SizedBox(height: 22),
-            ObEyebrow('Reviews', action: 'Write one', onAction: () => _showWriteReviewModal(context, ref, p)),
-            const SizedBox(height: 10),
-            if (reviews.isEmpty)
-              ObCard(child: Text('No reviews yet. Played with $first? Be the first.', style: Ob.body(13, color: Ob.creamA(.6))))
-            else
-              for (final r in reviews.take(5)) _ReviewCard(review: r),
+            ObGroup(header: 'Details', children: [
+              if (!coach && (p.personalityType ?? '').isNotEmpty) ObRow('Style', value: p.personalityType),
+              if (coach && specs.isNotEmpty) ObRow('Teaches', subtitle: specs.join(', ')),
+              if (courses.isNotEmpty) ObRow(coach ? 'Coaches at' : 'Caddies at', subtitle: courses.join(', ')),
+              if (coach && p.hasCertification) ObRow('Certified', subtitle: p.certificationName ?? 'Certificate on file with ScoreCaddie'),
+              ObRow('Profile views', value: _compact(p.views)),
+            ]),
+            const SizedBox(height: 22),
+            ObGroup(header: 'Reviews', children: [
+              if (reviews.isEmpty) ObRow('No reviews yet', subtitle: 'Played with $first? Be the first.'),
+              for (final r in reviews.take(5))
+                ObRow(r.playerName,
+                    subtitle: r.comment,
+                    leading: ProfileImage(url: r.playerAvatar, name: r.playerName, size: 36, isCircle: true),
+                    value: '★ ${r.rating}'),
+              ObRow('Write a review', titleColor: Ob.lime, onTap: () => _showWriteReviewModal(context, ref, p)),
+            ]),
           ],
         ),
       ),
-      Container(
-        padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
-        decoration: BoxDecoration(color: Ob.bg, border: Border(top: BorderSide(color: Ob.creamA(.06)))),
+      Padding(
+        padding: EdgeInsets.fromLTRB(16, 8, 16, 10 + MediaQuery.of(context).padding.bottom),
         child: Row(children: [
           if (coach) ...[
-          Semantics(
-            button: true,
-            label: 'Call $first',
-            child: GestureDetector(
-              onTap: () async {
-                ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'call');
-                await UrlHelper.launchCaller(p.phone);
-              },
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(color: Ob.cardFill, shape: BoxShape.circle, border: Border.all(color: Ob.creamA(.1))),
-                child: const Icon(LucideIcons.phone, color: Ob.cream, size: 20),
+            Expanded(
+              child: ObButton(
+                height: 54,
+                radius: 14,
+                tone: ObButtonTone.light,
+                onPressed: call,
+                child: Text('Call', style: Ob.body(17, weight: FontWeight.w600)),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 10),
           ],
           Expanded(
+            flex: 2,
             child: ObButton(
-              onPressed: coach
-                  ? () => context.push('/marketplace/coach/${p.userId}/sessions')
-                  : () async {
-                      await UrlHelper.launchCaller(p.phone);
-                      ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'call');
-                    },
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(coach ? LucideIcons.calendarPlus : LucideIcons.phone, size: 18, color: Ob.ink),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    coach ? 'Book a session' : (price == null ? 'Call $first' : 'Call $first · $price'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Ob.label(16, weight: FontWeight.w800),
-                  ),
-                ),
-              ]),
+              height: 54,
+              radius: 14,
+              onPressed: coach ? () => context.push('/marketplace/coach/${p.userId}/sessions') : call,
+              child: Text(coach ? 'Book a session' : 'Call $first', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.label(17)),
             ),
           ),
         ]),
@@ -277,16 +196,11 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
     ]);
   }
 
-  Widget _stat(String v, String label, Color c) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(20), border: Border.all(color: Ob.creamA(.06))),
-          child: Column(children: [
-            Text(v, style: Ob.display(24, height: 1, color: c)),
-            const SizedBox(height: 4),
-            Text(label, style: Ob.body(11, color: Ob.creamA(.55))),
-          ]),
-        ),
+  Widget _stat(String v, String label) => Expanded(
+        child: Column(children: [
+          Text(v, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.display(17, height: 1.2)),
+          Text(label, style: Ob.body(13, color: Ob.creamA(.6))),
+        ]),
       );
 
   void _showWriteReviewModal(BuildContext context, WidgetRef ref, db.Provider provider) {
@@ -373,36 +287,5 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
       if (decoded is List) return decoded.cast<String>();
     } catch (_) {}
     return [];
-  }
-}
-
-class _ReviewCard extends StatelessWidget {
-  final db.Review review;
-  const _ReviewCard({required this.review});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: ObCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            ProfileImage(url: review.playerAvatar, name: review.playerName, size: 34, isCircle: true),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(review.playerName, style: Ob.body(14, weight: FontWeight.w800)),
-                Text(DateFormat('d MMM yyyy').format(review.createdAt), style: Ob.body(11, color: Ob.creamA(.5))),
-              ]),
-            ),
-            const Icon(Icons.star_rounded, size: 16, color: Color(0xFFB7791F)),
-            const SizedBox(width: 3),
-            Text('${review.rating}', style: Ob.body(13, weight: FontWeight.w800, color: const Color(0xFFB7791F))),
-          ]),
-          const SizedBox(height: 8),
-          Text(review.comment, style: Ob.body(14, height: 1.5, color: Ob.creamA(.8))),
-        ]),
-      ),
-    );
   }
 }
