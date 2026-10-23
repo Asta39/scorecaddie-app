@@ -279,6 +279,8 @@ void main() {
       await _settle(tester);
       expect(find.text('Continue with email'), findsOneWidget);
       await _shot(tester, '$label-a3-signin');
+      await tester.ensureVisible(find.textContaining('Create an account'));
+      await tester.pump();
       await tester.tap(find.textContaining('Create an account'));
       await _settle(tester);
       expect(find.text('Create account'), findsOneWidget);

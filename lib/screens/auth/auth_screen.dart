@@ -274,7 +274,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                             child: Text(
                               _isRegistering ? 'Karibu! Let’s get you set up.' : 'Karibu! Let’s get you on the tee.',
-                              style: Ob.body(15, weight: FontWeight.w600, color: Ob.ink, height: 1.4),
+                              style: Ob.body(15, weight: FontWeight.w600, color: Ob.cream, height: 1.4),
                             ),
                           ),
                         ),
@@ -296,19 +296,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                       children: [
                         Image.asset('assets/images/google_g.png', width: 20, height: 20, excludeFromSemantics: true),
                         const SizedBox(width: 12),
-                        Text('Continue with Google', style: Ob.body(16, weight: FontWeight.w700, color: Ob.ink)),
+                        Text('Continue with Google', style: Ob.body(17, weight: FontWeight.w600, color: Ob.cream)),
                       ],
                     ),
                   ).rise(1),
                   const SizedBox(height: 22),
                   Row(
                     children: [
-                      Expanded(child: Container(height: 1, color: Colors.white.withValues(alpha: .12))),
+                      Expanded(child: Container(height: 1, color: Ob.hairline)),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Text('OR', style: Ob.body(12, weight: FontWeight.w700, color: Ob.creamA(.5), letterSpacing: 1.44)),
                       ),
-                      Expanded(child: Container(height: 1, color: Colors.white.withValues(alpha: .12))),
+                      Expanded(child: Container(height: 1, color: Ob.hairline)),
                     ],
                   ).rise(2),
                   const SizedBox(height: 22),
@@ -340,7 +340,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                       if (_isRegistering) ...[
                         const SizedBox(height: 16),
                         _termsConsent(),
-                      ],
+                      ] else
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _isLoading ? null : _forgotPassword,
+                            child: Text('Forgot password?', style: Ob.body(15, weight: FontWeight.w600, color: Ob.lime)),
+                          ),
+                        ),
                     ],
                   ).rise(3),
                   const Spacer(),
@@ -387,6 +394,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
         );
       }),
     );
+  }
+
+  /// Emails a reset link to the address typed above (asks for it if empty).
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (!email.contains('@')) {
+      TopNotification.showError(context, 'Type your email above, then tap Forgot password');
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(supabaseAuthServiceProvider).sendPasswordReset(email);
+      if (mounted) TopNotification.showSuccess(context, 'Check $email for a link to set a new password. Open it on this phone.');
+    } catch (e) {
+      if (mounted) TopNotification.showError(context, '$e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   InlineSpan _link(String text, Widget page) => WidgetSpan(

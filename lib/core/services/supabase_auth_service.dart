@@ -52,6 +52,15 @@ class SupabaseAuthService {
     }
   }
 
+  /// Emails a reset link that opens the app on the new-password screen.
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _supabase.auth.resetPasswordForEmail(email, redirectTo: 'scorecaddie://login-callback');
+    } on AuthException catch (e) {
+      throw _handleAuthException(e);
+    }
+  }
+
   /// Sign in with Google OAuth.
   Future<void> signInWithGoogle() async {
     try {

@@ -207,10 +207,11 @@ class _ObButtonState extends State<ObButton> {
         highlight = Colors.white.withValues(alpha: 0.08);
         textColor = widget.selected ? Ob.lime : Ob.cream;
       case ObButtonTone.light:
-        grad = const [Color(0xFFF7F9F5), Color(0xFFD7DDD2)];
-        edge = const Color(0xFFC3CABD);
+        // A plain white button with dark text (Ob.ink is white in this theme).
+        grad = const [Color(0xFFFFFFFF), Color(0xFFF7F7FA)];
+        edge = const Color(0x2E3C3C43);
         highlight = Colors.white.withValues(alpha: 0.9);
-        textColor = Ob.ink;
+        textColor = Ob.cream;
     }
 
     final Decoration decoration;

@@ -7,6 +7,7 @@ import 'providers/app_providers.dart';
 import 'widgets/offline_pill.dart';
 import 'screens/onboarding/ob_style.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 bool _pushTapsWired = false;
 
@@ -35,6 +36,13 @@ class ScoreCaddieApp extends ConsumerWidget {
           router.push('/club-life');
         }
       });
+      // A password-reset link signs the golfer in; send them to set the new one.
+      // (Skipped when Supabase isn't set up, as in widget tests.)
+      try {
+        ref.read(supabaseClientProvider).auth.onAuthStateChange.listen((data) {
+          if (data.event == AuthChangeEvent.passwordRecovery) router.go('/new-password');
+        });
+      } catch (_) {}
     }
 
     // Initialize Supabase Realtime when user is available

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/app_providers.dart';
+import '../../screens/auth/new_password_screen.dart';
 import '../../screens/auth/auth_screen.dart';
 import '../../screens/auth/splash_screen.dart';
 import '../../screens/shell/app_shell.dart';
@@ -165,6 +166,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       );
     },
     routes: [
+      GoRoute(
+        path: '/new-password',
+        builder: (context, state) => const NewPasswordScreen(),
+      ),
       GoRoute(
         path: '/login-callback',
         builder: (context, state) => const Scaffold(
