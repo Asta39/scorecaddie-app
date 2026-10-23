@@ -187,10 +187,27 @@ class _ScannerState extends State<_Scanner> {
     }
   }
 
+  bool _torch = false;
+
+  Widget _round(IconData icon, String label, VoidCallback onTap) => Semantics(
+        button: true,
+        label: label,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(color: Color(0x66000000), shape: BoxShape.circle),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
+    // A camera view: light status bar and white type, whatever the app theme.
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: Ob.overlay,
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Stack(children: [
@@ -201,14 +218,17 @@ class _ScannerState extends State<_Scanner> {
               padding: const EdgeInsets.all(16),
               child: Column(children: [
                 Row(children: [
-                  ObIconButton(icon: LucideIcons.x, label: 'Close', onPressed: () => Navigator.pop(context)),
+                  _round(LucideIcons.x, 'Close', () => Navigator.pop(context)),
                   const Spacer(),
-                  ObIconButton(icon: LucideIcons.zap, label: 'Torch', onPressed: () => _controller.toggleTorch()),
+                  _round(_torch ? LucideIcons.flashlightOff : LucideIcons.flashlight, _torch ? 'Torch off' : 'Torch on', () {
+                    _controller.toggleTorch();
+                    setState(() => _torch = !_torch);
+                  }),
                 ]),
                 const Spacer(),
-                Text('Scan a friend\'s code', style: Ob.display(26)),
+                Text('Scan a friend’s code', textAlign: TextAlign.center, style: Ob.display(24, color: Colors.white)),
                 const SizedBox(height: 6),
-                Text('It\'s on their profile, under the QR button.', style: Ob.body(14, color: Ob.creamA(.7))),
+                Text('Point at the QR code on their profile.', textAlign: TextAlign.center, style: Ob.body(17, color: const Color(0xD9FFFFFF))),
                 const SizedBox(height: 40),
               ]),
             ),
@@ -219,20 +239,39 @@ class _ScannerState extends State<_Scanner> {
   }
 }
 
-/// Darkens everything but a rounded lime-edged window in the middle.
+/// Darkens everything but a square window, marked by white corner brackets
+/// like the system camera's code scanner.
 class _ScrimPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final side = size.width * .68;
-    final r = RRect.fromRectAndRadius(Rect.fromCenter(center: size.center(Offset.zero).translate(0, -30), width: side, height: side), const Radius.circular(28));
+    final rect = Rect.fromCenter(center: size.center(Offset.zero).translate(0, -30), width: side, height: side);
+    final r = RRect.fromRectAndRadius(rect, const Radius.circular(24));
     canvas.drawPath(
       Path.combine(PathOperation.difference, Path()..addRect(Offset.zero & size), Path()..addRRect(r)),
-      Paint()..color = const Color(0xB3060F0A),
+      Paint()..color = const Color(0x99000000),
     );
-    canvas.drawRRect(r, Paint()
-      ..color = Ob.lime
+    final pen = Paint()
+      ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3);
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    const arm = 34.0, rad = 24.0;
+    for (final (cx, cy, sx, sy) in [
+      (rect.left, rect.top, 1.0, 1.0),
+      (rect.right, rect.top, -1.0, 1.0),
+      (rect.left, rect.bottom, 1.0, -1.0),
+      (rect.right, rect.bottom, -1.0, -1.0),
+    ]) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(cx, cy + sy * (rad + arm))
+          ..lineTo(cx, cy + sy * rad)
+          ..arcToPoint(Offset(cx + sx * rad, cy), radius: const Radius.circular(rad), clockwise: sx * sy > 0)
+          ..lineTo(cx + sx * (rad + arm), cy),
+        pen,
+      );
+    }
   }
 
   @override
