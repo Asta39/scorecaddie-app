@@ -9,8 +9,8 @@ import '../../widgets/profile_image.dart';
 import '../../widgets/top_notification.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
-import '../onboarding/ob_widgets.dart';
-import 'coach_dashboard_screen.dart' show coachGold;
+import '../onboarding/ob_forms.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 final _kes = NumberFormat('#,###');
 
@@ -65,148 +65,109 @@ class _CoachPaymentManagementScreenState extends ConsumerState<CoachPaymentManag
       _View.bySession => all.where((r) => r.session.id == picked?.id).toList(),
     };
 
+    final revenue = ref.watch(coachRevenueBreakdownProvider).valueOrNull;
+
     return Scaffold(
       backgroundColor: Ob.bg,
       body: DefaultTextStyle(
         style: Ob.textBase,
         child: RefreshIndicator(
           color: Ob.ink,
-          backgroundColor: coachGold,
+          backgroundColor: Ob.lime,
           onRefresh: () async {
             ref.invalidate(coachSessionsProvider);
             ref.invalidate(_allEnrollmentsProvider);
+            ref.invalidate(coachRevenueBreakdownProvider);
           },
           child: ListView(
             physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
             children: [
-              const ObTabHeader('Payments').rise(),
-              const SizedBox(height: 16),
-              ObSplitCards(
-                left: ObStat('Collected', 'KES ${_kes.format(collected)}', valueSize: 22, valueColor: Ob.lime),
-                right: ObStat('Still owed', 'KES ${_kes.format(owed)}', valueSize: 22, valueColor: coachGold),
-              ).rise(1),
-              const SizedBox(height: 16),
+              const ObTabHeader('Money'),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Collected', style: Ob.body(13, weight: FontWeight.w600, color: Ob.creamA(.6))),
+                  Text(_kes.format(collected), style: Ob.display(48, height: 1.1)),
+                  Text('KES · ${owed > 0 ? 'KES ${_kes.format(owed)} still owed' : 'nothing owed'}',
+                      style: Ob.body(15, color: owed > 0 ? Ob.warn : Ob.creamA(.6))),
+                ]),
+              ),
+              if (revenue != null) ...[
+                const SizedBox(height: 22),
+                ObGroup(header: 'By method', children: [
+                  ObRow('M-Pesa', leading: const ObRowIcon(LucideIcons.smartphone, Ob.lime), value: _kes.format(revenue['MPESA'] ?? 0)),
+                  ObRow('Cash', leading: const ObRowIcon(LucideIcons.banknote, Color(0xFFB7791F)), value: _kes.format(revenue['CASH'] ?? 0)),
+                  ObRow('Bank', leading: const ObRowIcon(LucideIcons.landmark, Color(0xFF2563EB)), value: _kes.format(revenue['BANK'] ?? 0)),
+                ]),
+              ],
+              const SizedBox(height: 22),
               ObGooSegmented<_View>(
                 options: const [(_View.owed, 'Owe'), (_View.bySession, 'By session'), (_View.paid, 'Paid')],
                 selected: _view,
                 onChanged: (v) => setState(() => _view = v),
-                accent: coachGold,
-              ).rise(2),
-              const SizedBox(height: 14),
+              ),
               if (_view == _View.bySession && sessions.isNotEmpty) ...[
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: sessions.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) => GestureDetector(
-                      onTap: () => setState(() => _sessionId = sessions[i].id),
-                      child: ObChip(sessions[i].name, on: sessions[i].id == picked?.id, color: coachGold),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
+                ObGroup(children: [
+                  ObRow('Session', value: picked?.name ?? '', onTap: () async {
+                    final id = await showCupertinoModalPopup<String>(
+                      context: context,
+                      builder: (ctx) => CupertinoActionSheet(
+                        actions: [
+                          for (final s in sessions)
+                            CupertinoActionSheetAction(isDefaultAction: s.id == picked?.id, onPressed: () => Navigator.pop(ctx, s.id), child: Text(s.name)),
+                        ],
+                        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                      ),
+                    );
+                    if (id != null) setState(() => _sessionId = id);
+                  }),
+                ]),
               ],
+              const SizedBox(height: 16),
               if (async.isLoading && all.isEmpty)
-                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: coachGold)))
+                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
               else if (async.hasError && all.isEmpty)
-                ObCard(child: Text('Couldn\'t load payments. Pull down to try again.', style: Ob.body(14, color: Ob.creamA(.7))))
+                const ObGroup(children: [ObRow('Couldn’t load payments', subtitle: 'Pull down to try again')])
               else if (rows.isEmpty)
-                ObCard(
-                  padding: const EdgeInsets.all(20),
-                  child: ObGuideRow(
-                    botAsset: ObBot.star.happy,
-                    botLabel: 'Your star avatar',
-                    text: switch (_view) {
-                      _View.owed => all.isEmpty ? 'Payments show up once players book.' : 'Everyone\'s paid up.',
-                      _View.paid => 'Nobody has paid in full yet.',
-                      _View.bySession => 'No players in this session yet.',
-                    },
-                    size: 72,
-                    fontSize: 16,
-                  ),
-                )
+                ObGroup(children: [
+                  ObRow(switch (_view) {
+                    _View.owed => all.isEmpty ? 'Payments show up once players book' : 'Everyone’s paid up',
+                    _View.paid => 'Nobody has paid in full yet',
+                    _View.bySession => 'No players in this session yet',
+                  }),
+                ])
               else
-                for (final r in rows) Padding(padding: const EdgeInsets.only(bottom: 10), child: _PayRow(r: r, showSession: _view != _View.bySession)),
+                ObGroup(
+                  footer: _view == _View.paid ? null : 'Tap a player to record a payment.',
+                  children: [for (final r in rows) _payRow(context, r, showSession: _view != _View.bySession)],
+                ),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-class _PayRow extends ConsumerWidget {
-  const _PayRow({required this.r, required this.showSession});
-  final _RE r;
-  final bool showSession;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final name = r.e.playerName ?? 'Student';
-    final partial = r.e.paymentStatus == 'partial';
-    final price = r.session.pricePerSession;
-    final paidShare = price <= 0 ? 1.0 : (r.e.amountPaid / price).clamp(0.0, 1.0);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: r.isPaid ? Ob.roleFill : Ob.cardFill,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: r.isPaid ? Ob.lime.withValues(alpha: .35) : (r.isOverdue ? Ob.warn.withValues(alpha: .5) : Ob.creamA(.06))),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          ProfileImage(url: r.e.playerAvatar, name: name, size: 40, isCircle: true),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: Ob.body(15, weight: FontWeight.w800)),
-              Text(
-                showSession ? r.session.name : 'Joined ${DateFormat('d MMM').format(r.e.enrolledAt)}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Ob.body(12, color: Ob.creamA(.55)),
-              ),
-            ]),
-          ),
-          if (r.isPaid)
-            ObChip('Paid', on: true)
-          else if (r.isOverdue)
-            ObChip('${DateTime.now().difference(r.e.enrolledAt).inDays}d late', on: true, color: Ob.warn)
-          else
-            ObChip(partial ? 'Part paid' : 'Unpaid', on: true, color: coachGold),
-        ]),
-        const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(value: paidShare, minHeight: 6, backgroundColor: Ob.creamA(.08), color: Ob.lime),
-        ),
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(
-            child: Text.rich(TextSpan(children: [
-              TextSpan(text: 'KES ${_kes.format(r.e.amountPaid)}', style: Ob.body(13, weight: FontWeight.w800, color: Ob.lime)),
-              TextSpan(text: ' of ${_kes.format(price)}', style: Ob.body(13, color: Ob.creamA(.6))),
-              if (!r.isPaid) TextSpan(text: '  ·  owes ${_kes.format(r.outstanding)}', style: Ob.body(13, weight: FontWeight.w700, color: coachGold)),
-            ])),
-          ),
-          if (!r.isPaid)
-            ObButton(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              onPressed: () => showModalBottomSheet(
+  Widget _payRow(BuildContext context, _RE r, {required bool showSession}) {
+    final late = r.isOverdue ? ' · ${DateTime.now().difference(r.e.enrolledAt).inDays} days late' : '';
+    return ObRow(
+      r.e.playerName ?? 'Student',
+      subtitle: '${showSession ? r.session.name : 'Joined ${DateFormat('d MMM').format(r.e.enrolledAt)}'} · paid ${_kes.format(r.e.amountPaid)} of ${_kes.format(r.session.pricePerSession)}$late',
+      leading: ProfileImage(url: r.e.playerAvatar, name: r.e.playerName, size: 36, isCircle: true),
+      value: r.isPaid ? 'Paid' : _kes.format(r.outstanding),
+      valueColor: r.isPaid ? null : Ob.warn,
+      onTap: r.isPaid
+          ? null
+          : () => showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
                 builder: (_) => _RecordSheet(r: r),
               ),
-              child: Text('Record', style: Ob.label(13, weight: FontWeight.w800)),
-            ),
-        ]),
-      ]),
     );
   }
 }
@@ -262,63 +223,43 @@ class _RecordSheetState extends ConsumerState<_RecordSheet> {
   @override
   Widget build(BuildContext context) {
     final r = widget.r;
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        padding: EdgeInsets.fromLTRB(22, 12, 22, 22 + MediaQuery.of(context).padding.bottom),
-        decoration: const BoxDecoration(color: Ob.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
-        child: DefaultTextStyle(
-          style: Ob.textBase,
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Ob.creamA(.2), borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 16),
-            Row(children: [
-              ProfileImage(url: r.e.playerAvatar, name: r.e.playerName, size: 44, isCircle: true),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Record a payment', style: Ob.display(22)),
-                  Text('${r.e.playerName ?? 'Student'} · owes KES ${_kes.format(r.outstanding)}', style: Ob.body(13, color: Ob.creamA(.6))),
-                ]),
-              ),
-            ]),
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(20)),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                Text('KES ', style: Ob.body(16, weight: FontWeight.w700, color: Ob.creamA(.6))),
-                Expanded(
-                  child: TextField(
-                    controller: _amount,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    cursorColor: coachGold,
-                    style: Ob.display(40, color: Ob.cream),
-                    decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-                  ),
-                ),
-              ]),
-            ),
-            const SizedBox(height: 14),
-            ObGooSegmented<String>(
-              options: const [('MPESA', 'M-Pesa'), ('CASH', 'Cash'), ('BANK', 'Bank')],
-              selected: _method,
-              onChanged: (m) => setState(() => _method = m),
-              accent: coachGold,
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: ObButton(
-                onPressed: _saving ? null : _save,
-                child: Text(_saving ? 'Saving…' : 'Save payment', style: Ob.label(16, weight: FontWeight.w800)),
+    return ObSheet(
+      title: 'Record a payment',
+      subtitle: '${r.e.playerName ?? 'Student'} · owes KES ${_kes.format(r.outstanding)}',
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(12)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+            Text('KES ', style: Ob.body(17, color: Ob.creamA(.6))),
+            Expanded(
+              child: TextField(
+                controller: _amount,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                cursorColor: Ob.lime,
+                style: Ob.display(36, color: Ob.cream),
+                decoration: const InputDecoration(border: InputBorder.none, isDense: true),
               ),
             ),
           ]),
         ),
-      ),
+        const SizedBox(height: 14),
+        ObGooSegmented<String>(
+          options: const [('MPESA', 'M-Pesa'), ('CASH', 'Cash'), ('BANK', 'Bank')],
+          selected: _method,
+          onChanged: (m) => setState(() => _method = m),
+        ),
+        const SizedBox(height: 18),
+        ObButton(
+          height: 54,
+          radius: 14,
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? 'Saving…' : 'Record', style: Ob.label(17)),
+        ),
+      ]),
     );
   }
 }

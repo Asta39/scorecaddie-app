@@ -8,8 +8,7 @@ import '../../providers/app_providers.dart';
 import '../../core/models/coaching_model.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
-import '../onboarding/ob_widgets.dart';
-import 'coach_dashboard_screen.dart' show coachGold, nextOccurrence;
+import 'coach_dashboard_screen.dart' show nextOccurrence;
 
 enum _Filter { active, past, cancelled }
 
@@ -45,36 +44,38 @@ class _CoachSessionsScreenState extends ConsumerState<CoachSessionsScreen> {
         style: Ob.textBase,
         child: RefreshIndicator(
           color: Ob.ink,
-          backgroundColor: coachGold,
+          backgroundColor: Ob.lime,
           onRefresh: () async => ref.invalidate(coachSessionsProvider),
           child: ListView(
             physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
             children: [
               ObTabHeader('Sessions', actions: [
                 ObIconButton(icon: LucideIcons.plus, label: 'New session', onPressed: () => context.push('/create-session')),
-              ]).rise(),
-              const SizedBox(height: 16),
-              ObSplitCards(
-                left: ObStat('Running', '${active.length}', valueColor: coachGold),
-                right: ObStat('Seats filled', '$taken/$seats'),
-              ).rise(1),
-              const SizedBox(height: 16),
+              ]),
+              if (active.isNotEmpty) Text('${active.length} running · $taken of $seats seats filled', style: Ob.body(15, color: Ob.creamA(.6))),
+              const SizedBox(height: 14),
               ObGooSegmented<_Filter>(
-                options: const [(_Filter.active, 'Active'), (_Filter.past, 'Past'), (_Filter.cancelled, 'Cancelled')],
+                options: const [(_Filter.active, 'Running'), (_Filter.past, 'Past'), (_Filter.cancelled, 'Cancelled')],
                 selected: _filter,
                 onChanged: (f) => setState(() => _filter = f),
-                accent: coachGold,
-              ).rise(2),
+              ),
               const SizedBox(height: 16),
               if (async.isLoading && sessions.isEmpty)
-                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: coachGold)))
+                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
               else if (async.hasError && sessions.isEmpty)
-                ObCard(child: Text('Couldn\'t load your sessions. Pull down to try again.', style: Ob.body(14, color: Ob.creamA(.7))))
+                ObGroup(children: [ObRow('Couldn’t load your sessions', subtitle: 'Pull down to try again')])
               else if (shown.isEmpty)
-                _empty()
+                ObGroup(children: [
+                  ObRow(switch (_filter) {
+                    _Filter.active => 'No sessions running',
+                    _Filter.past => 'No finished sessions yet',
+                    _Filter.cancelled => 'Nothing cancelled',
+                  }),
+                  if (_filter == _Filter.active) ObRow('New session', titleColor: Ob.lime, onTap: () => context.push('/create-session')),
+                ])
               else
-                for (final s in shown) Padding(padding: const EdgeInsets.only(bottom: 12), child: _SessionCard(session: s)),
+                ObGroup(children: [for (final s in shown) _row(context, s)]),
             ],
           ),
         ),
@@ -82,85 +83,19 @@ class _CoachSessionsScreenState extends ConsumerState<CoachSessionsScreen> {
     );
   }
 
-  Widget _empty() {
-    final text = switch (_filter) {
-      _Filter.active => 'No sessions running. Create one and players can book it.',
-      _Filter.past => 'Finished programmes land here.',
-      _Filter.cancelled => 'Nothing cancelled.',
-    };
-    return ObCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ObGuideRow(botAsset: ObBot.star.idle, botLabel: 'Your star avatar', text: text, size: 72, fontSize: 16),
-        if (_filter == _Filter.active) ...[
-          const SizedBox(height: 16),
-          ObButton(
-            onPressed: () => context.push('/create-session'),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(LucideIcons.plus, size: 18, color: Ob.ink),
-              const SizedBox(width: 8),
-              Text('New session', style: Ob.label(15, weight: FontWeight.w800)),
-            ]),
-          ),
-        ],
-      ]),
-    );
-  }
-}
-
-class _SessionCard extends StatelessWidget {
-  const _SessionCard({required this.session});
-  final CoachingSession session;
-
   static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  @override
-  Widget build(BuildContext context) {
-    final s = session;
+  Widget _row(BuildContext context, CoachingSession s) {
     final next = nextOccurrence(s);
-    final fill = s.maxPlayers == 0 ? 0.0 : (s.enrollmentCount / s.maxPlayers).clamp(0.0, 1.0);
-    final (label, color) = switch (s.status) {
-      'full' => ('Full', coachGold),
-      'completed' => ('Past', Ob.creamA(.6)),
-      'cancelled' => ('Cancelled', Ob.warn),
-      _ => (s.sessionType, Ob.lime),
-    };
     final when = next != null
         ? DateFormat('EEE d MMM · HH:mm').format(next)
         : '${s.daysOfWeek.where((d) => d >= 1 && d <= 7).map((d) => _days[d - 1]).join(', ')} · ${s.startTime.length >= 5 ? s.startTime.substring(0, 5) : s.startTime}';
-
-    return ObCard(
+    return ObRow(
+      s.name,
+      subtitle: [when, if (s.location.isNotEmpty) s.location, 'KES ${NumberFormat('#,###').format(s.pricePerSession)}'].join(' · '),
+      value: s.status == 'full' ? 'Full' : '${s.enrollmentCount}/${s.maxPlayers}',
+      valueColor: s.status == 'cancelled' ? Ob.warn : null,
       onTap: () => context.push('/coach/session/${s.id}'),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          ObChip(label, on: true, color: color),
-          const Spacer(),
-          Text(when, style: Ob.body(12, weight: FontWeight.w700, color: Ob.creamA(.6))),
-        ]),
-        const SizedBox(height: 10),
-        Text(s.name, style: Ob.display(22, height: 1.1)),
-        if (s.location.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Row(children: [
-            Icon(LucideIcons.mapPin, size: 12, color: Ob.creamA(.5)),
-            const SizedBox(width: 4),
-            Expanded(child: Text(s.location, maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(12, color: Ob.creamA(.55)))),
-          ]),
-        ],
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(value: fill, minHeight: 8, backgroundColor: Ob.creamA(.08), color: coachGold),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text('${s.enrollmentCount}/${s.maxPlayers}', style: Ob.display(17)),
-        ]),
-        const SizedBox(height: 8),
-        Text('KES ${NumberFormat('#,###').format(s.pricePerSession)} a session · ${s.weeks} weeks', style: Ob.body(12, color: Ob.creamA(.6))),
-      ]),
     );
   }
 }

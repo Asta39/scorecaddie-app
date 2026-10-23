@@ -45,18 +45,17 @@ class AppShell extends ConsumerStatefulWidget {
   ];
 
   static const _coachTabs = [
-    ('/', 'Home', LucideIcons.home),
+    ('/', 'Today', LucideIcons.house),
     ('/coach/sessions', 'Sessions', LucideIcons.calendar),
     ('/coach/students', 'Students', LucideIcons.users),
     ('/coach/drills', 'Drills', LucideIcons.target),
-    ('/coach/payments', 'Payments', LucideIcons.creditCard),
-    ('/profile', 'Profile', LucideIcons.user),
+    ('/coach/payments', 'Money', LucideIcons.wallet),
   ];
 
   /// Builds the screen widgets for each tab based on role.
   static List<Widget> _buildTabScreens(String? role) {
     if (role == 'coach') {
-      return const [DashboardScreen(), CoachSessionsScreen(), CoachStudentsScreen(), CoachDrillsScreen(), CoachPaymentManagementScreen(), ProfileScreen()];
+      return const [DashboardScreen(), CoachSessionsScreen(), CoachStudentsScreen(), CoachDrillsScreen(), CoachPaymentManagementScreen()];
     } else {
       return const [DashboardScreen(), PlayScreen(), AnalyticsScreen(), ClubCommunityScreen(), ProfileScreen()];
     }
@@ -410,7 +409,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
                       }
                     },
                     items: [for (final t in tabs) (t.$2, t.$3)],
-                    accent: role == 'coach' ? const Color(0xFFB7791F) : Ob.lime,
+                    accent: Ob.lime,
                   ),
                 ),
               ),

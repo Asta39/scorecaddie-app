@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/coaching_model.dart';
@@ -10,7 +9,7 @@ import '../../widgets/notifications/notification_bell.dart';
 import '../../widgets/profile_image.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
-import '../onboarding/ob_widgets.dart';
+import '../profile/profile_screen.dart';
 
 /// The coach's colour: the star's gold.
 const coachGold = Color(0xFFB7791F);
@@ -71,44 +70,60 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
     final owing = students.where((e) => e['payment_status'] != 'fully_paid').length;
     final available = (profile?.providerStatus ?? 'OFFLINE') == 'AVAILABLE';
 
+    final mpesa = revenue?['MPESA'] ?? 0, cash = revenue?['CASH'] ?? 0, bank = revenue?['BANK'] ?? 0;
+    final rating = ((live?['rating'] ?? stats?['rating'] ?? 0) as num).toDouble();
+
     return Scaffold(
       backgroundColor: Ob.bg,
       body: DefaultTextStyle(
         style: Ob.textBase,
         child: RefreshIndicator(
           color: Ob.ink,
-          backgroundColor: coachGold,
+          backgroundColor: Ob.lime,
           onRefresh: _refresh,
           child: ListView(
             physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
             children: [
-              ObTabHeader('$greeting, $name', actions: [_bell()]).rise(),
-              const SizedBox(height: 14),
-              ObGuideRow(botAsset: ObBot.star.happy, botLabel: 'Your star avatar, smiling', text: _nudge(next, owing)).rise(1),
+              ObTabHeader('Today', actions: [
+                const NotificationBell(color: Ob.cream),
+                const SizedBox(width: 8),
+                Semantics(
+                  button: true,
+                  label: 'Your profile and settings',
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+                    child: ProfileImage(url: profile?.avatarUrl, name: profile?.name ?? 'C', size: 34, isCircle: true),
+                  ),
+                ),
+              ]),
+              Text('${DateFormat('EEE d MMM').format(DateTime.now())} · $greeting, $name', style: Ob.body(15, color: Ob.creamA(.6))),
               const SizedBox(height: 16),
-              GestureDetector(
-                onTap: () => ref.read(supabaseServiceProvider).updateStatus(available ? 'OFFLINE' : 'AVAILABLE'),
-                child: Row(children: [
-                  ObChip(available ? 'Taking bookings' : 'Not taking bookings', on: available, color: coachGold),
-                  const SizedBox(width: 8),
-                  Text('Tap to switch', style: Ob.body(12, color: Ob.creamA(.5))),
-                ]),
-              ).rise(1),
-              const SizedBox(height: 14),
-              _nextUp(next).rise(2),
-              const SizedBox(height: 14),
-              _actions().rise(3),
-              const SizedBox(height: 14),
-              ObSplitCards(
-                left: ObStat('Rating', ((live?['rating'] ?? stats?['rating'] ?? 0) as num).toStringAsFixed(1), valueColor: coachGold),
-                right: ObStat('Students', '${stats?['students'] ?? students.length}'),
-              ),
-              const SizedBox(height: 14),
-              _revenue(revenue),
-              const SizedBox(height: 24),
-              ObEyebrow('Recent students', action: 'See all', onAction: () => context.go('/coach/students')),
-              const SizedBox(height: 10),
+              _nextUp(next),
+              const SizedBox(height: 22),
+              ObGroup(header: 'This week', children: [
+                ObRow('Sessions coming up', value: '${upcoming.length}'),
+                ObRow('Students', value: '${stats?['students'] ?? students.length}', onTap: () => context.go('/coach/students')),
+                ObRow('Collected',
+                    subtitle: 'M-Pesa ${_kes.format(mpesa)} · Cash ${_kes.format(cash)} · Bank ${_kes.format(bank)}',
+                    value: 'KES ${_kes.format(mpesa + cash + bank)}',
+                    onTap: () => context.go('/coach/payments')),
+                ObRow('Still owe', value: '$owing', valueColor: owing > 0 ? Ob.warn : null, onTap: () => context.go('/coach/payments')),
+                if (rating > 0) ObRow('Rating', value: rating.toStringAsFixed(1)),
+              ]),
+              const SizedBox(height: 22),
+              ObGroup(children: [
+                ObRow('Taking bookings',
+                    subtitle: available ? 'Players can book you now' : 'Hidden from new bookings',
+                    trailing: CupertinoSwitch(
+                      value: available,
+                      activeTrackColor: Ob.lime,
+                      onChanged: (v) => ref.read(supabaseServiceProvider).updateStatus(v ? 'AVAILABLE' : 'OFFLINE'),
+                    )),
+                ObRow('New session', titleColor: Ob.lime, onTap: () => context.push('/create-session')),
+                ObRow('New drill', titleColor: Ob.lime, onTap: () => context.push('/coach/drills/new')),
+              ]),
+              const SizedBox(height: 22),
               _recent(students),
             ],
           ),
@@ -117,166 +132,46 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
     );
   }
 
-  String _nudge((CoachingSession, DateTime)? next, int owing) {
-    if (next == null) return 'Nothing booked yet. Set up a session and I\'ll keep the roll.';
-    final (s, at) = next;
-    final today = DateUtils.isSameDay(at, DateTime.now());
-    final when = today ? 'at ${DateFormat.Hm().format(at)}' : 'on ${DateFormat('EEEE').format(at)}';
-    final owes = owing == 0 ? 'Everyone\'s paid up.' : '$owing still ${owing == 1 ? 'owes' : 'owe'}.';
-    return '${s.name} $when. $owes';
-  }
-
-  Widget _bell() => Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xFFFFFFFF), Color(0xFFF2F2F7)]),
-          border: Border.all(color: const Color(0xFF2F4A39)),
-        ),
-        child: const Center(child: NotificationBell(color: Ob.cream)),
-      );
-
   Widget _nextUp((CoachingSession, DateTime)? next) {
     if (next == null) {
-      return ObCard(
-        onTap: () => context.push('/create-session'),
-        child: Row(children: [
-          const Icon(LucideIcons.calendarPlus, color: coachGold),
-          const SizedBox(width: 12),
-          Expanded(child: Text('No sessions coming up. Create one.', style: Ob.body(14, weight: FontWeight.w700))),
-          Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
-        ]),
-      );
+      return ObGroup(children: [
+        ObRow('No sessions coming up', subtitle: 'Create one and players can book it', onTap: () => context.push('/create-session')),
+      ]);
     }
     final (s, at) = next;
     final today = DateUtils.isSameDay(at, DateTime.now());
-    final when = '${today ? 'TODAY' : DateFormat('EEE d MMM').format(at).toUpperCase()} · ${DateFormat.Hm().format(at)}';
-    final fill = s.maxPlayers == 0 ? 0.0 : (s.enrollmentCount / s.maxPlayers).clamp(0.0, 1.0);
-    return GestureDetector(
-      onTap: () => context.push('/coach/session/${s.id}'),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(color: const Color(0xFF2A2410), borderRadius: BorderRadius.circular(28), border: Border.all(color: coachGold, width: 2)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text('NEXT UP · $when', style: Ob.body(12, weight: FontWeight.w800, color: coachGold).copyWith(letterSpacing: 1.6))),
-            ObChip(s.sessionType),
-          ]),
-          const SizedBox(height: 8),
-          Text(s.name, style: Ob.display(26, height: 1.05)),
-          if (s.location.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(s.location, style: Ob.body(13, color: Ob.creamA(.6))),
-          ],
-          const SizedBox(height: 14),
-          Row(children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(value: fill, minHeight: 8, backgroundColor: Ob.creamA(.08), color: coachGold),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text('${s.enrollmentCount} of ${s.maxPlayers}', style: Ob.body(13, weight: FontWeight.w700)),
-            const SizedBox(width: 12),
-            Text('Open →', style: Ob.body(13, weight: FontWeight.w800, color: coachGold)),
-          ]),
-        ]),
-      ),
-    );
-  }
-
-  Widget _actions() {
-    Widget tile(IconData icon, String label, VoidCallback onTap) => Expanded(
-          child: ObCard(
-            onTap: onTap,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            radius: 20,
-            child: Column(children: [
-              Icon(icon, size: 20, color: coachGold),
-              const SizedBox(height: 6),
-              Text(label, style: Ob.body(13, weight: FontWeight.w800)),
-            ]),
-          ),
-        );
-    return Row(children: [
-      tile(LucideIcons.plus, 'New session', () => context.push('/create-session')),
-      const SizedBox(width: 8),
-      tile(LucideIcons.target, 'New drill', () => context.push('/coach/drills/new')),
-      const SizedBox(width: 8),
-      tile(LucideIcons.wallet, 'Payments', () => context.go('/coach/payments')),
-    ]);
-  }
-
-  Widget _revenue(Map<String, double>? rev) {
-    final mpesa = rev?['MPESA'] ?? 0, cash = rev?['CASH'] ?? 0, bank = rev?['BANK'] ?? 0;
-    final total = mpesa + cash + bank;
+    final when = '${today ? 'Today' : DateFormat('EEE d MMM').format(at)} · ${DateFormat.Hm().format(at)}';
     return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: Ob.roleFill, borderRadius: BorderRadius.circular(26), border: Border.all(color: Ob.lime.withValues(alpha: .2))),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const ObEyebrow('Collected'),
-        const SizedBox(height: 6),
-        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-          Text('KES ', style: Ob.body(15, weight: FontWeight.w700, color: Ob.creamA(.6))),
-          Text(_kes.format(total), style: Ob.display(44, height: 1)),
-        ]),
-        const SizedBox(height: 12),
-        if (total > 0)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(7),
-            child: SizedBox(
-              height: 14,
-              child: Row(children: [
-                if (mpesa > 0) Expanded(flex: (mpesa * 100 ~/ total).clamp(1, 100), child: Container(color: Ob.lime)),
-                if (cash > 0) Expanded(flex: (cash * 100 ~/ total).clamp(1, 100), child: Container(color: coachGold)),
-                if (bank > 0) Expanded(flex: (bank * 100 ~/ total).clamp(1, 100), child: Container(color: const Color(0xFF2563EB))),
-              ]),
-            ),
-          )
-        else
-          Container(height: 14, decoration: BoxDecoration(color: Ob.creamA(.08), borderRadius: BorderRadius.circular(7))),
-        const SizedBox(height: 10),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('M-Pesa ${_kes.format(mpesa)}', style: Ob.body(12, weight: FontWeight.w700, color: Ob.lime)),
-          Text('Cash ${_kes.format(cash)}', style: Ob.body(12, weight: FontWeight.w700, color: coachGold)),
-          Text('Bank ${_kes.format(bank)}', style: Ob.body(12, weight: FontWeight.w700, color: const Color(0xFF2563EB))),
-        ]),
+        Text('Next up · $when', style: Ob.body(13, weight: FontWeight.w600, color: Ob.creamA(.6))),
+        const SizedBox(height: 4),
+        Text(s.name, style: Ob.display(24, height: 1.15)),
+        Text([if (s.location.isNotEmpty) s.location, '${s.enrollmentCount} of ${s.maxPlayers} booked'].join(' · '), style: Ob.body(15, color: Ob.creamA(.6))),
+        const SizedBox(height: 14),
+        ObButton(height: 50, radius: 14, onPressed: () => context.push('/coach/session/${s.id}'), child: Text('Open session', style: Ob.label(17))),
       ]),
     );
   }
 
   Widget _recent(List<Map<String, dynamic>> list) {
     if (ref.watch(coachStudentsProvider).isLoading && list.isEmpty) {
-      return const Center(child: CupertinoActivityIndicator(color: coachGold));
+      return const Center(child: CupertinoActivityIndicator(color: Ob.lime));
     }
     if (list.isEmpty) {
-      return ObCard(child: Text('Students show up here when they join a session.', style: Ob.body(13, color: Ob.creamA(.6))));
+      return ObGroup(header: 'New students', children: [ObRow('Nobody yet', subtitle: 'Students show up here when they join a session')]);
     }
-    return ObCard(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(children: [
-        for (final (i, e) in list.take(3).indexed) ...[
-          if (i > 0) const ObHair(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-            child: Row(children: [
-              ProfileImage(url: (e['profile'] as Map?)?['avatarUrl'], name: (e['profile'] as Map?)?['name'], size: 36, isCircle: true),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text((e['profile'] as Map?)?['name'] ?? 'Golfer', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(14, weight: FontWeight.w700)),
-                  Text('Joined ${e['coaching_sessions']?['name'] ?? 'a session'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(12, color: Ob.creamA(.55))),
-                ]),
-              ),
-              e['payment_status'] == 'fully_paid'
-                  ? Text('Paid', style: Ob.body(13, weight: FontWeight.w800, color: Ob.lime))
-                  : Text('Owes', style: Ob.body(13, weight: FontWeight.w800, color: coachGold)),
-            ]),
-          ),
-        ],
-      ]),
-    );
+    return ObGroup(header: 'New students', children: [
+      for (final e in list.take(3))
+        ObRow(
+          (e['profile'] as Map?)?['name'] ?? 'Golfer',
+          subtitle: 'Joined ${e['coaching_sessions']?['name'] ?? 'a session'}',
+          leading: ProfileImage(url: (e['profile'] as Map?)?['avatarUrl'], name: (e['profile'] as Map?)?['name'], size: 36, isCircle: true),
+          value: e['payment_status'] == 'fully_paid' ? 'Paid' : 'Owes',
+          valueColor: e['payment_status'] == 'fully_paid' ? null : Ob.warn,
+          onTap: () => context.go('/coach/students'),
+        ),
+    ]);
   }
 }

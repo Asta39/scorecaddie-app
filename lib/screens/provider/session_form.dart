@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +10,7 @@ import '../../providers/app_providers.dart';
 import '../../widgets/top_notification.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
-import 'coach_dashboard_screen.dart' show coachGold;
+import '../onboarding/ob_forms.dart';
 
 /// Create a coaching session, or edit one when [session] is given.
 class SessionForm extends ConsumerStatefulWidget {
@@ -137,26 +138,15 @@ class _SessionFormState extends ConsumerState<SessionForm> {
   }
 
   Future<void> _cancelSession() async {
-    final ok = await showModalBottomSheet<bool>(
+    final ok = await showCupertinoDialog<bool>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: EdgeInsets.fromLTRB(22, 22, 22, 22 + MediaQuery.of(ctx).padding.bottom),
-        decoration: const BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
-        child: DefaultTextStyle(
-          style: Ob.textBase,
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Cancel the whole session?', style: Ob.display(24)),
-            const SizedBox(height: 8),
-            Text('Every upcoming date is cancelled and your players are told. This can\'t be undone.', style: Ob.body(14, color: Ob.creamA(.7))),
-            const SizedBox(height: 20),
-            Row(children: [
-              Expanded(child: ObButton(tone: ObButtonTone.dark, onPressed: () => Navigator.pop(ctx, false), child: Text('Keep it', style: Ob.label(15, weight: FontWeight.w800)))),
-              const SizedBox(width: 10),
-              Expanded(child: ObButton(tone: ObButtonTone.light, onPressed: () => Navigator.pop(ctx, true), child: Text('Cancel session', style: Ob.label(15, weight: FontWeight.w800).copyWith(color: Ob.warn)))),
-            ]),
-          ]),
-        ),
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Cancel the whole session?'),
+        content: const Text('Every upcoming date is cancelled and your players are told. This can’t be undone.'),
+        actions: [
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep it')),
+          CupertinoDialogAction(isDestructiveAction: true, onPressed: () => Navigator.pop(ctx, true), child: const Text('Cancel session')),
+        ],
       ),
     );
     if (ok != true || !mounted) return;
@@ -176,28 +166,56 @@ class _SessionFormState extends ConsumerState<SessionForm> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _startDate.isBefore(now) ? now : _startDate,
-      firstDate: _editing && _startDate.isBefore(now) ? _startDate : now,
-      lastDate: now.add(const Duration(days: 365)),
-      builder: _pickerTheme,
-    );
-    if (picked != null) setState(() => _startDate = picked);
+    final first = _editing && _startDate.isBefore(now) ? _startDate : DateTime(now.year, now.month, now.day);
+    var picked = _startDate.isBefore(first) ? first : _startDate;
+    await _wheel(CupertinoDatePicker(
+      mode: CupertinoDatePickerMode.date,
+      initialDateTime: picked,
+      minimumDate: first,
+      maximumDate: now.add(const Duration(days: 365)),
+      onDateTimeChanged: (d) => picked = d,
+    ));
+    setState(() => _startDate = picked);
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _startTime, builder: _pickerTheme);
-    if (picked != null) setState(() => _startTime = picked);
+    final n = DateTime.now();
+    var picked = DateTime(n.year, n.month, n.day, _startTime.hour, _startTime.minute);
+    await _wheel(CupertinoDatePicker(
+      mode: CupertinoDatePickerMode.time,
+      use24hFormat: true,
+      minuteInterval: 5,
+      initialDateTime: picked.subtract(Duration(minutes: picked.minute % 5)),
+      onDateTimeChanged: (d) => picked = d,
+    ));
+    setState(() => _startTime = TimeOfDay(hour: picked.hour, minute: picked.minute));
   }
 
-  Widget _pickerTheme(BuildContext context, Widget? child) => Theme(
-        data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(primary: coachGold, onPrimary: Ob.ink, surface: Ob.cardFill, onSurface: Ob.cream),
-          dialogTheme: const DialogThemeData(backgroundColor: Ob.cardFill),
+  Future<void> _wheel(Widget picker) => showObSheet<void>(
+        context,
+        (ctx) => ObSheet(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            SizedBox(height: 216, child: picker),
+            const SizedBox(height: 8),
+            ObButton(height: 50, radius: 14, onPressed: () => Navigator.pop(ctx), child: Text('Done', style: Ob.label(17))),
+          ]),
         ),
-        child: child!,
       );
+
+  Future<void> _choose(String title, List<String> options, String selected, ValueChanged<String> onPick) async {
+    final v = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text(title),
+        actions: [
+          for (final o in options)
+            CupertinoActionSheetAction(isDefaultAction: o == selected, onPressed: () => Navigator.pop(ctx, o), child: Text(o)),
+        ],
+        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+      ),
+    );
+    if (v != null) setState(() => onPick(v));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,25 +234,18 @@ class _SessionFormState extends ConsumerState<SessionForm> {
             child: Form(
               key: _formKey,
               child: Column(children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
-                  child: Row(children: [
-                    ObIconButton(icon: LucideIcons.chevronLeft, label: 'Back', onPressed: () => context.pop()),
-                    const SizedBox(width: 10),
-                    Text(_editing ? 'Edit session' : 'New session', style: Ob.display(24)),
-                  ]),
-                ),
                 Expanded(
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                     children: [
-                      _field(_name, 'Name', hint: 'Short game in 6 weeks', required: true),
-                      const SizedBox(height: 10),
-                      _field(_description, 'What you\'ll cover', maxLines: 3),
-                      const SizedBox(height: 18),
-                      const ObEyebrow('Kind'),
-                      const SizedBox(height: 10),
+                      ObTopBar(_editing ? 'Edit session' : 'New session', onBack: () => context.pop()),
+                      const SizedBox(height: 14),
+                      ObGroup(children: [
+                        _field(_name, 'Name', hint: 'Short game in 6 weeks', required: true),
+                        _field(_description, 'What you’ll cover', hint: 'Optional', maxLines: 3),
+                      ]),
+                      const SizedBox(height: 22),
                       ObGooSegmented<String>(
                         options: [for (final t in _types) (t, t)],
                         selected: _type,
@@ -242,114 +253,86 @@ class _SessionFormState extends ConsumerState<SessionForm> {
                           _type = v;
                           if (v == '1-on-1') _maxPlayers = 1;
                         }),
-                        accent: coachGold,
-                        fontSize: 13,
                       ),
-                      const SizedBox(height: 18),
-                      Row(children: [
-                        Expanded(child: _stepper('Players', _maxPlayers, 1, 40, (v) => setState(() => _maxPlayers = v))),
-                        const SizedBox(width: 10),
-                        Expanded(child: _field(_price, 'KES a session', keyboard: TextInputType.number, required: true, onChanged: (_) => setState(() {}))),
+                      const SizedBox(height: 22),
+                      ObGroup(header: 'Size and price', footer: 'If every seat fills: KES ${kes.format(full)}.', children: [
+                        ObRow('Players', trailing: _stepper(_maxPlayers, 1, 40, (v) => setState(() => _maxPlayers = v))),
+                        _field(_price, 'KES a session', hint: '1500', keyboard: TextInputType.number, required: true, onChanged: (_) => setState(() {})),
                       ]),
-                      const SizedBox(height: 18),
-                      _field(_location, 'Club', hint: 'Karen Country Club', required: true),
-                      const SizedBox(height: 10),
-                      _chips('Where at the club', _areas, _area, (v) => setState(() => _area = v)),
-                      const SizedBox(height: 18),
-                      _chips('Level', _levels, _level, (v) => setState(() => _level = v)),
-                      const SizedBox(height: 18),
-                      const ObEyebrow('Days'),
-                      const SizedBox(height: 10),
-                      Row(children: [
-                        for (var d = 1; d <= 7; d++) ...[
-                          if (d > 1) const SizedBox(width: 6),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() => _days.contains(d) ? _days.remove(d) : _days.add(d)),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                height: 44,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: _days.contains(d) ? coachGold : Ob.cardFill,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Text(_dayNames[d - 1], style: Ob.body(12, weight: FontWeight.w800, color: _days.contains(d) ? Ob.ink : Ob.creamA(.7))),
-                              ),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 22),
+                      ObGroup(header: 'Where', children: [
+                        _field(_location, 'Club', hint: 'Karen Country Club', required: true),
+                        ObRow('Area', value: _area, onTap: () => _choose('Where at the club', _areas, _area, (v) => _area = v)),
+                        ObRow('Level', value: _level, onTap: () => _choose('Level', _levels, _level, (v) => _level = v)),
                       ]),
-                      const SizedBox(height: 14),
-                      Row(children: [
-                        Expanded(child: _pickerTile('Starts', DateFormat('EEE d MMM').format(_startDate), LucideIcons.calendar, _pickDate)),
-                        const SizedBox(width: 10),
-                        Expanded(child: _pickerTile('At', _startTime.format(context), LucideIcons.clock, _pickTime)),
-                      ]),
-                      const SizedBox(height: 18),
-                      _chips('Each session', [for (final d in _durations) '$d min'], '$_duration min', (v) => setState(() => _duration = int.parse(v.split(' ').first))),
-                      const SizedBox(height: 18),
-                      _chips('Runs for', [for (final w in _weekOptions) '$w wk'], '$_weeks wk', (v) => setState(() => _weeks = int.parse(v.split(' ').first))),
-                      const SizedBox(height: 18),
-                      const ObEyebrow('Payment'),
-                      const SizedBox(height: 10),
-                      for (final (val, title, sub) in _terms)
+                      const SizedBox(height: 22),
+                      ObGroup(header: 'When', children: [
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: GestureDetector(
-                            onTap: () => setState(() => _paymentTerms = val),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: _paymentTerms == val ? const Color(0xFF2A2410) : Ob.cardFill,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: _paymentTerms == val ? coachGold : Colors.transparent, width: 1.5),
-                              ),
-                              child: Row(children: [
-                                Expanded(
-                                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                    Text(title, style: Ob.body(15, weight: FontWeight.w800)),
-                                    Text(sub, style: Ob.body(12, color: Ob.creamA(.6))),
-                                  ]),
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                          child: Row(children: [
+                            for (var d = 1; d <= 7; d++) ...[
+                              if (d > 1) const SizedBox(width: 6),
+                              Expanded(
+                                child: Semantics(
+                                  button: true,
+                                  selected: _days.contains(d),
+                                  label: _dayNames[d - 1],
+                                  child: GestureDetector(
+                                    onTap: () => setState(() => _days.contains(d) ? _days.remove(d) : _days.add(d)),
+                                    child: Container(
+                                      height: 40,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(color: _days.contains(d) ? Ob.lime : Ob.field, borderRadius: BorderRadius.circular(10)),
+                                      child: Text(_dayNames[d - 1], style: Ob.body(13, weight: FontWeight.w600, color: _days.contains(d) ? Ob.ink : Ob.cream)),
+                                    ),
+                                  ),
                                 ),
-                                Icon(_paymentTerms == val ? LucideIcons.circleCheck : LucideIcons.circle, color: _paymentTerms == val ? coachGold : Ob.creamA(.3)),
-                              ]),
-                            ),
-                          ),
+                              ),
+                            ],
+                          ]),
                         ),
-                      const SizedBox(height: 10),
-                      _field(_prerequisites, 'Bring or know beforehand', hint: 'Own wedge, basic grip'),
-                      const SizedBox(height: 10),
-                      _field(_cancellation, 'Cancellation policy', hint: '24h notice required'),
+                        ObRow('Starts', value: DateFormat('EEE d MMM').format(_startDate), onTap: _pickDate),
+                        ObRow('Time', value: _startTime.format(context), onTap: _pickTime),
+                        ObRow('Length', value: '$_duration min',
+                            onTap: () => _choose('Each session', [for (final d in _durations) '$d min'], '$_duration min', (v) => _duration = int.parse(v.split(' ').first))),
+                        ObRow('Runs for', value: '$_weeks ${_weeks == 1 ? 'week' : 'weeks'}',
+                            onTap: () => _choose('Runs for', [for (final w in _weekOptions) '$w wk'], '$_weeks wk', (v) => _weeks = int.parse(v.split(' ').first))),
+                      ]),
+                      const SizedBox(height: 22),
+                      ObGroup(header: 'Payment', children: [
+                        for (final (val, title, sub) in _terms)
+                          ObRow(title,
+                              subtitle: sub,
+                              trailing: _paymentTerms == val ? const Icon(CupertinoIcons.checkmark_alt, color: Ob.lime, size: 22) : const SizedBox(width: 22),
+                              onTap: () => setState(() => _paymentTerms = val)),
+                      ]),
+                      const SizedBox(height: 22),
+                      ObGroup(header: 'Good to know', children: [
+                        _field(_prerequisites, 'Bring', hint: 'Own wedge, basic grip'),
+                        _field(_cancellation, 'Cancelling', hint: '24h notice required'),
+                      ]),
                       if (_editing) ...[
-                        const SizedBox(height: 24),
-                        Center(
-                          child: TextButton.icon(
-                            onPressed: _busy || widget.session!.status == 'cancelled' ? null : _cancelSession,
-                            icon: const Icon(LucideIcons.calendarX2, color: Ob.warn, size: 18),
-                            label: Text('Cancel this session', style: Ob.body(14, weight: FontWeight.w800, color: Ob.warn)),
-                          ),
-                        ),
+                        const SizedBox(height: 22),
+                        ObGroup(children: [
+                          ObRow('Cancel this session',
+                              titleColor: Ob.warn,
+                              onTap: _busy || widget.session!.status == 'cancelled' ? null : _cancelSession),
+                        ]),
                       ],
                     ],
                   ),
                 ),
-                Container(
-                  padding: EdgeInsets.fromLTRB(20, 12, 20, 14 + MediaQuery.of(context).padding.bottom),
-                  decoration: BoxDecoration(color: Ob.bg, border: Border(top: BorderSide(color: Ob.creamA(.06)))),
-                  child: Row(children: [
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                        Text('IF IT FILLS', style: Ob.eyebrow()),
-                        Text('KES ${kes.format(full)}', style: Ob.display(22, color: coachGold)),
-                      ]),
-                    ),
-                    ObButton(
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 10 + MediaQuery.of(context).padding.bottom),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ObButton(
+                      height: 54,
+                      radius: 14,
                       onPressed: _busy ? null : _save,
-                      child: Text(_busy ? 'Saving…' : (_editing ? 'Save changes' : 'Publish'), style: Ob.label(16, weight: FontWeight.w800)),
+                      child: Text(_busy ? 'Saving…' : (_editing ? 'Save changes' : 'Publish session'), style: Ob.label(17)),
                     ),
-                  ]),
+                  ),
                 ),
               ]),
             ),
@@ -361,83 +344,53 @@ class _SessionFormState extends ConsumerState<SessionForm> {
 
   Widget _field(TextEditingController c, String label,
       {String? hint, int maxLines = 1, bool required = false, TextInputType? keyboard, ValueChanged<String>? onChanged}) {
-    return TextFormField(
-      controller: c,
-      maxLines: maxLines,
-      keyboardType: keyboard,
-      onChanged: onChanged,
-      cursorColor: coachGold,
-      style: Ob.body(15, weight: FontWeight.w700),
-      validator: required ? (v) => (v == null || v.trim().isEmpty) ? 'Needed' : null : null,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        labelStyle: Ob.body(13, color: Ob.creamA(.6)),
-        floatingLabelStyle: Ob.body(13, weight: FontWeight.w700, color: coachGold),
-        hintStyle: Ob.body(14, color: Ob.creamA(.3)),
-        errorStyle: Ob.body(12, color: Ob.warn),
-        filled: true,
-        fillColor: Ob.cardFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: coachGold, width: 1.5)),
-        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: Ob.warn)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Row(crossAxisAlignment: maxLines > 1 ? CrossAxisAlignment.start : CrossAxisAlignment.center, children: [
+        SizedBox(width: 118, child: Padding(padding: EdgeInsets.only(top: maxLines > 1 ? 12 : 0), child: Text(label, style: Ob.body(17)))),
+        Expanded(
+          child: TextFormField(
+            controller: c,
+            maxLines: maxLines,
+            minLines: 1,
+            keyboardType: keyboard,
+            onChanged: onChanged,
+            cursorColor: Ob.lime,
+            style: Ob.body(17),
+            validator: required ? (v) => (v == null || v.trim().isEmpty) ? 'Needed' : null : null,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: Ob.body(17, color: Ob.creamA(.3)),
+              errorStyle: Ob.body(12, color: Ob.warn),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
-  Widget _stepper(String label, int value, int min, int max, ValueChanged<int> onChanged) {
-    Widget btn(IconData icon, int next) => GestureDetector(
-          onTap: next < min || next > max ? null : () => onChanged(next),
-          child: Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(color: Ob.creamA(.08), shape: BoxShape.circle),
-            child: Icon(icon, size: 16, color: Ob.cream),
+  Widget _stepper(int value, int min, int max, ValueChanged<int> onChanged) {
+    Widget btn(IconData icon, String label, int next) => Semantics(
+          button: true,
+          label: label,
+          child: GestureDetector(
+            onTap: next < min || next > max ? null : () => onChanged(next),
+            child: SizedBox(width: 44, height: 32, child: Icon(icon, size: 18, color: next < min || next > max ? Ob.creamA(.3) : Ob.cream)),
           ),
         );
-    return Container(
-      height: 58,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(18)),
-      child: Row(children: [
-        btn(LucideIcons.minus, value - 1),
-        Expanded(
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(label, style: Ob.body(11, color: Ob.creamA(.55))),
-            Text('$value', style: Ob.display(20, height: 1.1)),
-          ]),
-        ),
-        btn(LucideIcons.plus, value + 1),
-      ]),
-    );
-  }
-
-  Widget _chips(String label, List<String> options, String selected, ValueChanged<String> onTap) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      ObEyebrow(label),
-      const SizedBox(height: 10),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        for (final o in options) GestureDetector(onTap: () => onTap(o), child: ObChip(o, on: o == selected, color: coachGold)),
-      ]),
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      SizedBox(width: 36, child: Text('$value', textAlign: TextAlign.center, style: Ob.body(17, color: Ob.creamA(.6)))),
+      const SizedBox(width: 8),
+      Container(
+        decoration: BoxDecoration(color: Ob.field, borderRadius: BorderRadius.circular(8)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          btn(LucideIcons.minus, 'Fewer players', value - 1),
+          Container(width: 1, height: 18, color: Ob.creamA(.2)),
+          btn(LucideIcons.plus, 'More players', value + 1),
+        ]),
+      ),
     ]);
-  }
-
-  Widget _pickerTile(String label, String value, IconData icon, VoidCallback onTap) {
-    return ObCard(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      radius: 18,
-      child: Row(children: [
-        Icon(icon, size: 18, color: coachGold),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: Ob.body(11, color: Ob.creamA(.55))),
-            Text(value, style: Ob.body(15, weight: FontWeight.w800)),
-          ]),
-        ),
-      ]),
-    );
   }
 }

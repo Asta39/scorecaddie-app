@@ -8,8 +8,6 @@ import '../../providers/app_providers.dart';
 import '../../widgets/profile_image.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
-import '../onboarding/ob_widgets.dart';
-import 'coach_dashboard_screen.dart' show coachGold;
 import 'coach_drill_builder_screen.dart';
 
 enum _View { mine, assigned }
@@ -38,35 +36,30 @@ class _CoachDrillsScreenState extends ConsumerState<CoachDrillsScreen> {
         style: Ob.textBase,
         child: RefreshIndicator(
           color: Ob.ink,
-          backgroundColor: coachGold,
+          backgroundColor: Ob.lime,
           onRefresh: () async {
             ref.invalidate(coachDrillTemplatesProvider);
             ref.invalidate(coachAssignmentsProvider);
           },
           child: ListView(
             physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
             children: [
               ObTabHeader('Drills', actions: [
                 ObIconButton(icon: LucideIcons.plus, label: 'New drill', onPressed: () => context.push('/coach/drills/new')),
-              ]).rise(),
-              const SizedBox(height: 16),
-              ObSplitCards(
-                left: ObStat('Your drills', '${templates.length}', valueColor: coachGold),
-                right: ObStat('Sent to players', '${assigned.length}'),
-              ).rise(1),
-              const SizedBox(height: 16),
+              ]),
+              Text('${templates.length} drills · ${assigned.length} sent to players', style: Ob.body(15, color: Ob.creamA(.6))),
+              const SizedBox(height: 14),
               ObGooSegmented<_View>(
-                options: const [(_View.mine, 'My drills'), (_View.assigned, 'Assigned')],
+                options: const [(_View.mine, 'My drills'), (_View.assigned, 'Sent')],
                 selected: _view,
                 onChanged: (v) => setState(() => _view = v),
-                accent: coachGold,
-              ).rise(2),
+              ),
               const SizedBox(height: 16),
               if (async.isLoading && (_view == _View.mine ? templates : assigned).isEmpty)
-                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: coachGold)))
+                const Padding(padding: EdgeInsets.all(40), child: Center(child: CupertinoActivityIndicator(color: Ob.lime)))
               else if (async.hasError && (_view == _View.mine ? templates : assigned).isEmpty)
-                ObCard(child: Text('Couldn\'t load these. Pull down to try again.', style: Ob.body(14, color: Ob.creamA(.7))))
+                const ObGroup(children: [ObRow('Couldn’t load these', subtitle: 'Pull down to try again')])
               else if (_view == _View.mine)
                 ..._mine(templates)
               else
@@ -79,79 +72,35 @@ class _CoachDrillsScreenState extends ConsumerState<CoachDrillsScreen> {
   }
 
   List<Widget> _mine(List<Map<String, dynamic>> templates) {
-    if (templates.isEmpty) {
-      return [
-        ObCard(
-          padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            ObGuideRow(botAsset: ObBot.star.idle, botLabel: 'Your star avatar', text: 'Build a drill once, send it to any player.', size: 72, fontSize: 16),
-            const SizedBox(height: 16),
-            ObButton(
-              onPressed: () => context.push('/coach/drills/new'),
-              child: Text('Make a drill', style: Ob.label(15, weight: FontWeight.w800)),
-            ),
-          ]),
-        ),
-      ];
-    }
     return [
-      for (final d in templates)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: ObCard(
+      ObGroup(children: [
+        if (templates.isEmpty) const ObRow('No drills yet', subtitle: 'Build one once, send it to any player'),
+        for (final d in templates)
+          ObRow(
+            '${d['name']}',
+            subtitle: [d['category'], d['difficulty'], '${(d['drill_steps'] as List?)?.firstOrNull?['count'] ?? 0} steps'].where((e) => e != null).join(' · '),
+            leading: const ObRowIcon(LucideIcons.target, Ob.lime),
             onTap: () => Navigator.of(context).push(CupertinoPageRoute(builder: (_) => CoachDrillBuilderScreen(drill: d))),
-            child: Row(children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(color: coachGold.withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
-                child: const Icon(LucideIcons.target, color: coachGold, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${d['name']}', style: Ob.body(16, weight: FontWeight.w800)),
-                  const SizedBox(height: 2),
-                  Text(
-                    [d['category'], d['difficulty'], '${(d['drill_steps'] as List?)?.firstOrNull?['count'] ?? 0} steps'].where((e) => e != null).join(' · '),
-                    style: Ob.body(12, color: Ob.creamA(.55)),
-                  ),
-                ]),
-              ),
-              Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
-            ]),
           ),
-        ),
+        ObRow('Make a drill', titleColor: Ob.lime, onTap: () => context.push('/coach/drills/new')),
+      ]),
     ];
   }
 
   List<Widget> _assigned(List<Map<String, dynamic>> list) {
     if (list.isEmpty) {
-      return [ObCard(child: Text('Drills you send from a student\'s card land here.', style: Ob.body(14, color: Ob.creamA(.6))))];
+      return [const ObGroup(children: [ObRow('Nothing sent yet', subtitle: 'Send a drill from a student’s page')])];
     }
     return [
-      ObCard(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(children: [
-          for (final (i, a) in list.indexed) ...[
-            if (i > 0) const ObHair(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-              child: Row(children: [
-                ProfileImage(url: (a['player'] as Map?)?['avatarUrl'], name: (a['player'] as Map?)?['name'], size: 38, isCircle: true),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${(a['player'] as Map?)?['name'] ?? 'Golfer'}', style: Ob.body(14, weight: FontWeight.w700)),
-                    Text('${(a['drill'] as Map?)?['name'] ?? 'Drill'}', style: Ob.body(12, weight: FontWeight.w700, color: coachGold)),
-                  ]),
-                ),
-                Text(_when(a['assigned_at']), style: Ob.body(12, color: Ob.creamA(.5))),
-              ]),
-            ),
-          ],
-        ]),
-      ),
+      ObGroup(children: [
+        for (final a in list)
+          ObRow(
+            '${(a['player'] as Map?)?['name'] ?? 'Golfer'}',
+            subtitle: '${(a['drill'] as Map?)?['name'] ?? 'Drill'}',
+            leading: ProfileImage(url: (a['player'] as Map?)?['avatarUrl'], name: (a['player'] as Map?)?['name'], size: 36, isCircle: true),
+            value: _when(a['assigned_at']),
+          ),
+      ]),
     ];
   }
 

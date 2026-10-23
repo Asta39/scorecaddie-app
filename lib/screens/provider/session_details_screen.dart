@@ -13,8 +13,7 @@ import '../../widgets/profile_image.dart';
 import '../../widgets/top_notification.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
-import '../onboarding/ob_widgets.dart';
-import 'coach_dashboard_screen.dart' show coachGold;
+import '../onboarding/ob_forms.dart';
 
 class SessionDetailsScreen extends ConsumerStatefulWidget {
   final String sessionId;
@@ -38,6 +37,8 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
     final attendFor = live ?? done.lastOrNull;
     final upcoming = occurrences.where((o) => o.status == 'upcoming').toList();
 
+    final owe = enrollments.where((e) => e.paymentStatus != 'fully_paid').length;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: Ob.overlay,
       child: Scaffold(
@@ -50,12 +51,10 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                 ? _missing(sessionsAsync.isLoading)
                 : ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
                     children: [
-                      Row(children: [
-                        ObIconButton(icon: LucideIcons.chevronLeft, label: 'Back', onPressed: () => context.pop()),
-                        const Spacer(),
-                        ObIconButton(icon: LucideIcons.share2, label: 'Share session', onPressed: () => _share(session)),
+                      ObTopBar('Sessions', onBack: () => context.pop(), actions: [
+                        ObIconButton(icon: LucideIcons.share, label: 'Share session', onPressed: () => _share(session)),
                         if (session.status != 'cancelled') ...[
                           const SizedBox(width: 8),
                           ObIconButton(
@@ -65,46 +64,42 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                           ),
                         ],
                       ]),
-                      const SizedBox(height: 14),
-                      Text(session.name, style: Ob.display(30, height: 1.05)).rise(),
-                      const SizedBox(height: 14),
-                      _hero(session, live).rise(1),
-                      const SizedBox(height: 12),
-                      ObSplitCards(
-                        left: ObStat('Players', '${enrollments.length}/${session.maxPlayers}', valueColor: coachGold),
-                        right: ObStat('Still owe', '${enrollments.where((e) => e.paymentStatus != 'fully_paid').length}'),
+                      const SizedBox(height: 10),
+                      Text(session.name, style: Ob.display(28, height: 1.15)),
+                      Text(_when(session, live), style: Ob.body(15, color: Ob.creamA(.6))),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(12)),
+                        child: Row(children: [
+                          _stat('${enrollments.length}/${session.maxPlayers}', 'Booked'),
+                          _stat('${enrollments.length - owe}', 'Paid'),
+                          _stat('$owe', 'Owe', color: owe > 0 ? Ob.warn : null),
+                        ]),
                       ),
                       if (session.description?.isNotEmpty ?? false) ...[
-                        const SizedBox(height: 12),
-                        ObCard(child: Text(session.description!, style: Ob.body(14, height: 1.5, color: Ob.creamA(.8)))),
+                        const SizedBox(height: 22),
+                        ObGroup(header: 'About', children: [ObRow(session.description!)]),
                       ],
                       if (attendFor != null) ...[
-                        const SizedBox(height: 24),
-                        ObEyebrow(live != null ? 'Who\'s here' : 'Last session\'s roll'),
-                        const SizedBox(height: 10),
-                        _AttendanceChecklist(key: ValueKey(attendFor.id), occurrence: attendFor, enrollments: enrollments),
+                        const SizedBox(height: 22),
+                        _AttendanceChecklist(key: ValueKey(attendFor.id), occurrence: attendFor, enrollments: enrollments, live: live != null),
                       ],
-                      const SizedBox(height: 24),
-                      ObEyebrow('Players · ${enrollments.length}'),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 22),
                       if (enrollAsync.isLoading && enrollments.isEmpty)
-                        const Center(child: CupertinoActivityIndicator(color: coachGold))
-                      else if (enrollments.isEmpty)
-                        ObCard(child: Text('Nobody has booked yet. Share the session to fill it.', style: Ob.body(13, color: Ob.creamA(.6))))
+                        const Center(child: CupertinoActivityIndicator(color: Ob.lime))
                       else
-                        ObCard(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Column(children: [
-                            for (final (i, e) in enrollments.indexed) ...[
-                              if (i > 0) const ObHair(),
-                              _RosterRow(enrollment: e),
-                            ],
-                          ]),
+                        ObGroup(
+                          header: 'Players · ${enrollments.length}',
+                          children: enrollments.isEmpty
+                              ? [const ObRow('Nobody has booked yet', subtitle: 'Share the session to fill it')]
+                              : [for (final e in enrollments) _RosterRow(enrollment: e)],
                         ),
-                      const SizedBox(height: 24),
-                      ObEyebrow('Dates · ${upcoming.length} to go'),
-                      const SizedBox(height: 10),
-                      for (final o in occurrences) _OccurrenceTile(occurrence: o, session: session),
+                      const SizedBox(height: 22),
+                      ObGroup(
+                        header: 'Dates · ${upcoming.length} to go',
+                        children: [for (final o in occurrences) _OccurrenceTile(occurrence: o, session: session)],
+                      ),
                     ],
                   ),
           ),
@@ -113,43 +108,33 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
     );
   }
 
-  Widget _missing(bool loading) {
-    if (loading) return const Center(child: CupertinoActivityIndicator(color: coachGold));
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ObIconButton(icon: LucideIcons.chevronLeft, label: 'Back', onPressed: () => context.pop()),
-        const SizedBox(height: 24),
-        Text('This session isn\'t available any more.', style: Ob.display(24)),
-      ]),
-    );
+  Widget _stat(String v, String label, {Color? color}) => Expanded(
+        child: Column(children: [
+          Text(v, style: Ob.display(20, color: color ?? Ob.cream)),
+          Text(label, style: Ob.body(12, color: Ob.creamA(.6))),
+        ]),
+      );
+
+  String _when(CoachingSession s, SessionOccurrence? live) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final when = s.daysOfWeek.where((d) => d >= 1 && d <= 7).map((d) => days[d - 1]).join(', ');
+    final time = s.startTime.length >= 5 ? s.startTime.substring(0, 5) : s.startTime;
+    return [
+      live != null ? 'On now' : when,
+      '$time · ${s.durationMinutes} min',
+      if (s.location.isNotEmpty) s.location,
+      'KES ${NumberFormat('#,###').format(s.pricePerSession)} · ${s.weeks} weeks',
+    ].join(' · ');
   }
 
-  Widget _hero(CoachingSession s, SessionOccurrence? live) {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final when = s.daysOfWeek.where((d) => d >= 1 && d <= 7).map((d) => days[d - 1]).join(' · ');
-    final time = s.startTime.length >= 5 ? s.startTime.substring(0, 5) : s.startTime;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: live != null ? const Color(0xFF2A2410) : Ob.cardFill,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: live != null ? coachGold : Ob.creamA(.08), width: live != null ? 2 : 1),
-      ),
+  Widget _missing(bool loading) {
+    if (loading) return const Center(child: CupertinoActivityIndicator(color: Ob.lime));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Text(live != null ? 'ON NOW' : when.toUpperCase(), style: Ob.body(12, weight: FontWeight.w800, color: coachGold).copyWith(letterSpacing: 1.6)),
-          const Spacer(),
-          Text('$time · ${s.durationMinutes} min', style: Ob.display(18)),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
-          Icon(LucideIcons.mapPin, size: 14, color: Ob.creamA(.6)),
-          const SizedBox(width: 6),
-          Expanded(child: Text(s.location, style: Ob.body(14, weight: FontWeight.w700))),
-        ]),
-        const SizedBox(height: 6),
-        Text('KES ${NumberFormat('#,###').format(s.pricePerSession)} a session · ${s.weeks} weeks', style: Ob.body(12, color: Ob.creamA(.6))),
+        ObTopBar('Sessions', onBack: () => context.pop()),
+        const SizedBox(height: 24),
+        Text('This session isn’t available any more.', style: Ob.display(22)),
       ]),
     );
   }
@@ -167,7 +152,8 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
 class _AttendanceChecklist extends ConsumerStatefulWidget {
   final SessionOccurrence occurrence;
   final List<SessionEnrollment> enrollments;
-  const _AttendanceChecklist({super.key, required this.occurrence, required this.enrollments});
+  const _AttendanceChecklist({super.key, required this.occurrence, required this.enrollments, required this.live});
+  final bool live;
 
   @override
   ConsumerState<_AttendanceChecklist> createState() => _AttendanceChecklistState();
@@ -198,90 +184,42 @@ class _AttendanceChecklistState extends ConsumerState<_AttendanceChecklist> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(sessionAttendanceProvider(widget.occurrence.id));
-    if (async.isLoading && _present == null) return const Center(child: CupertinoActivityIndicator(color: coachGold));
+    final header = widget.live ? 'Who’s here' : 'Last session’s roll';
+    if (async.isLoading && _present == null) return const Center(child: CupertinoActivityIndicator(color: Ob.lime));
     if (async.hasError && _present == null) {
-      return ObCard(child: Text('Couldn\'t load attendance.', style: Ob.body(13, color: Ob.creamA(.6))));
+      return ObGroup(header: header, children: const [ObRow('Couldn’t load attendance')]);
     }
     _present ??= (async.valueOrNull ?? const []).where((a) => a.isPresent).map((a) => a.playerId).toSet();
     if (widget.enrollments.isEmpty) {
-      return ObCard(child: Text('No players to mark yet.', style: Ob.body(13, color: Ob.creamA(.6))));
+      return ObGroup(header: header, children: const [ObRow('No players to mark yet')]);
     }
 
-    return Column(children: [
-      for (final e in widget.enrollments) ...[
-        _HereRow(
-          enrollment: e,
-          here: _present!.contains(e.playerId),
-          onTap: () => setState(() => _present!.contains(e.playerId) ? _present!.remove(e.playerId) : _present!.add(e.playerId)),
-        ),
-        const SizedBox(height: 8),
-      ],
-      const SizedBox(height: 4),
-      SizedBox(
-        width: double.infinity,
-        child: ObButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Saving…' : 'Save roll · ${_present!.length} here', style: Ob.label(15, weight: FontWeight.w800)),
-        ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ObGroup(header: header, footer: 'Tap a player to mark them here.', children: [
+        for (final e in widget.enrollments)
+          ObRow(
+            e.playerName ?? 'Student',
+            subtitle: e.paymentStatus == 'fully_paid' ? 'Paid' : 'Still owes',
+            leading: ProfileImage(url: e.playerAvatar, name: e.playerName, size: 36, isCircle: true),
+            trailing: Icon(
+              _present!.contains(e.playerId) ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+              color: _present!.contains(e.playerId) ? Ob.lime : Ob.creamA(.3),
+              size: 26,
+            ),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _present!.contains(e.playerId) ? _present!.remove(e.playerId) : _present!.add(e.playerId));
+            },
+          ),
+      ]),
+      const SizedBox(height: 12),
+      ObButton(
+        height: 50,
+        radius: 14,
+        onPressed: _saving ? null : _save,
+        child: Text(_saving ? 'Saving…' : 'Save roll · ${_present!.length} here', style: Ob.label(17)),
       ),
     ]);
-  }
-}
-
-class _HereRow extends StatelessWidget {
-  const _HereRow({required this.enrollment, required this.here, required this.onTap});
-  final SessionEnrollment enrollment;
-  final bool here;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final paid = enrollment.paymentStatus == 'fully_paid';
-    return Semantics(
-      button: true,
-      toggled: here,
-      label: enrollment.playerName ?? 'Student',
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: here ? Ob.roleFill : Ob.cardFill,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: here ? Ob.lime.withValues(alpha: .5) : Ob.creamA(.06)),
-          ),
-          child: Row(children: [
-            ProfileImage(url: enrollment.playerAvatar, name: enrollment.playerName, size: 40, isCircle: true),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(enrollment.playerName ?? 'Student', style: Ob.body(15, weight: FontWeight.w800)),
-                Text(paid ? 'Paid' : 'Still owes', style: Ob.body(12, weight: FontWeight.w700, color: paid ? Ob.lime : coachGold)),
-              ]),
-            ),
-            AnimatedScale(
-              scale: here ? 1 : .85,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.elasticOut,
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: here ? Ob.lime : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: here ? Ob.lime : Ob.creamA(.3), width: 2),
-                ),
-                child: here ? const Icon(LucideIcons.check, size: 16, color: Ob.ink) : null,
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
   }
 }
 
@@ -292,19 +230,12 @@ class _RosterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final paid = enrollment.paymentStatus == 'fully_paid';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      child: Row(children: [
-        ProfileImage(url: enrollment.playerAvatar, name: enrollment.playerName, size: 36, isCircle: true),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(enrollment.playerName ?? 'Student', style: Ob.body(14, weight: FontWeight.w700)),
-            Text('Joined ${DateFormat('d MMM').format(enrollment.enrolledAt)}', style: Ob.body(12, color: Ob.creamA(.55))),
-          ]),
-        ),
-        Text(paid ? 'Paid' : 'Owes', style: Ob.body(13, weight: FontWeight.w800, color: paid ? Ob.lime : coachGold)),
-      ]),
+    return ObRow(
+      enrollment.playerName ?? 'Student',
+      subtitle: 'Joined ${DateFormat('d MMM').format(enrollment.enrolledAt)}',
+      leading: ProfileImage(url: enrollment.playerAvatar, name: enrollment.playerName, size: 36, isCircle: true),
+      value: paid ? 'Paid' : 'Owes',
+      valueColor: paid ? null : Ob.warn,
     );
   }
 }
@@ -321,56 +252,34 @@ class _OccurrenceTile extends ConsumerWidget {
     final done = o.status == 'completed';
     String hm(String? t) => t == null || t.length < 5 ? '--:--' : t.substring(0, 5);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: live ? const Color(0xFF2A2410) : Ob.cardFill,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: live ? coachGold : Ob.creamA(.06)),
-        ),
-        child: Row(children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(color: Ob.creamA(.06), borderRadius: BorderRadius.circular(14)),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(DateFormat('MMM').format(o.date).toUpperCase(), style: Ob.body(10, weight: FontWeight.w800, color: Ob.creamA(.55))),
-              Text(DateFormat('d').format(o.date), style: Ob.display(18, height: 1.1)),
-            ]),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(DateFormat('EEEE').format(o.date), style: Ob.body(14, weight: FontWeight.w800, color: done ? Ob.creamA(.55) : Ob.cream)),
-              Text('${hm(o.startTime)} to ${hm(o.endTime)}', style: Ob.body(12, color: Ob.creamA(.55))),
-            ]),
-          ),
-          if (o.status == 'upcoming') ...[
-            IconButton(
-              tooltip: 'Add to calendar',
-              onPressed: () => _addToCalendar(),
-              icon: Icon(LucideIcons.calendarPlus, color: Ob.creamA(.6), size: 20),
-            ),
-            ObButton(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              onPressed: () => _confirm(context, ref, start: true),
-              child: Text('Start', style: Ob.label(13, weight: FontWeight.w800)),
-            ),
-          ],
-          if (live)
-            ObButton(
-              height: 38,
-              tone: ObButtonTone.light,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              onPressed: () => _confirm(context, ref, start: false),
-              child: Text('End', style: Ob.label(13, weight: FontWeight.w800)),
-            ),
-          if (done) const Icon(LucideIcons.circleCheck, color: Ob.lime, size: 22),
-        ]),
-      ),
+    return ObRow(
+      DateFormat('EEE d MMM').format(o.date),
+      titleColor: done ? Ob.creamA(.55) : null,
+      subtitle: '${hm(o.startTime)} to ${hm(o.endTime)}${live ? ' · on now' : ''}',
+      trailing: o.status == 'upcoming'
+          ? Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(
+                tooltip: 'Add to calendar',
+                onPressed: _addToCalendar,
+                icon: Icon(LucideIcons.calendarPlus, color: Ob.creamA(.6), size: 20),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(44, 44),
+                onPressed: () => _confirm(context, ref, start: true),
+                child: Text('Start', style: Ob.body(17, weight: FontWeight.w600, color: Ob.lime)),
+              ),
+            ])
+          : live
+              ? CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(44, 44),
+                  onPressed: () => _confirm(context, ref, start: false),
+                  child: Text('End', style: Ob.body(17, weight: FontWeight.w600, color: Ob.warn)),
+                )
+              : done
+                  ? const Icon(CupertinoIcons.checkmark_circle_fill, color: Ob.lime, size: 22)
+                  : null,
     );
   }
 
@@ -388,33 +297,15 @@ class _OccurrenceTile extends ConsumerWidget {
   }
 
   Future<void> _confirm(BuildContext context, WidgetRef ref, {required bool start}) async {
-    final ok = await showModalBottomSheet<bool>(
+    final ok = await showCupertinoDialog<bool>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: EdgeInsets.fromLTRB(22, 22, 22, 22 + MediaQuery.of(ctx).padding.bottom),
-        decoration: const BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
-        child: DefaultTextStyle(
-          style: Ob.textBase,
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(start ? 'Start the session?' : 'End the session?', style: Ob.display(24)),
-            const SizedBox(height: 8),
-            Text(
-              start ? 'Your players get a heads-up that you\'re starting.' : 'The roll is locked in once you end it.',
-              style: Ob.body(14, color: Ob.creamA(.7)),
-            ),
-            const SizedBox(height: 20),
-            Row(children: [
-              Expanded(
-                child: ObButton(tone: ObButtonTone.dark, onPressed: () => Navigator.pop(ctx, false), child: Text('Not yet', style: Ob.label(15, weight: FontWeight.w800))),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ObButton(onPressed: () => Navigator.pop(ctx, true), child: Text(start ? 'Start now' : 'End session', style: Ob.label(15, weight: FontWeight.w800))),
-              ),
-            ]),
-          ]),
-        ),
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(start ? 'Start the session?' : 'End the session?'),
+        content: Text(start ? 'Your players get a heads-up that you’re starting.' : 'The roll is locked in once you end it.'),
+        actions: [
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not yet')),
+          CupertinoDialogAction(isDefaultAction: true, onPressed: () => Navigator.pop(ctx, true), child: Text(start ? 'Start' : 'End')),
+        ],
       ),
     );
     if (ok != true) return;
