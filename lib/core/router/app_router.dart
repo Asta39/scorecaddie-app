@@ -69,9 +69,15 @@ class RouterNotifier extends ChangeNotifier {
   RouterNotifier(Ref ref) {
     // Re-evaluate redirect whenever any input to resolveRedirect changes.
     // resolveRedirect is cheap and returns null when nothing needs to move.
-    ref.listen(authStateProvider, (_, _) => notifyListeners());
+    // Only the parts redirect reads. A refresh rebuilds pushed pages and
+    // drops their `extra`, so reacting to every profile edit or token
+    // refresh crashed screens that rely on it (edit session, scoring).
+    ref.listen(authStateProvider.select((a) => (a.isLoading, a.valueOrNull?.uid)), (_, _) => notifyListeners());
     ref.listen(profileBootstrapProvider, (_, _) => notifyListeners());
-    ref.listen(userProfileProvider, (_, _) => notifyListeners());
+    ref.listen(
+      userProfileProvider.select((p) => (p.hasValue, p.valueOrNull?.uid, p.valueOrNull?.profileComplete, p.valueOrNull?.role)),
+      (_, _) => notifyListeners(),
+    );
   }
 }
 
@@ -329,10 +335,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/coach/session/:id/edit',
-        builder: (context, state) {
-          final session = state.extra as CoachingSession;
-          return EditSessionScreen(session: session);
-        },
+        // extra is lost when the router rebuilds (sign-in refresh, sync), so
+        // fall back to loading the session by its id.
+        builder: (context, state) => EditSessionScreen(
+          sessionId: state.pathParameters['id']!,
+          session: state.extra is CoachingSession ? state.extra as CoachingSession : null,
+        ),
       ),
       GoRoute(
         path: '/coach/drills/new',
