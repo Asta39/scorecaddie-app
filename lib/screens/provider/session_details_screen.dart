@@ -284,12 +284,11 @@ class _OccurrenceTile extends ConsumerWidget {
     final o = occurrence;
     final live = o.status == 'in_progress';
     final done = o.status == 'completed';
-    String hm(String? t) => t == null || t.length < 5 ? '--:--' : t.substring(0, 5);
 
     return ObRow(
       DateFormat('EEE d MMM').format(o.date),
       titleColor: done ? Ob.creamA(.55) : null,
-      subtitle: '${hm(o.startTime)} to ${hm(o.endTime)}${live ? ' · on now' : ''}',
+      subtitle: '${_span(o, session)}${live ? ' · on now' : ''}',
       trailing: o.status == 'upcoming'
           ? Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(
@@ -316,6 +315,19 @@ class _OccurrenceTile extends ConsumerWidget {
                   ? const Icon(CupertinoIcons.checkmark_circle_fill, color: Ob.lime, size: 22)
                   : null,
     );
+  }
+
+  /// "16:00 to 17:30": the date's own times, or the session's when the date has none.
+  static String _span(SessionOccurrence o, CoachingSession s) {
+    String hm(String? t) => t == null || t.length < 5 ? '' : t.substring(0, 5);
+    final start = hm(o.startTime).isNotEmpty ? hm(o.startTime) : hm(s.startTime);
+    var end = hm(o.endTime);
+    if (end.isEmpty && start.isNotEmpty) {
+      final p = start.split(':');
+      final t = DateTime(2000, 1, 1, int.parse(p[0]), int.parse(p[1])).add(Duration(minutes: s.durationMinutes));
+      end = DateFormat.Hm().format(t);
+    }
+    return start.isEmpty ? '' : '$start to $end';
   }
 
   void _addToCalendar() {
