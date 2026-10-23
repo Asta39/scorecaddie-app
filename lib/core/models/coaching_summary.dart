@@ -50,19 +50,19 @@ class CoachingOccurrenceDetail {
 
   factory CoachingOccurrenceDetail.fromSupabase(Map<String, dynamic> json) {
     final session = json['session'] as Map<String, dynamic>;
-    final coach = session['coach'] as Map<String, dynamic>;
+    final coach = (session['coach'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
     
     return CoachingOccurrenceDetail(
       id: json['id'] as String,
       date: DateTime.parse(json['date']),
       sessionName: session['name'] as String,
-      coachName: coach['name'] as String,
+      coachName: coach['name'] as String? ?? 'Coach',
       coachAvatar: coach['avatarUrl'] as String? ?? coach['photoUrl'] as String?,
       location: session['location'] as String,
       status: json['status'] as String,
       startTime: session['start_time'] as String,
       durationMinutes: (session['duration_minutes'] as num).toInt(),
-      coachId: coach['id'] as String? ?? '',
+      coachId: coach['id'] as String? ?? session['coach_id'] as String? ?? '',
       sessionId: (json['session_id'] as String?) ?? '',
       attended: _parseAttended(json['attendance'], json['playerId']),
     );

@@ -152,13 +152,31 @@ class CoachingService {
         }).toList();
   }
 
+  /// Names and photos for these user ids, from the public profile view.
+  ///
+  /// Used instead of embedding User in a select: those embeds rely on
+  /// foreign keys that were re-pointed in the database, and a missing one
+  /// fails the whole query.
+  Future<Map<String, Map<String, dynamic>>> _people(Iterable<String?> ids) async {
+    final want = ids.whereType<String>().where((s) => s.isNotEmpty).toSet().toList();
+    if (want.isEmpty) return {};
+    final rows = await _supabase.from('UserPublic').select('id, name, avatarUrl').inFilter('id', want);
+    return {for (final r in rows as List) '${r['id']}': Map<String, dynamic>.from(r)};
+  }
+
+  /// Adds `key: {id, name, avatarUrl}` to each row, looked up by `row[idKey]`.
+  Future<List<Map<String, dynamic>>> _withPeople(List<Map<String, dynamic>> rows, String idKey, String key) async {
+    final people = await _people(rows.map((r) => r[idKey] as String?));
+    return [for (final r in rows) {...r, key: people[r[idKey]]}];
+  }
+
   Future<List<Map<String, dynamic>>> getSessionEnrollmentsWithDetails(String sessionId) async {
     try {
       final response = await _supabase
           .from('session_enrollments')
-          .select('*, User!session_enrollments_player_id_fkey(id, name, avatarUrl)')
+          .select()
           .eq('session_id', sessionId);
-      return List<Map<String, dynamic>>.from(response);
+      return _withPeople(List<Map<String, dynamic>>.from(response), 'player_id', 'User');
     } catch (e) {
       debugPrint('CoachingService: Error fetching session enrollments: $e');
       return [];
@@ -345,11 +363,12 @@ class CoachingService {
     // Join with User to get real-time PFPs and names for the roster
     final response = await _supabase
         .from('session_enrollments')
-        .select('*, User:User!session_enrollments_player_id_fkey(name, avatarUrl)')
+        .select()
         .eq('session_id', sessionId)
         .order('enrolled_at', ascending: true);
+    final rows = await _withPeople(List<Map<String, dynamic>>.from(response), 'player_id', 'User');
 
-    return (response as List).map((json) {
+    return rows.map((json) {
       final map = Map<String, dynamic>.from(json);
       final userData = map['User'] as Map?;
       if (userData != null) {
@@ -441,43 +460,12 @@ class CoachingService {
       });
       debugPrint('CoachingService: Enrolled successfully. ID: $enrollmentId');
 
-      // 2. AUTO-CONTACT: Ensure coach and player are "friends" or connected for chat
-      final session = await _supabase
-          .from('coaching_sessions')
-          .select('coach_id')
-          .eq('id', sessionId)
-          .single();
-      
-      final coachId = session['coach_id'] as String;
-      await _establishContact(user.id, coachId);
+      // No auto-friending: there's no chat to unlock, and friend rows
+      // must start as a request the other person accepts.
 
     } catch (e) {
       debugPrint('CoachingService ENROLL_ERROR: $e');
       rethrow;
-    }
-  }
-
-  /// Ensures a contact record exists in Supabase to allow messaging
-  Future<void> _establishContact(String playerId, String coachId) async {
-    try {
-      // Create a bi-directional friend connection or at least an accepted request
-      await _supabase.from('Friend').upsert({
-        'userId': playerId,
-        'friendId': coachId,
-        'status': 'ACCEPTED',
-        'updatedAt': DateTime.now().toIso8601String()
-      }, onConflict: 'userId,friendId');
-      
-      await _supabase.from('Friend').upsert({
-        'userId': coachId,
-        'friendId': playerId,
-        'status': 'ACCEPTED',
-        'updatedAt': DateTime.now().toIso8601String()
-      }, onConflict: 'userId,friendId');
-
-      debugPrint('CoachingService: Contact established between $playerId and $coachId');
-    } catch (e) {
-      debugPrint('CoachingService CONTACT_ERROR: $e');
     }
   }
 
@@ -592,13 +580,11 @@ class CoachingService {
         .from('drill_assignments')
         .select('''
           *,
-          drill:drills(*),
-          player:User!drill_assignments_player_id_fkey(name, avatarUrl)
+          drill:drills(*)
         ''')
         .eq('coach_id', coachId)
         .order('assigned_at', ascending: false);
-    
-    return List<Map<String, dynamic>>.from(response);
+    return _withPeople(List<Map<String, dynamic>>.from(response), 'player_id', 'player');
   }
 
   Future<List<Map<String, dynamic>>> getAssignedDrills(String playerId) async {
@@ -606,13 +592,11 @@ class CoachingService {
         .from('drill_assignments')
         .select('''
           *,
-          coach:User!drill_assignments_coach_id_fkey(name),
           drill:drills(*)
         ''')
         .eq('player_id', playerId)
         .eq('status', 'active');
-    
-    return List<Map<String, dynamic>>.from(response);
+    return _withPeople(List<Map<String, dynamic>>.from(response), 'coach_id', 'coach');
   }
 
   Future<List<Map<String, dynamic>>> getCoachDrillTemplates(String coachId) async {
@@ -667,12 +651,10 @@ class CoachingService {
         .from('session_enrollments')
         .select('''
           *,
-          coaching_sessions!inner(coach_id, name),
-          profile:User!session_enrollments_player_id_fkey(id, name, avatarUrl)
+          coaching_sessions!inner(coach_id, name)
         ''')
         .eq('coaching_sessions.coach_id', coachId);
-
-    return List<Map<String, dynamic>>.from(response);
+    return _withPeople(List<Map<String, dynamic>>.from(response), 'player_id', 'profile');
   }
   Future<List<Map<String, dynamic>>> getPlayerEnrollments(String playerId) async {
     debugPrint('CoachingService: Fetching enrollments for player: $playerId');
@@ -680,13 +662,18 @@ class CoachingService {
         .from('session_enrollments')
         .select('''
           *,
-          coaching_sessions!inner(
-            *,
-            coach:User!coaching_sessions_coach_id_fkey(id, name, avatarUrl)
-          )
+          coaching_sessions!inner(*)
         ''')
-        .eq('player_id', playerId);    
-    return List<Map<String, dynamic>>.from(response);
+        .eq('player_id', playerId);
+    final rows = List<Map<String, dynamic>>.from(response);
+    final people = await _people(rows.map((r) => (r['coaching_sessions'] as Map?)?['coach_id'] as String?));
+    return [
+      for (final r in rows)
+        {
+          ...r,
+          'coaching_sessions': {...(r['coaching_sessions'] as Map), 'coach': people[(r['coaching_sessions'] as Map)['coach_id']]},
+        },
+    ];
   }
 
   Future<PlayerCoachingSummary> getPlayerCoachingSummary(String playerId) async {
@@ -716,15 +703,34 @@ class CoachingService {
               location,
               duration_minutes,
               start_time,
-              coach:User!coaching_sessions_coach_id_fkey(id, name, avatarUrl)
-            ),
-            attendance:session_attendance!session_attendance_occurrence_id_fkey(player_id, is_present)
+              coach_id
+            )
           ''')
           .inFilter('session_id', sessionIds)
           .order('date', ascending: true);
 
-      final List<CoachingOccurrenceDetail> allOccurrences = (response as List).map((json) {
+      final coaches = await _people((response as List).map((r) => (r['session'] as Map?)?['coach_id'] as String?));
+      // The player's own roll marks, read on their own: the embed relied on a
+      // foreign key that isn't there, and the player may not be allowed to
+      // read attendance at all, which only means "not marked yet".
+      final marks = <String, bool>{};
+      try {
+        final rows = await _supabase
+            .from('session_attendance')
+            .select('occurrence_id, is_present')
+            .eq('player_id', playerId)
+            .inFilter('occurrence_id', [for (final r in response) r['id']]);
+        for (final r in rows as List) {
+          marks['${r['occurrence_id']}'] = r['is_present'] == true;
+        }
+      } catch (_) {}
+      final List<CoachingOccurrenceDetail> allOccurrences = response.map((json) {
         final map = Map<String, dynamic>.from(json);
+        final session = Map<String, dynamic>.from(map['session'] as Map);
+        session['coach'] = coaches[session['coach_id']];
+        map['session'] = session;
+        final mark = marks['${map['id']}'];
+        map['attendance'] = mark == null ? null : [{'player_id': playerId, 'is_present': mark}];
         map['playerId'] = playerId;
         return CoachingOccurrenceDetail.fromSupabase(map);
       }).toList();
@@ -750,11 +756,9 @@ class CoachingService {
 
   Stream<PlayerCoachingSummary> watchPlayerCoachingSummary(String playerId) {
     // Return a stream that emits whenever relevant tables change
-    return _supabase
-        .from('session_enrollments')
-        .stream(primaryKey: ['id'])
-        .eq('player_id', playerId)
-        .asyncMap((_) => getPlayerCoachingSummary(playerId));
+    // Polled: realtime isn't enabled on session_enrollments, and a failed
+    // subscription left the panel showing "Get a coach" after booking.
+    return pollStream(() => getPlayerCoachingSummary(playerId));
   }
 
   /// Notes between one coach and one player, newest first. Both of them see
