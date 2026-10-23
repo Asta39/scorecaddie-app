@@ -128,7 +128,7 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
           ],
           if (docs.isNotEmpty) ...[
             const SizedBox(height: 12),
-            const ObEyebrow('Menus to download'),
+            const ObEyebrow('Full menus'),
             const SizedBox(height: 10),
             for (final doc in docs)
               Padding(
