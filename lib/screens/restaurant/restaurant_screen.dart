@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/menu_pdf_card.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +11,6 @@ import '../onboarding/ob_app.dart';
 import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
 import '../onboarding/ob_widgets.dart';
-import 'menu_pdf_viewer_screen.dart';
 import 'table_reservation_screen.dart';
 
 enum _View { menu, book }
@@ -85,14 +85,7 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
       children: [
-        ObTopBar('Clubhouse', onBack: () => context.pop(), actions: [
-          if (docs.isNotEmpty)
-            ObIconButton(
-              icon: LucideIcons.fileText,
-              label: 'Full menu (PDF)',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MenuPdfViewerScreen(title: docs.first.name, pdfUrl: docs.first.pdfUrl))),
-            ),
-        ]),
+        ObTopBar('Clubhouse', onBack: () => context.pop()),
         const SizedBox(height: 14),
         Row(children: [
           ObCrest(clubName, size: 40, radius: 12),
@@ -130,19 +123,16 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
             const SizedBox(height: 12),
             const ObEyebrow('Full menus'),
             const SizedBox(height: 10),
-            for (final doc in docs)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: ObCard(
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MenuPdfViewerScreen(title: doc.name, pdfUrl: doc.pdfUrl))),
-                  child: Row(children: [
-                    const Icon(LucideIcons.fileText, color: Ob.lime),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(doc.name, style: Ob.body(15, weight: FontWeight.w700))),
-                    Icon(LucideIcons.chevronRight, size: 18, color: Ob.creamA(.4)),
-                  ]),
-                ),
+            SizedBox(
+              height: 270,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                itemCount: docs.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                itemBuilder: (_, i) => MenuPdfCard(document: docs[i]),
               ),
+            ),
           ],
         ],
       ],
