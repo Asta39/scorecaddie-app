@@ -52,6 +52,7 @@ class _SessionFormState extends ConsumerState<SessionForm> {
   late String _level = _pick(widget.session?.targetSkillLevel, _levels);
   late String _paymentTerms = widget.session?.paymentTerms ?? 'upfront';
   late final Set<int> _days = {...?widget.session?.daysOfWeek};
+  late final List<PaymentMethod> _methods = [...?widget.session?.paymentMethods];
   bool _busy = false;
 
   bool get _editing => widget.session != null;
@@ -79,6 +80,10 @@ class _SessionFormState extends ConsumerState<SessionForm> {
       TopNotification.showError(context, 'Pick at least one day of the week');
       return;
     }
+    if (_methods.isEmpty) {
+      TopNotification.showError(context, 'Add how players pay you');
+      return;
+    }
     setState(() => _busy = true);
     final service = ref.read(coachingServiceProvider);
     try {
@@ -101,6 +106,7 @@ class _SessionFormState extends ConsumerState<SessionForm> {
           targetSkillLevel: _level,
           prerequisites: _prerequisites.text,
           cancellationPolicy: _cancellation.text,
+          paymentMethods: _methods,
         );
         ref.invalidate(sessionOccurrencesProvider(widget.session!.id));
         ref.invalidate(specificCoachingSessionProvider(widget.session!.id));
@@ -122,6 +128,7 @@ class _SessionFormState extends ConsumerState<SessionForm> {
           targetSkillLevel: _level,
           prerequisites: _prerequisites.text,
           cancellationPolicy: _cancellation.text,
+          paymentMethods: _methods,
         );
         final me = ref.read(authStateProvider).valueOrNull;
         if (me != null) ref.invalidate(providerSessionsProvider(me.id));
@@ -201,6 +208,91 @@ class _SessionFormState extends ConsumerState<SessionForm> {
           ]),
         ),
       );
+
+  static String _methodLine(PaymentMethod m) => switch (m.type) {
+        'paybill' => 'Business ${m.number} · account ${m.account}${m.name.isEmpty ? '' : ' · ${m.name}'}',
+        'cash' => 'Paid in person',
+        _ => '${m.number}${m.name.isEmpty ? '' : ' · ${m.name}'}',
+      };
+
+  /// Adds a payment method, or edits (or removes) the one at [index].
+  Future<void> _editMethod(int? index) async {
+    final old = index == null ? null : _methods[index];
+    var type = old?.type ?? 'send_money';
+    final number = TextEditingController(text: old?.number);
+    final account = TextEditingController(text: old?.account);
+    final name = TextEditingController(text: old?.name);
+    final result = await showObSheet<Object>(
+      context,
+      (ctx) => StatefulBuilder(
+        builder: (ctx, set) {
+          Widget field(TextEditingController c, String label, String hint, {TextInputType? keyboard}) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: TextField(
+                  controller: c,
+                  keyboardType: keyboard,
+                  cursorColor: Ob.lime,
+                  style: Ob.body(17),
+                  decoration: obInput(label, hint: hint),
+                ),
+              );
+          return ObSheet(
+            title: index == null ? 'Add a way to pay' : 'Edit payment',
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              ObGooSegmented<String>(
+                options: const [('send_money', 'Send money'), ('paybill', 'Paybill'), ('till', 'Till'), ('cash', 'Cash')],
+                selected: type,
+                onChanged: (v) => set(() => type = v),
+                fontSize: 13,
+              ),
+              const SizedBox(height: 14),
+              if (type != 'cash') ...[
+                field(number, switch (type) { 'paybill' => 'Business number', 'till' => 'Till number', _ => 'Phone number' },
+                    type == 'send_money' ? '0712 345 678' : '123456', keyboard: TextInputType.phone),
+                if (type == 'paybill') field(account, 'Account number', 'Your name or code'),
+                field(name, 'Name players will see', 'As M-Pesa shows it'),
+              ] else
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Text('Players pay you in person. Record it when you receive it.', style: Ob.body(15, color: Ob.creamA(.6))),
+                ),
+              ObButton(
+                height: 50,
+                radius: 14,
+                onPressed: () {
+                  if (type != 'cash' && number.text.trim().isEmpty) return;
+                  if (type == 'paybill' && account.text.trim().isEmpty) return;
+                  Navigator.pop(ctx, PaymentMethod(
+                    type: type,
+                    number: type == 'cash' ? '' : number.text.trim(),
+                    account: type == 'paybill' ? account.text.trim() : '',
+                    name: type == 'cash' ? '' : name.text.trim(),
+                  ));
+                },
+                child: Text('Save', style: Ob.label(17)),
+              ),
+              if (index != null)
+                CupertinoButton(onPressed: () => Navigator.pop(ctx, 'remove'), child: Text('Remove', style: Ob.body(17, color: Ob.warn))),
+            ]),
+          );
+        },
+      ),
+    );
+    // After the sheet's closing animation, which still draws the fields.
+    Future.delayed(const Duration(seconds: 1), () {
+      for (final c in [number, account, name]) {
+        c.dispose();
+      }
+    });
+    if (result == null) return;
+    setState(() {
+      if (result == 'remove') {
+        _methods.removeAt(index!);
+      } else if (result is PaymentMethod) {
+        index == null ? _methods.add(result) : _methods[index] = result;
+      }
+    });
+  }
 
   Future<void> _choose(String title, List<String> options, String selected, ValueChanged<String> onPick) async {
     final v = await showCupertinoModalPopup<String>(
@@ -306,6 +398,19 @@ class _SessionFormState extends ConsumerState<SessionForm> {
                               trailing: _paymentTerms == val ? const Icon(CupertinoIcons.checkmark_alt, color: Ob.lime, size: 22) : const SizedBox(width: 22),
                               onTap: () => setState(() => _paymentTerms = val)),
                       ]),
+                      const SizedBox(height: 22),
+                      ObGroup(
+                        header: 'How players pay',
+                        footer: 'Players see these with a copy button. You record each payment from the M-Pesa message.',
+                        children: [
+                          for (final (i, m) in _methods.indexed)
+                            ObRow(m.label,
+                                subtitle: _methodLine(m),
+                                leading: ObRowIcon(m.type == 'cash' ? LucideIcons.banknote : LucideIcons.smartphone, m.type == 'cash' ? const Color(0xFFB7791F) : Ob.lime),
+                                onTap: () => _editMethod(i)),
+                          ObRow('Add a way to pay', titleColor: Ob.lime, onTap: () => _editMethod(null)),
+                        ],
+                      ),
                       const SizedBox(height: 22),
                       ObGroup(header: 'Good to know', children: [
                         _field(_prerequisites, 'Bring', hint: 'Own wedge, basic grip'),

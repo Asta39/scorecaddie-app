@@ -26,6 +26,7 @@ class CoachingService {
     String targetSkillLevel = 'All',
     String prerequisites = '',
     String cancellationPolicy = '24h notice required',
+    List<PaymentMethod> paymentMethods = const [],
   }) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('Must be logged in to create a session');
@@ -58,6 +59,7 @@ class CoachingService {
         'p_cancellation_policy': cancellationPolicy,
       });
       debugPrint('CoachingService: Create RPC Success. ID: $response');
+      if (response != null) await setPaymentMethods('$response', paymentMethods);
     } catch (e) {
       debugPrint('CoachingService: Create RPC Error: $e');
       rethrow;
@@ -82,6 +84,7 @@ class CoachingService {
     String targetSkillLevel = 'All',
     String prerequisites = '',
     String cancellationPolicy = '24h notice required',
+    List<PaymentMethod> paymentMethods = const [],
   }) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('Must be logged in to update a session');
@@ -110,6 +113,15 @@ class CoachingService {
       'p_prerequisites': prerequisites,
       'p_cancellation_policy': cancellationPolicy,
     });
+    await setPaymentMethods(sessionId, paymentMethods);
+  }
+
+  /// Saves how players pay for a session (numbers they copy into M-Pesa).
+  Future<void> setPaymentMethods(String sessionId, List<PaymentMethod> methods) async {
+    await _supabase
+        .from('coaching_sessions')
+        .update({'payment_methods': [for (final m in methods) m.toJson()]})
+        .eq('id', sessionId);
   }
 
   Future<Map<String, dynamic>?> getCoachProfile(String coachId) async {
@@ -354,9 +366,24 @@ class CoachingService {
     required double amount,
     required String method,
     String? sessionId,
+    String? playerId,
+    String? reference,
+    String? message,
   }) async {
     try {
       debugPrint('CoachingService: Recording payment of $amount for enrollment $enrollmentId');
+      // The receipt first: if the M-Pesa code was already used, the unique
+      // index stops a payment being counted twice before totals change.
+      await _supabase.from('coaching_payments').insert({
+        'enrollment_id': enrollmentId,
+        'session_id': ?sessionId,
+        'coach_id': _supabase.auth.currentUser!.id,
+        'player_id': ?playerId,
+        'amount': amount,
+        'method': method,
+        'reference': (reference == null || reference.isEmpty) ? null : reference.toUpperCase(),
+        'message': (message == null || message.isEmpty) ? null : message,
+      });
       await _supabase.rpc('record_payment', params: {
         'p_enrollment_id': enrollmentId,
         'p_amount': amount,

@@ -10,6 +10,7 @@ import '../../widgets/top_notification.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
 import '../onboarding/ob_forms.dart';
+import '../../core/utils/mpesa_message.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 final _kes = NumberFormat('#,###');
@@ -48,12 +49,24 @@ class CoachPaymentManagementScreen extends ConsumerStatefulWidget {
 
 class _CoachPaymentManagementScreenState extends ConsumerState<CoachPaymentManagementScreen> {
   _View _view = _View.owed;
+  List<_RE> _allRows = const [];
+
+  /// Players who still owe come first in the picker.
+  static List<_RE> _owedFirst(List<_RE> all) => [...all.where((r) => !r.isPaid), ...all.where((r) => r.isPaid)];
+
+  void _record([_RE? r]) => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _RecordSheet(r: r, all: _owedFirst(_allRows)),
+      );
   String? _sessionId;
 
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(_allEnrollmentsProvider);
     final all = async.valueOrNull ?? const <_RE>[];
+    _allRows = all;
     final collected = all.fold<double>(0, (a, r) => a + r.e.amountPaid);
     final owed = all.fold<double>(0, (a, r) => a + r.outstanding);
     final sessions = ref.watch(coachSessionsProvider).valueOrNull ?? const <CoachingSession>[];
@@ -83,7 +96,9 @@ class _CoachPaymentManagementScreenState extends ConsumerState<CoachPaymentManag
             physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
             children: [
-              const ObTabHeader('Money'),
+              ObTabHeader('Money', actions: [
+                ObIconButton(icon: LucideIcons.plus, label: 'Record a payment', onPressed: all.isEmpty ? null : () => _record()),
+              ]),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(16),
@@ -166,55 +181,119 @@ class _CoachPaymentManagementScreenState extends ConsumerState<CoachPaymentManag
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
-                builder: (_) => _RecordSheet(r: r),
+                builder: (_) => _RecordSheet(r: r, all: _owedFirst(_allRows)),
               ),
     );
   }
 }
 
+/// Records a payment. Paste the M-Pesa confirmation and the amount, code and
+/// sender fill themselves in; pick (or confirm) the player it's from.
 class _RecordSheet extends ConsumerStatefulWidget {
-  const _RecordSheet({required this.r});
-  final _RE r;
+  const _RecordSheet({this.r, required this.all});
+
+  /// The player tapped on, if any.
+  final _RE? r;
+
+  /// Everyone who can be paid for, to pick from.
+  final List<_RE> all;
 
   @override
   ConsumerState<_RecordSheet> createState() => _RecordSheetState();
 }
 
 class _RecordSheetState extends ConsumerState<_RecordSheet> {
-  late final _amount = TextEditingController(text: widget.r.outstanding.toStringAsFixed(0));
+  late _RE? _for = widget.r;
+  late final _amount = TextEditingController(text: widget.r?.outstanding.toStringAsFixed(0) ?? '');
+  final _message = TextEditingController();
+  final _code = TextEditingController();
   String _method = 'MPESA';
+  String? _sender;
   bool _saving = false;
 
   @override
   void dispose() {
     _amount.dispose();
+    _message.dispose();
+    _code.dispose();
     super.dispose();
   }
 
+  void _read(String text) {
+    final m = MpesaMessage.parse(text);
+    if (m.isEmpty) return;
+    setState(() {
+      _method = 'MPESA';
+      if (m.amount != null) _amount.text = m.amount!.toStringAsFixed(0);
+      if (m.code != null) _code.text = m.code!;
+      _sender = m.sender;
+      // Match the sender's name to a player, if nobody's picked yet.
+      if (_for == null && m.sender != null) {
+        final words = m.sender!.toLowerCase().split(' ').where((w) => w.length > 2).toSet();
+        final hits = widget.all.where((r) {
+          final name = (r.e.playerName ?? '').toLowerCase();
+          return words.any(name.contains);
+        }).toList();
+        if (hits.length == 1) _for = hits.first;
+      }
+    });
+  }
+
+  Future<void> _pickPlayer() async {
+    final picked = await showCupertinoModalPopup<_RE>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Who is this payment from?'),
+        actions: [
+          for (final r in widget.all)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(ctx, r),
+              child: Text('${r.e.playerName ?? 'Student'} · ${r.session.name}', maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+      ),
+    );
+    if (picked != null) setState(() => _for = picked);
+  }
+
   Future<void> _save() async {
+    final r = _for;
     final amount = double.tryParse(_amount.text.trim());
+    if (r == null) {
+      TopNotification.showError(context, 'Pick who the payment is from');
+      return;
+    }
     if (amount == null || amount <= 0) {
       TopNotification.showError(context, 'Enter an amount');
+      return;
+    }
+    if (_method == 'MPESA' && _code.text.trim().length < 8) {
+      TopNotification.showError(context, 'Paste the M-Pesa message or enter its code');
       return;
     }
     setState(() => _saving = true);
     try {
       await ref.read(coachingServiceProvider).recordPayment(
-            enrollmentId: widget.r.e.id,
+            enrollmentId: r.e.id,
             amount: amount,
             method: _method,
-            sessionId: widget.r.e.sessionId,
+            sessionId: r.e.sessionId,
+            playerId: r.e.playerId,
+            reference: _method == 'MPESA' ? _code.text.trim() : null,
+            message: _message.text.trim(),
           );
       HapticFeedback.mediumImpact();
-      ref.invalidate(sessionEnrollmentsProvider(widget.r.e.sessionId));
+      ref.invalidate(sessionEnrollmentsProvider(r.e.sessionId));
       ref.invalidate(_allEnrollmentsProvider);
       ref.invalidate(coachRevenueBreakdownProvider);
       ref.invalidate(coachStudentsProvider);
       if (!mounted) return;
       Navigator.pop(context);
-      TopNotification.showSuccess(context, 'KES ${_kes.format(amount)} recorded');
+      TopNotification.showSuccess(context, 'KES ${_kes.format(amount)} from ${r.e.playerName ?? 'student'} recorded');
     } catch (e) {
-      if (mounted) TopNotification.showError(context, 'Couldn\'t record the payment: $e');
+      final dup = '$e'.contains('duplicate') || '$e'.contains('23505');
+      if (mounted) TopNotification.showError(context, dup ? 'That M-Pesa code is already recorded' : 'Couldn’t record the payment: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -222,36 +301,84 @@ class _RecordSheetState extends ConsumerState<_RecordSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final r = widget.r;
+    final r = _for;
     return ObSheet(
       title: 'Record a payment',
-      subtitle: '${r.e.playerName ?? 'Student'} · owes KES ${_kes.format(r.outstanding)}',
+      height: MediaQuery.of(context).size.height * .85,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(12)),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-            Text('KES ', style: Ob.body(17, color: Ob.creamA(.6))),
-            Expanded(
-              child: TextField(
-                controller: _amount,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                cursorColor: Ob.lime,
-                style: Ob.display(36, color: Ob.cream),
-                decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-              ),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 14),
+      child: ListView(children: [
         ObGooSegmented<String>(
           options: const [('MPESA', 'M-Pesa'), ('CASH', 'Cash'), ('BANK', 'Bank')],
           selected: _method,
           onChanged: (m) => setState(() => _method = m),
         ),
+        const SizedBox(height: 16),
+        if (_method == 'MPESA') ...[
+          Container(
+            decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(12)),
+            child: TextField(
+              controller: _message,
+              onChanged: _read,
+              minLines: 3,
+              maxLines: 6,
+              cursorColor: Ob.lime,
+              style: Ob.body(15),
+              decoration: InputDecoration(
+                hintText: 'Paste the M-Pesa message here',
+                hintStyle: Ob.body(15, color: Ob.creamA(.4)),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.all(14),
+              ),
+            ),
+          ),
+          if (_sender != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+              child: Text('From $_sender', style: Ob.body(13, color: Ob.creamA(.6))),
+            ),
+          const SizedBox(height: 16),
+        ],
+        ObGroup(children: [
+          ObRow('From', value: r == null ? 'Pick a player' : (r.e.playerName ?? 'Student'), valueColor: r == null ? Ob.lime : null, onTap: _pickPlayer),
+          if (r != null) ObRow('Session', value: r.session.name),
+          if (r != null) ObRow('Still owes', value: 'KES ${_kes.format(r.outstanding)}'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(children: [
+              Text('Amount', style: Ob.body(17)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _amount,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  textAlign: TextAlign.end,
+                  cursorColor: Ob.lime,
+                  style: Ob.body(17),
+                  decoration: InputDecoration(border: InputBorder.none, hintText: '0', prefixText: 'KES ', prefixStyle: Ob.body(17, color: Ob.creamA(.6))),
+                ),
+              ),
+            ]),
+          ),
+          if (_method == 'MPESA')
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(children: [
+                Text('M-Pesa code', style: Ob.body(17)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _code,
+                    textAlign: TextAlign.end,
+                    textCapitalization: TextCapitalization.characters,
+                    cursorColor: Ob.lime,
+                    style: Ob.body(17),
+                    decoration: const InputDecoration(border: InputBorder.none, hintText: 'SKL4ABC123'),
+                  ),
+                ),
+              ]),
+            ),
+        ]),
         const SizedBox(height: 18),
         ObButton(
           height: 54,
@@ -259,6 +386,7 @@ class _RecordSheetState extends ConsumerState<_RecordSheet> {
           onPressed: _saving ? null : _save,
           child: Text(_saving ? 'Saving…' : 'Record', style: Ob.label(17)),
         ),
+        const SizedBox(height: 24),
       ]),
     );
   }

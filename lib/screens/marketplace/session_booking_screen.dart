@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/payment_methods_list.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -236,6 +237,8 @@ class _SessionBookingScreenState extends ConsumerState<SessionBookingScreen> {
         ),
         const SizedBox(height: 12),
         Text(s.cancellationPolicy?.isNotEmpty == true ? s.cancellationPolicy! : 'Standard 24-hour notice for a full refund.', style: Ob.body(13, height: 1.5, color: Ob.creamA(.6))),
+        const SizedBox(height: 22),
+        PaymentMethodsList(methods: s.paymentMethods, amount: 'KES ${NumberFormat('#,###').format(s.price)} a session'),
         if (_error != null) ...[
           const SizedBox(height: 12),
           ObCard(child: Text(_error!, style: Ob.body(13, color: Ob.warn))),

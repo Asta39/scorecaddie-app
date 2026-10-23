@@ -24,6 +24,9 @@ class CoachingSession {
   final DateTime createdAt;
   final int enrollmentCount;
 
+  /// How players pay the coach: M-Pesa send money, paybill, till or cash.
+  final List<PaymentMethod> paymentMethods;
+
   CoachingSession({
     required this.id,
     required this.coachId,
@@ -47,6 +50,7 @@ class CoachingSession {
     this.cancellationPolicy,
     required this.createdAt,
     this.enrollmentCount = 0,
+    this.paymentMethods = const [],
   });
 
   double get price => pricePerSession;
@@ -86,6 +90,10 @@ class CoachingSession {
         cancellationPolicy: json['cancellation_policy'] as String?,
         createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now(),
         enrollmentCount: (json['enrollment_count'] as num?)?.toInt() ?? 0,
+        paymentMethods: [
+          for (final m in (json['payment_methods'] as List?) ?? const [])
+            if (m is Map) PaymentMethod.fromJson(Map<String, dynamic>.from(m)),
+        ],
         );
         } catch (e, _) {
       debugPrint('COACHING_SESSION_PARSE_ERROR: $e\nData: $json');
@@ -116,6 +124,7 @@ class CoachingSession {
       'prerequisites': prerequisites,
       'cancellation_policy': cancellationPolicy,
       'created_at': createdAt.toIso8601String(),
+      'payment_methods': [for (final m in paymentMethods) m.toJson()],
     };
   }
 }
@@ -235,3 +244,36 @@ class SessionEnrollment {
   }
 }
 
+
+/// One way a coach takes payment.
+class PaymentMethod {
+  const PaymentMethod({required this.type, this.number = '', this.account = '', this.name = ''});
+
+  /// 'send_money', 'paybill', 'till' or 'cash'.
+  final String type;
+
+  /// Phone number, paybill business number or till number.
+  final String number;
+
+  /// Paybill account number.
+  final String account;
+
+  /// The name M-Pesa shows the player, so they know they have the right one.
+  final String name;
+
+  String get label => switch (type) {
+        'send_money' => 'M-Pesa send money',
+        'paybill' => 'M-Pesa paybill',
+        'till' => 'M-Pesa till (buy goods)',
+        _ => 'Cash',
+      };
+
+  factory PaymentMethod.fromJson(Map<String, dynamic> j) => PaymentMethod(
+        type: '${j['type'] ?? 'cash'}',
+        number: '${j['number'] ?? ''}',
+        account: '${j['account'] ?? ''}',
+        name: '${j['name'] ?? ''}',
+      );
+
+  Map<String, dynamic> toJson() => {'type': type, 'number': number, 'account': account, 'name': name};
+}

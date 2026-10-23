@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/achievement_model.dart';
 import '../../core/models/notification_model.dart';
 import '../../core/services/notification_service.dart';
+import '../../providers/app_providers.dart';
 import '../../screens/onboarding/ob_style.dart';
 import '../../screens/onboarding/ob_widgets.dart';
 
@@ -18,13 +19,19 @@ class NotificationTopSheet extends ConsumerWidget {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Close notifications',
-      barrierColor: const Color(0x99030905),
-      transitionDuration: const Duration(milliseconds: 450),
+      barrierColor: const Color(0x66000000),
+      // Quick and direct, like the system's own notification shade: the sheet
+      // slides the whole way down, no fade, and leaves a little faster.
+      transitionDuration: const Duration(milliseconds: 240),
       pageBuilder: (_, _, _) => const NotificationTopSheet(),
-      transitionBuilder: (_, a, _, child) => SlideTransition(
-        position: Tween(begin: const Offset(0, -.08), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: const Cubic(.2, .8, .2, 1))),
-        child: FadeTransition(opacity: a, child: child),
-      ),
+      transitionBuilder: (context, a, _, child) {
+        if (MediaQuery.of(context).disableAnimations) return child;
+        return SlideTransition(
+          position: Tween(begin: const Offset(0, -1), end: Offset.zero)
+              .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
+          child: child,
+        );
+      },
     );
   }
 
@@ -60,6 +67,12 @@ class NotificationTopSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(unreadNotificationsProvider);
+    final role = ref.watch(userProfileProvider).valueOrNull?.role?.toLowerCase();
+    final empty = switch (role) {
+      'coach' => 'Nothing new. Bookings, payments and session reminders show up here.',
+      'caddie' => 'Nothing new. Bookings and calls show up here.',
+      _ => 'Nothing new. Rounds, friends and drills show up here.',
+    };
     final notes = async.valueOrNull ?? const <AppNotification>[];
     final mq = MediaQuery.of(context);
 
@@ -75,7 +88,7 @@ class NotificationTopSheet extends ConsumerWidget {
             decoration: const BoxDecoration(
               color: Color(0xFFF2F2F7),
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-              border: Border(bottom: BorderSide(color: Color(0x40A3E635))),
+              
             ),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Row(children: [
@@ -96,7 +109,7 @@ class NotificationTopSheet extends ConsumerWidget {
                             child: Row(children: [
                               Image.asset(ObBot.ball.sleep, width: 64, height: 64),
                               const SizedBox(width: 12),
-                              Expanded(child: Text('Nothing new. Rounds, friends and drills show up here.', style: Ob.body(14, color: Ob.creamA(.65)))),
+                              Expanded(child: Text(empty, style: Ob.body(15, color: Ob.creamA(.65)))),
                             ]),
                           )
                         : ListView.separated(
@@ -128,9 +141,9 @@ class NotificationTopSheet extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
         decoration: BoxDecoration(
-          color: n.read ? Ob.cardFill : Ob.lime.withValues(alpha: .06),
+          color: Ob.cardFill,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: n.read ? Ob.creamA(.06) : Ob.lime.withValues(alpha: .25)),
+          
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
@@ -142,10 +155,10 @@ class NotificationTopSheet extends ConsumerWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(n.title, style: Ob.body(14, weight: FontWeight.w800)),
-              if (n.body.isNotEmpty) ...[const SizedBox(height: 2), Text(n.body, style: Ob.body(13, height: 1.4, color: Ob.creamA(.68)))],
+              Text(n.title, style: Ob.body(17, weight: FontWeight.w600)),
+              if (n.body.isNotEmpty) ...[const SizedBox(height: 2), Text(n.body, style: Ob.body(15, height: 1.35, color: Ob.creamA(.68)))],
               const SizedBox(height: 3),
-              Text(_ago(n.createdAt), style: Ob.body(11, color: Ob.creamA(.45))),
+              Text(_ago(n.createdAt), style: Ob.body(13, color: Ob.creamA(.5))),
             ]),
           ),
           if (!n.read) Container(margin: const EdgeInsets.only(top: 6, left: 6), width: 9, height: 9, decoration: const BoxDecoration(color: Ob.lime, shape: BoxShape.circle)),

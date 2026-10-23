@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/utils/url_helper.dart';
 import '../../widgets/coaching_notes.dart';
+import '../../widgets/payment_methods_list.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -144,6 +145,8 @@ class PlayerSessionDetailsScreen extends ConsumerWidget {
           error: (_, _) => const SizedBox(),
         ),
 
+        const SizedBox(height: 24),
+        PaymentMethodsList(methods: session.paymentMethods, amount: 'KES ${session.pricePerSession.toStringAsFixed(0)} a session'),
         const SizedBox(height: 24),
         if (ref.watch(authStateProvider).valueOrNull?.id case final me?)
           CoachingNotes(coachId: session.coachId, playerId: me, otherName: 'Coach'),
