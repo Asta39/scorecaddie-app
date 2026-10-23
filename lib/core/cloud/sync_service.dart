@@ -108,6 +108,16 @@ class SyncService {
     // 2. Migrate to PostgreSQL
     final profile = await _database.getProfile(_uid);
     if (profile != null) await syncProfile(profile);
+    // Coaches and caddies: push what they entered on this phone, so details
+    // from an earlier failed save still reach their account.
+    final provider = await _database.getProvider(_uid);
+    if (provider != null) {
+      try {
+        await syncProvider(provider);
+      } catch (e) {
+        debugPrint('SYNC_PROVIDER_ERROR: $e');
+      }
+    }
 
     await _migrateCourses();
     await _migrateRoundsAndStats();

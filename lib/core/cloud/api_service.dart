@@ -47,7 +47,7 @@ class ApiService {
       // for a field the caller didn't supply erased real server data. The
       // provider sync never passed profileComplete, which wiped it and sent
       // returning users back to role selection on their next fresh login.
-      await _client.from('User').upsert(withoutNulls({
+      final row = withoutNulls({
         'id': id,
         // Never overwrite a real email with the '' callers use as a fallback.
         'email': email.isEmpty ? null : email,
@@ -79,7 +79,12 @@ class ApiService {
         // must never downgrade a completed account on the server.
         'profileComplete': profileComplete == true ? true : null,
         'updatedAt': DateTime.now().toIso8601String(),
-      }), onConflict: 'id');
+      });
+      // Update first: the golfer's row normally exists already, and an
+      // upsert also needs INSERT rights and read access to every column it
+      // sends (email is private now), so it could fail even for a plain edit.
+      final updated = await _client.from('User').update(Map.of(row)..remove('id')).eq('id', id).select('id');
+      if ((updated as List).isEmpty) await _client.from('User').insert(row);
     } catch (e) {
       debugPrint('API_SYNC_PROFILE ERROR: $e');
     }
