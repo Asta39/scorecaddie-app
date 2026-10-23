@@ -758,9 +758,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         value: Ob.overlay,
         child: DefaultTextStyle(
           style: Ob.textBase,
-          child: ListView(
+          child: SafeArea(
+            bottom: false,
+            child: ListView(
             physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 40 + MediaQuery.of(context).padding.bottom),
             children: [
               ObTabHeader('You', actions: [
                 if (provider != null)
@@ -857,6 +859,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ],
           ),
+          )
         ),
       ),
     );

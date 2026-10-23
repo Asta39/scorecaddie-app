@@ -13,7 +13,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_forms.dart';
 import '../onboarding/ob_style.dart';
-import '../onboarding/ob_widgets.dart';
 import '../../providers/app_providers.dart';
 import '../../core/database/database.dart' as db;
 import '../../core/models/auth_user.dart';
@@ -108,12 +107,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 60),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 40 + MediaQuery.of(context).padding.bottom),
       children: [
         ObTopBar('Settings', onBack: () => context.pop()),
         const SizedBox(height: 18),
         Row(children: [
-          GestureDetector(
+          Semantics(
+            button: true,
+            label: 'Change profile photo',
+            excludeSemantics: true,
+            child: GestureDetector(
             onTap: _pickImage,
             child: Stack(clipBehavior: Clip.none, children: [
               ProfileImage(url: profile?.avatarUrl, name: profile?.name, size: 72, isCircle: true),
@@ -129,18 +132,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ]),
           ),
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(profile?.name ?? 'Golfer', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.display(24, height: 1.05)),
-              Text(user?.email ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(13, color: Ob.creamA(.6))),
+              Text(user?.email ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: Ob.body(15, color: Ob.creamA(.6))),
             ]),
           ),
-        ]).rise(),
-        const SizedBox(height: 22),
-        const ObEyebrow('Account'),
-        const SizedBox(height: 10),
-        _group([
+        ]),
+        const SizedBox(height: 4),
+        _group(header: 'Account', [
           _row(LucideIcons.user, 'Name', profile?.name ?? 'Not set', () => _showEditNameDialog(context, profile?.name)),
           _row(LucideIcons.mail, 'Email', user?.email ?? 'Not set', () => _showEditEmailDialog(context, user?.email ?? '')),
           _row(LucideIcons.lock, isGoogleUser ? 'Set a password' : 'Password', null, () => _showChangePasswordDialog(context)),
@@ -148,46 +150,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (!isPro) _row(LucideIcons.users, 'My clubs', 'Memberships and joining', () => context.push('/profile/clubs')),
         ]),
         if (isPro) ...[
-          const SizedBox(height: 22),
-          const ObEyebrow('Your professional profile'),
-          const SizedBox(height: 10),
-          _buildProviderSettings(profile),
+            _buildProviderSettings(profile),
         ],
-        const SizedBox(height: 22),
-        const ObEyebrow('Privacy and alerts'),
-        const SizedBox(height: 10),
-        _group([
+        _group(header: 'Privacy and alerts', [
           if (!isCaddie)
             _toggle('Public profile', 'Other golfers can find you and see your index', profile?.privacyLevel == 'Public',
                 (v) => _updateProfile(db.UserProfilesCompanion(privacyLevel: drift.Value(v ? 'Public' : 'Private')))),
           _toggle('Notifications', 'Tee times, drills, results and friend requests', _notifs, _setNotifs),
           _row(LucideIcons.database, 'How we use your data', null, () => _showDataUsageInfo(context, isCaddie)),
         ]),
-        const SizedBox(height: 22),
-        const ObEyebrow('Help'),
-        const SizedBox(height: 10),
-        _group([
+        _group(header: 'Help', [
           _row(LucideIcons.circleHelp, 'Help and questions', null, () => context.push('/help', extra: profile?.role)),
           _row(LucideIcons.messageCircle, 'Talk to support', 'WhatsApp', _launchWhatsApp),
           _row(LucideIcons.circleAlert, 'Report a problem', null, _launchEmail),
         ]),
-        const SizedBox(height: 24),
-        ObButton(
-          tone: ObButtonTone.dark,
-          onPressed: () => _showLogoutConfirmation(context),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(LucideIcons.logOut, size: 18, color: Ob.warn),
-            const SizedBox(width: 8),
-            Text('Log out', style: Ob.label(15, weight: FontWeight.w800).copyWith(color: Ob.warn)),
-          ]),
-        ),
-        const SizedBox(height: 6),
-        Center(
-          child: TextButton(
-            onPressed: () => _showDeleteConfirmation(context),
-            child: Text('Delete my account', style: Ob.body(13, weight: FontWeight.w700, color: Ob.creamA(.45))),
-          ),
-        ),
+        _group([
+          ObRow('Log out', titleColor: Ob.warn, onTap: () => _showLogoutConfirmation(context)),
+        ]),
+        _group([
+          ObRow('Delete my account', titleColor: Ob.warn, onTap: () => _showDeleteConfirmation(context)),
+        ], footer: 'This can’t be undone.'),
       ],
     );
   }
@@ -222,45 +204,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Widget _group(List<Widget> rows) => ObCard(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(children: [
-          for (final (i, r) in rows.indexed) ...[if (i > 0) const ObHair(), r],
-        ]),
+  Widget _group(List<Widget> rows, {String? header, String? footer}) => Padding(
+        padding: const EdgeInsets.only(top: 22),
+        child: ObGroup(header: header, footer: footer, children: rows),
       );
 
-  Widget _row(IconData icon, String label, String? value, VoidCallback onTap, {Color? color}) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        child: Row(children: [
-          Icon(icon, size: 18, color: color ?? Ob.lime),
-          const SizedBox(width: 12),
-          Expanded(child: Text(label, style: Ob.body(15, weight: FontWeight.w700, color: color ?? Ob.cream))),
-          if (value != null)
-            Flexible(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end, style: Ob.body(13, color: Ob.creamA(.55)))),
-          const SizedBox(width: 6),
-          Icon(LucideIcons.chevronRight, size: 16, color: Ob.creamA(.35)),
-        ]),
-      ),
-    );
-  }
+  static final _tints = <IconData, Color>{
+    LucideIcons.user: Color(0xFF8E8E93),
+    LucideIcons.mail: Color(0xFF2563EB),
+    LucideIcons.lock: Color(0xFF8E8E93),
+    LucideIcons.flag: Ob.lime,
+    LucideIcons.users: Ob.lime,
+    LucideIcons.database: Color(0xFF2563EB),
+    LucideIcons.circleHelp: Color(0xFF2563EB),
+    LucideIcons.messageCircle: Color(0xFF25D366),
+    LucideIcons.circleAlert: Color(0xFFC2410C),
+  };
 
-  Widget _toggle(String label, String sub, bool value, ValueChanged<bool> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
-      child: Row(children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: Ob.body(15, weight: FontWeight.w700)),
-            Text(sub, style: Ob.body(12, color: Ob.creamA(.55))),
-          ]),
+  Widget _row(IconData icon, String label, String? value, VoidCallback onTap, {Color? color}) => ObRow(
+        label,
+        titleColor: color,
+        leading: ObRowIcon(icon, color ?? _tints[icon] ?? Ob.lime),
+        value: value,
+        onTap: onTap,
+      );
+
+  Widget _toggle(String label, String sub, bool value, ValueChanged<bool> onChanged) => MergeSemantics(
+        child: ObRow(
+          label,
+          subtitle: sub,
+          trailing: CupertinoSwitch(value: value, activeTrackColor: Ob.lime, onChanged: onChanged),
+          onTap: () => onChanged(!value),
         ),
-        Switch.adaptive(value: value, activeTrackColor: Ob.lime, activeThumbColor: Ob.ink, onChanged: onChanged),
-      ]),
-    );
-  }
+      );
 
   /// A dark sheet with one text field; returns the text on Save.
   Future<String?> _askText(String title, {String? initial, String? hint, String? note, bool obscure = false, bool long = false, TextInputType? keyboard}) {
@@ -346,15 +322,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (courses.isNotEmpty) currentCourse = courses[0];
     } catch (_) {}
 
-    return _group([
-      _row(LucideIcons.mapPin, 'Home Club', currentCourse, () => _showCoursePicker(provider)),
-      _row(LucideIcons.banknote, isCaddie ? 'Caddie Fee' : 'Hourly Rate', 'KES ${provider.price?.toInt() ?? 0}', isCaddie 
+    return _group(header: 'Your professional profile', [
+      _row(LucideIcons.mapPin, 'Home club', currentCourse, () => _showCoursePicker(provider)),
+      _row(LucideIcons.banknote, isCaddie ? 'Caddie fee' : 'Hourly rate', 'KES ${provider.price?.toInt() ?? 0}', isCaddie 
           ? () => _showError('Caddie fees are set by the golf club.')
           : () => _showEditProviderFieldDialog('Rate', provider.price?.toString(), (v) => _updateProvider(db.ProvidersCompanion(price: drift.Value(double.tryParse(v)))))),
       _row(LucideIcons.calendar, 'Experience', '${provider.experience} Years', () => _showEditProviderFieldDialog('Experience', provider.experience.toString(), (v) => _updateProvider(db.ProvidersCompanion(experience: drift.Value(int.tryParse(v) ?? 0))))),
       if (isCaddie)
         _row(LucideIcons.smile, 'Personality', provider.personalityType ?? 'Not set', () => _showPersonalityPicker(provider)),
-      _row(LucideIcons.fileText, 'Professional Bio', null, () => _showEditProviderFieldDialog('Bio', provider.bio, (v) => _updateProvider(db.ProvidersCompanion(bio: drift.Value(v))), isLongText: true)),
+      _row(LucideIcons.fileText, 'Bio', null, () => _showEditProviderFieldDialog('Bio', provider.bio, (v) => _updateProvider(db.ProvidersCompanion(bio: drift.Value(v))), isLongText: true)),
       _row(LucideIcons.award, 'Certifications', '${_parseCertificates(provider.certificatesJson).length} total', () => _showCertificatesManager(provider)),      ]);
       }
   List<Map<String, dynamic>> _parseCertificates(String? json) {
