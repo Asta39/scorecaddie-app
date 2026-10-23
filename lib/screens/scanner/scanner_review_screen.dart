@@ -8,13 +8,15 @@ import 'package:drift/drift.dart' as drift;
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/theme/app_theme.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
+import '../../widgets/top_notification.dart';
 import '../../core/database/database.dart' as db;
 import '../../core/models/scanned_round_result.dart';
 import '../../core/utils/whs_engine.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/scorecard_scanner_provider.dart';
-import '../../widgets/loading_spinner.dart';
 
 class ScannerReviewScreen extends ConsumerStatefulWidget {
   const ScannerReviewScreen({super.key});
@@ -326,88 +328,56 @@ class _ScannerReviewScreenState extends ConsumerState<ScannerReviewScreen> {
 
     // Complete navigation
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Round successfully scanned and saved!'),
-          backgroundColor: AppColors.emerald700,
-        ),
-      );
+      TopNotification.showSuccess(context, 'Round saved');
       context.go('/');
     }
   }
 
   void _showScoreEditSheet(ScannedHole hole) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Hole ${hole.hole} (Par ${hole.par})',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.grey900),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    ref.read(scorecardScannerProvider.notifier).updateHoleScore(hole.hole, null);
-                    Navigator.pop(sheetContext);
-                  },
-                  child: const Text('Clear / Unreadable', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                )
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Text('SELECT SCORE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: List.generate(10, (index) {
-                final scoreVal = index + 1;
-                final isSelected = hole.score == scoreVal;
-                return InkWell(
-                  onTap: () {
-                    ref.read(scorecardScannerProvider.notifier).updateHoleScore(hole.hole, scoreVal);
-                    Navigator.pop(sheetContext);
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.grey900 : AppColors.grey50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected ? AppColors.grey900 : AppColors.grey200,
-                        width: 1,
+    showObSheet(
+      context,
+      (sheetContext) => ObSheet(
+        title: 'Hole ${hole.hole}',
+        subtitle: 'Par ${hole.par}',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 5,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            children: [
+              for (var v = 1; v <= 10; v++)
+                Semantics(
+                  button: true,
+                  selected: hole.score == v,
+                  label: 'Score $v',
+                  child: GestureDetector(
+                    onTap: () {
+                      ref.read(scorecardScannerProvider.notifier).updateHoleScore(hole.hole, v);
+                      Navigator.pop(sheetContext);
+                    },
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: hole.score == v ? Ob.lime : Ob.cardFill,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '$scoreVal',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: isSelected ? Colors.white : AppColors.grey800,
-                      ),
+                      child: Text('$v', style: Ob.display(22, color: hole.score == v ? Ob.ink : Ob.cream)),
                     ),
                   ),
-                );
-              }),
-            ),
-            const SizedBox(height: 32),
-          ],
-        ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          CupertinoButton(
+            onPressed: () {
+              ref.read(scorecardScannerProvider.notifier).updateHoleScore(hole.hole, null);
+              Navigator.pop(sheetContext);
+            },
+            child: Text('Mark as unreadable', style: Ob.body(17, color: Ob.warn)),
+          ),
+        ]),
       ),
     );
   }
@@ -416,322 +386,117 @@ class _ScannerReviewScreenState extends ConsumerState<ScannerReviewScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(scorecardScannerProvider);
     if (state.scanResult == null || _loadingHoles) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
-        body: LoadingSpinner(size: 80),
-      );
+      return const Scaffold(backgroundColor: Ob.bg, body: Center(child: CupertinoActivityIndicator(color: Ob.lime)));
     }
 
     final result = state.scanResult!;
     final confidence = result.confidence;
+    final (String confText, Color confColor) = confidence < 0.4
+        ? ('Low confidence. Check every hole.', Ob.warn)
+        : confidence < 0.75
+            ? ('Some holes may be misread.', const Color(0xFFB7791F))
+            : ('Read cleanly.', Ob.lime);
+    final missing = result.holes.where((h) => h.score == null).length;
 
-    // Determine confidence styling
-    Color confColor = AppColors.emerald700;
-    String confText = 'High Confidence';
-    IconData confIcon = LucideIcons.checkCircle2;
-    if (confidence < 0.4) {
-      confColor = Colors.redAccent;
-      confText = 'Low Confidence — Verify scores';
-      confIcon = LucideIcons.alertTriangle;
-    } else if (confidence < 0.75) {
-      confColor = Colors.amber;
-      confText = 'Medium Confidence';
-      confIcon = LucideIcons.helpCircle;
+    db.CourseHole officialFor(ScannedHole hole) => _officialHoles.firstWhere(
+          (h) => h.holeNumber == hole.hole,
+          orElse: () => db.CourseHole(id: 0, courseId: state.course!.id, holeNumber: hole.hole, par: hole.par, handicapIndex: hole.hole),
+        );
+
+    Widget holeRow(ScannedHole hole) {
+      final official = officialFor(hole);
+      final mismatch = hole.par != official.par;
+      final flagged = hole.isFlagged || hole.score == null;
+      return ObRow(
+        'Hole ${hole.hole}',
+        subtitle: mismatch ? 'Card says par ${hole.par}, course is par ${official.par}' : 'Par ${official.par}',
+        value: hole.score?.toString() ?? 'Add',
+        valueColor: hole.score == null ? Ob.warn : Ob.cream,
+        leading: flagged ? const ObRowIcon(LucideIcons.alertTriangle, Color(0xFFB7791F)) : null,
+        onTap: () => _showScoreEditSheet(hole),
+      );
     }
 
+    final front = result.holes.where((h) => h.hole <= 9).toList();
+    final back = result.holes.where((h) => h.hole > 9).toList();
+
     return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        scrolledUnderElevation: 0,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft, color: AppColors.grey900, size: 28),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text(
-          'Verify Round Scores',
-          style: TextStyle(color: AppColors.grey900, fontWeight: FontWeight.w900, fontSize: 20),
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          child: Column(children: [
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header metadata info
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.grey25,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: AppColors.grey100),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(LucideIcons.mapPin, size: 16, color: AppColors.grey400),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  state.course!.name,
-                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.grey900),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(LucideIcons.tag, size: 14, color: AppColors.grey400),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    state.tee?.name ?? 'No Tee Selected',
-                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.grey600),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 24),
-                              Row(
-                                children: [
-                                  const Icon(LucideIcons.calendar, size: 14, color: AppColors.grey400),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    DateFormat('MMM d, yyyy').format(state.date),
-                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.grey600),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          )
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Confidence card
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: confColor.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: confColor.withValues(alpha: 0.2)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(confIcon, color: confColor, size: 18),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              confText,
-                              style: TextStyle(color: confColor == Colors.amber ? Colors.orange.shade800 : confColor, fontWeight: FontWeight.w800, fontSize: 13),
-                            ),
-                          ),
-                          Text(
-                            '${(confidence * 100).toInt()}% match',
-                            style: TextStyle(color: confColor == Colors.amber ? Colors.orange.shade800 : confColor, fontWeight: FontWeight.w900, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Title
-                    const Text('HOLE BY HOLE SCORES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-                    const SizedBox(height: 12),
-
-                    // Hole grid
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: result.holes.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 1.05,
-                      ),
-                      itemBuilder: (context, index) {
-                        final hole = result.holes[index];
-                        final official = _officialHoles.firstWhere(
-                          (h) => h.holeNumber == hole.hole,
-                          orElse: () => _officialHoles.isNotEmpty
-                              ? _officialHoles.first
-                              : db.CourseHole(
-                                  id: 0,
-                                  courseId: state.course!.id,
-                                  holeNumber: hole.hole,
-                                  par: hole.par,
-                                  handicapIndex: hole.hole,
-                                ),
-                        );
-                        final isMismatch = hole.par != official.par;
-
-                        return InkWell(
-                          onTap: () => _showScoreEditSheet(hole),
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: hole.isFlagged ? Colors.amber.withValues(alpha: 0.06) : AppColors.grey25,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: hole.isFlagged
-                                    ? Colors.amber.shade300
-                                    : (isMismatch ? Colors.redAccent.shade100 : AppColors.grey200),
-                                width: (hole.isFlagged || isMismatch) ? 1.5 : 1,
-                              ),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'H${hole.hole}',
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.grey400),
-                                    ),
-                                    Text(
-                                      'Par ${isMismatch ? official.par : hole.par}',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: isMismatch ? Colors.redAccent : AppColors.grey500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                                  textBaseline: TextBaseline.alphabetic,
-                                  children: [
-                                    Text(
-                                      hole.score != null ? '${hole.score}' : '—',
-                                      style: TextStyle(
-                                        fontSize: 26,
-                                        fontWeight: FontWeight.w900,
-                                        color: hole.score == null
-                                            ? Colors.amber.shade800
-                                            : AppColors.grey900,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Running totals
-                    const Text('SUMMARY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 1.5)),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.grey25,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: AppColors.grey100),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildTotalColumn('FRONT 9', result.front9Total != null ? '${result.front9Total}' : '—'),
-                          Container(width: 1, height: 40, color: AppColors.grey200),
-                          _buildTotalColumn('BACK 9', result.back9Total != null ? '${result.back9Total}' : '—'),
-                          Container(width: 1, height: 40, color: AppColors.grey200),
-                          _buildTotalColumn('GROSS', result.grossTotal != null ? '${result.grossTotal}' : '—', isHighlight: true),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                  ],
-                ),
-              ),
-            ),
-            
-            // Bottom Action buttons
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: Row(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 60,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          // Retake photo: pop back to Camera screen
-                          ref.read(scorecardScannerProvider.notifier).reset();
-                          context.pop();
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.grey200),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        ),
-                        child: const Text(
-                          'RETAKE PHOTO',
-                          style: TextStyle(color: AppColors.grey700, fontWeight: FontWeight.w900, fontSize: 14),
-                        ),
-                      ),
-                    ),
+                  ObTopBar('Check scores', onBack: () => context.pop()),
+                  const SizedBox(height: 4),
+                  Text(
+                    [state.course!.name, if (state.tee != null) state.tee!.name, DateFormat('d MMM y').format(state.date)].join(' · '),
+                    style: Ob.body(15, color: Ob.creamA(.6)),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: SizedBox(
-                      height: 60,
-                      child: FilledButton(
-                        onPressed: _isSaving ? null : _onSavePressed,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.grey900,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        ),
-                        child: _isSaving
-                            ? const CupertinoActivityIndicator(color: Colors.white)
-                            : const Text(
-                                'SAVE ROUND',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14),
-                              ),
-                      ),
-                    ),
+                  const SizedBox(height: 14),
+                  Row(children: [
+                    Container(width: 8, height: 8, decoration: BoxDecoration(color: confColor, shape: BoxShape.circle)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('$confText ${missing > 0 ? '$missing ${missing == 1 ? 'hole' : 'holes'} unread.' : ''}', style: Ob.body(15))),
+                    Text('${(confidence * 100).round()}%', style: Ob.body(15, color: Ob.creamA(.6))),
+                  ]),
+                  const SizedBox(height: 22),
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
+                    child: Row(children: [
+                      _buildTotalColumn('Out', result.front9Total?.toString() ?? '—'),
+                      _buildTotalColumn('In', result.back9Total?.toString() ?? '—'),
+                      _buildTotalColumn('Total', result.grossTotal?.toString() ?? '—', isHighlight: true),
+                    ]),
+                  ),
+                  const SizedBox(height: 22),
+                  if (front.isNotEmpty) ObGroup(header: 'Front nine', children: [for (final h in front) holeRow(h)]),
+                  if (back.isNotEmpty) ...[
+                    const SizedBox(height: 22),
+                    ObGroup(header: 'Back nine', children: [for (final h in back) holeRow(h)]),
+                  ],
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Text('Tap a hole to fix its score.', style: Ob.body(13, color: Ob.creamA(.6))),
                   ),
                 ],
               ),
             ),
-          ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                ObButton(
+                  height: 54,
+                  radius: 14,
+                  onPressed: _isSaving ? null : _onSavePressed,
+                  child: _isSaving ? const CupertinoActivityIndicator(color: Ob.ink) : Text('Save round', style: Ob.label(17)),
+                ),
+                CupertinoButton(
+                  onPressed: () {
+                    ref.read(scorecardScannerProvider.notifier).reset();
+                    context.pop();
+                  },
+                  child: Text('Retake photo', style: Ob.body(17, color: Ob.lime)),
+                ),
+              ]),
+            ),
+          ]),
         ),
       ),
     );
   }
 
   Widget _buildTotalColumn(String label, String value, {bool isHighlight = false}) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.grey400, letterSpacing: 0.5),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: isHighlight ? 22 : 18,
-            fontWeight: FontWeight.w900,
-            color: isHighlight ? AppColors.emerald700 : AppColors.grey900,
-          ),
-        ),
-      ],
+    return Expanded(
+      child: Column(children: [
+        Text(label, style: Ob.body(13, color: Ob.creamA(.6))),
+        Text(value, style: Ob.display(isHighlight ? 28 : 22, color: isHighlight ? Ob.lime : Ob.cream)),
+      ]),
     );
   }
 }

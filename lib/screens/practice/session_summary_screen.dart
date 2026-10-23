@@ -1,4 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../onboarding/ob_app.dart';
+import '../onboarding/ob_forms.dart';
+import '../onboarding/ob_style.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:video_player/video_player.dart';
@@ -11,86 +16,89 @@ import '../../core/services/highlight_card_service.dart';
 import '../../core/services/practice_analysis_service.dart';
 import 'package:screenshot/screenshot.dart';
 
-class SessionSummaryScreen extends ConsumerWidget {
+class SessionSummaryScreen extends ConsumerStatefulWidget {
   final int sessionId;
 
   const SessionSummaryScreen({super.key, required this.sessionId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final db = ref.watch(databaseProvider);
+  ConsumerState<SessionSummaryScreen> createState() => _SessionSummaryScreenState();
+}
 
+class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen> {
+  // Loaded once: the insight is an AI call and must not rerun on every rebuild.
+  late final Future<Map<String, dynamic>> _data = _loadSummaryData(ref.read(databaseProvider), ref);
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Session Summary', style: TextStyle(fontWeight: FontWeight.bold)),
-        leading: IconButton(
-          icon: const Icon(LucideIcons.x),
-          onPressed: () => context.go('/play'),
-        ),
-      ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: _loadSummaryData(db, ref),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          
-          final data = snapshot.data!;
-          final session = data['session'] as PracticeSession;
-          final shots = data['shots'] as List<PracticeShot>;
-          final drill = data['drill'] as Drill?;
+      backgroundColor: Ob.bg,
+      body: DefaultTextStyle(
+        style: Ob.textBase,
+        child: SafeArea(
+          bottom: false,
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: _data,
+            builder: (context, snapshot) {
+              final top = ObTopBar('Session', onBack: () => context.go('/play'));
+              if (snapshot.hasError) {
+                return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 60), children: [
+                  top,
+                  const SizedBox(height: 14),
+                  ObGroup(children: [ObRow('Couldn’t load this session', subtitle: '${snapshot.error}')]),
+                ]);
+              }
+              if (!snapshot.hasData) {
+                return Column(children: [
+                  Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: top),
+                  const Expanded(child: Center(child: CupertinoActivityIndicator(color: Ob.lime))),
+                ]);
+              }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(session, drill),
-                const SizedBox(height: 32),
-                const Text('QUALITY BREAKDOWN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1, color: AppColors.grey500)),
-                const SizedBox(height: 16),
-                _buildQualityGrid(shots),
-                const SizedBox(height: 32),
-                const Text('CLUB PERFORMANCE', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1, color: AppColors.grey500)),
-                const SizedBox(height: 16),
-                _buildClubList(data['clubStats'] as List<Map<String, dynamic>>),
-                const SizedBox(height: 32),
-                
-                if (shots.any((s) => s.videoUrl != null)) ...[
-                  const Text('RECORDED SWINGS', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1, color: AppColors.grey500)),
-                  const SizedBox(height: 16),
-                  _buildVideoGallery(context, shots.where((s) => s.videoUrl != null).toList(), data['clubs'] as List<Club>, ref),
-                  const SizedBox(height: 32),
-                ],
-                
-                _buildFocusArea(data['insights'] as String),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
+              final data = snapshot.data!;
+              final session = data['session'] as PracticeSession;
+              final shots = data['shots'] as List<PracticeShot>;
+              final drill = data['drill'] as Drill?;
+              final videos = shots.where((s) => s.videoUrl != null).toList();
+
+              return ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
+                children: [
+                  top,
+                  const SizedBox(height: 14),
+                  _buildHeader(session, drill),
+                  const SizedBox(height: 22),
+                  _buildQualityGrid(shots),
+                  const SizedBox(height: 22),
+                  _buildClubList(data['clubStats'] as List<Map<String, dynamic>>),
+                  if (videos.isNotEmpty) ...[
+                    const SizedBox(height: 22),
+                    Padding(padding: const EdgeInsets.only(left: 16, bottom: 6), child: Text('RECORDED SWINGS', style: Ob.eyebrow())),
+                    _buildVideoGallery(context, videos, data['clubs'] as List<Club>, ref),
+                  ],
+                  const SizedBox(height: 22),
+                  _buildFocusArea(data['insights'] as String),
+                  const SizedBox(height: 28),
+                  ObButton(
+                    height: 54,
+                    radius: 14,
                     onPressed: () => _shareHighlight(context, ref, session, shots, drill, data['clubs'] as List<Club>),
-                    icon: const Icon(LucideIcons.share2),
-                    label: const Text('Share Highlight Card'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.grey900,
-                      foregroundColor: AppColors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
+                    child: Text('Share highlight card', style: Ob.label(17)),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
 
   Future<Map<String, dynamic>> _loadSummaryData(AppDatabase db, WidgetRef ref) async {
-    debugPrint('SUMMARY: Loading data for sessionId: $sessionId');
-    final session = await (db.select(db.practiceSessions)..where((s) => s.id.equals(sessionId))).get().then((list) => list.first);
-    final shots = await (db.select(db.practiceShots)..where((s) => s.sessionId.equals(sessionId))).get();
+        final session = await (db.select(db.practiceSessions)..where((s) => s.id.equals(widget.sessionId))).get().then((list) => list.first);
+    final shots = await (db.select(db.practiceShots)..where((s) => s.sessionId.equals(widget.sessionId))).get();
     
-    debugPrint('SUMMARY: Found ${shots.length} shots for session $sessionId');
     
     Drill? drill;
     if (session.drillId != null) {
@@ -217,33 +225,10 @@ class SessionSummaryScreen extends ConsumerWidget {
   }
 
   Widget _buildHeader(PracticeSession session, Drill? drill) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          drill?.name ?? '${session.sessionType} Session',
-          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Icon(LucideIcons.calendar, size: 14, color: AppColors.grey500),
-            const SizedBox(width: 4),
-            Text(
-              '${session.startTime.day}/${session.startTime.month}/${session.startTime.year}',
-              style: TextStyle(color: AppColors.grey500, fontSize: 14),
-            ),
-            const SizedBox(width: 12),
-            Icon(LucideIcons.target, size: 14, color: AppColors.grey500),
-            const SizedBox(width: 4),
-            Text(
-              '${session.totalBalls} Balls',
-              style: TextStyle(color: AppColors.grey500, fontSize: 14),
-            ),
-          ],
-        ),
-      ],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(drill?.name ?? '${session.sessionType} session', style: Ob.display(28, height: 1.15)),
+      Text('${DateFormat('EEE d MMM').format(session.startTime)} · ${session.totalBalls} balls', style: Ob.body(15, color: Ob.creamA(.6))),
+    ]);
   }
 
   Widget _buildQualityGrid(List<PracticeShot> shots) {
@@ -252,80 +237,27 @@ class SessionSummaryScreen extends ConsumerWidget {
     for (var s in shots) {
       if (s.quality != null) counts[s.quality!] = (counts[s.quality!] ?? 0) + 1;
     }
-
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.5,
-      children: [
-        _buildQualityCard('GREAT', counts['GREAT']!, AppColors.emerald500),
-        _buildQualityCard('GOOD', counts['GOOD']!, AppColors.birdie),
-        _buildQualityCard('OKAY', counts['OKAY']!, AppColors.bogey),
-        _buildQualityCard('MISS', counts['MISS']!, AppColors.doubleBogey),
-      ],
-    );
-  }
-
-  Widget _buildQualityCard(String label, int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.5)),
-          const Spacer(),
-          Text('$count', style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
+    final total = shots.length;
+    String pct(int n) => '$n · ${(n / total * 100).round()}%';
+    return ObGroup(header: 'Strike quality', children: [
+      ObRow('Great', value: pct(counts['GREAT']!), leading: const ObRowIcon(LucideIcons.sparkles, Ob.lime)),
+      ObRow('Good', value: pct(counts['GOOD']!), leading: const ObRowIcon(LucideIcons.check, Color(0xFF2563EB))),
+      ObRow('Okay', value: pct(counts['OKAY']!), leading: const ObRowIcon(LucideIcons.minus, Color(0xFFB7791F))),
+      ObRow('Miss', value: pct(counts['MISS']!), leading: const ObRowIcon(LucideIcons.x, Ob.warn)),
+    ]);
   }
 
   Widget _buildClubList(List<Map<String, dynamic>> clubStats) {
-    return Column(
-      children: clubStats.map((stat) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.grey50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.grey100),
+    if (clubStats.isEmpty) return const SizedBox();
+    return ObGroup(header: 'By club', children: [
+      for (final stat in clubStats)
+        ObRow(
+          '${stat['name']}',
+          subtitle: '${stat['count']} shots · ${stat['avgDist']} yd avg · mostly ${stat['commonShape'].toString().toLowerCase()}',
+          value: '${stat['successPct']}%',
+          valueColor: Ob.cream,
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
-              child: const Icon(LucideIcons.club, size: 16, color: AppColors.grey600),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(stat['name'], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  Text('${stat['count']} shots • ${stat['avgDist']}y avg', style: TextStyle(color: AppColors.grey600, fontSize: 12, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('${stat['successPct']}%', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.emerald700)),
-                Text(stat['commonShape'].toString().toUpperCase(), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: AppColors.grey400, letterSpacing: 0.5)),
-              ],
-            ),
-          ],
-        ),
-      )).toList(),
-    );
+    ], footer: 'Percent is great and good strikes out of all shots with that club.');
   }
 
   void _shareHighlight(BuildContext context, WidgetRef ref, PracticeSession session, List<PracticeShot> shots, Drill? drill, List<Club> clubs) {
@@ -415,35 +347,15 @@ class SessionSummaryScreen extends ConsumerWidget {
   }
 
   Widget _buildFocusArea(String insightText) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.birdie.withValues(alpha: 0.1), AppColors.emerald500.withValues(alpha: 0.1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.birdie.withValues(alpha: 0.2)),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(padding: const EdgeInsets.only(left: 16, bottom: 6), child: Text('DANIEL’S TAKE', style: Ob.eyebrow())),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(16)),
+        child: Text(insightText, style: Ob.body(17, height: 1.4)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(LucideIcons.sparkles, color: AppColors.birdie, size: 20),
-              SizedBox(width: 8),
-              Text('DANIEL INSIGHTS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.grey900)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            insightText,
-            style: const TextStyle(color: AppColors.grey700, fontSize: 14, height: 1.5, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
+    ]);
   }
 }
 
