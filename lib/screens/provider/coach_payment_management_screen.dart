@@ -110,6 +110,16 @@ class _CoachPaymentManagementScreenState extends ConsumerState<CoachPaymentManag
                       style: Ob.body(15, color: owed > 0 ? Ob.warn : Ob.creamA(.6))),
                 ]),
               ),
+              const SizedBox(height: 22),
+              ObGroup(
+                footer: 'Paste the M-Pesa confirmation a player sent you. The code, amount and sender fill in, and you pick who it’s from.',
+                children: [
+                  ObRow('Record a payment',
+                      titleColor: Ob.lime,
+                      leading: const ObRowIcon(LucideIcons.clipboardPaste, Ob.lime),
+                      onTap: all.isEmpty ? null : () => _record()),
+                ],
+              ),
               if (revenue != null) ...[
                 const SizedBox(height: 22),
                 ObGroup(header: 'By method', children: [
@@ -314,6 +324,20 @@ class _RecordSheetState extends ConsumerState<_RecordSheet> {
         ),
         const SizedBox(height: 16),
         if (_method == 'MPESA') ...[
+          Align(
+            alignment: Alignment.centerRight,
+            child: CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: const Size(44, 36),
+              onPressed: () async {
+                final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+                if (text.isEmpty) return;
+                _message.text = text;
+                _read(text);
+              },
+              child: Text('Paste', style: Ob.body(17, weight: FontWeight.w600, color: Ob.lime)),
+            ),
+          ),
           Container(
             decoration: BoxDecoration(color: Ob.cardFill, borderRadius: BorderRadius.circular(12)),
             child: TextField(
