@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -670,7 +671,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _launchEmail() async {
-    final url = Uri.parse('mailto:evoqcreativetech@gmail.com?subject=Report a Problem - ScoreCaddie');
-    if (await canLaunchUrl(url)) { await launchUrl(url); }
+    const address = 'evoqcreativetech@gmail.com';
+    final url = Uri(scheme: 'mailto', path: address, query: 'subject=${Uri.encodeComponent('Report a problem - ScoreCaddie')}');
+    // No email app: hand over the address instead of doing nothing.
+    final opened = await launchUrl(url).catchError((_) => false);
+    if (!opened && mounted) {
+      await Clipboard.setData(const ClipboardData(text: address));
+      if (mounted) TopNotification.showError(context, 'No email app found. Address copied: $address');
+    }
   }
 }
