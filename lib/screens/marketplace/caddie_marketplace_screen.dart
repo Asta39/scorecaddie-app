@@ -362,31 +362,17 @@ class _ProviderCard extends ConsumerWidget {
                     Text(caddie ? 'per round' : 'per hour', style: Ob.body(11, color: Ob.creamA(.55))),
                   ]),
           ),
-          ObIconButton(
-            icon: LucideIcons.phone,
-            label: 'Call ${p.name}',
-            onPressed: () async {
-              await UrlHelper.launchCaller(p.phone);
-              ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'call');
-            },
-          ),
-          const SizedBox(width: 10),
           ObButton(
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 18),
             onPressed: () async {
-              if (caddie) {
-                ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'chat');
-                if (context.mounted) context.push('/chat/${p.userId}');
-              } else {
-                await UrlHelper.launchWhatsApp(p.whatsapp ?? p.phone);
-                ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'whatsapp');
-              }
+              await UrlHelper.launchCaller(p.phone);
+              ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'call');
             },
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(caddie ? LucideIcons.messageCircle : LucideIcons.messageSquare, size: 16),
+              const Icon(LucideIcons.phone, size: 16),
               const SizedBox(width: 6),
-              Text(caddie ? 'Message' : 'WhatsApp', style: Ob.label(15, weight: FontWeight.w800)),
+              Text('Call', style: Ob.label(15, weight: FontWeight.w800)),
             ]),
           ),
         ]),

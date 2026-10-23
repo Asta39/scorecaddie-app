@@ -38,6 +38,7 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
     final upcoming = occurrences.where((o) => o.status == 'upcoming').toList();
 
     final owe = enrollments.where((e) => e.paymentStatus != 'fully_paid').length;
+    final today = upcoming.where((o) => DateUtils.isSameDay(o.date, DateTime.now())).firstOrNull;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: Ob.overlay,
@@ -77,6 +78,10 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                           _stat('$owe', 'Owe', color: owe > 0 ? Ob.warn : null),
                         ]),
                       ),
+                      if (live != null || today != null) ...[
+                        const SizedBox(height: 16),
+                        _now(session, live ?? today!, live != null),
+                      ],
                       if (session.description?.isNotEmpty ?? false) ...[
                         const SizedBox(height: 22),
                         ObGroup(header: 'About', children: [ObRow(session.description!)]),
@@ -105,6 +110,35 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Today's date of the session: start it, or, once it's on, end it.
+  Widget _now(CoachingSession s, SessionOccurrence o, bool isLive) {
+    String hm(String? t) => t == null || t.length < 5 ? '' : t.substring(0, 5);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Ob.cardFill,
+        borderRadius: BorderRadius.circular(16),
+        border: isLive ? Border.all(color: Ob.lime, width: 2) : null,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(isLive ? 'On now' : 'Today', style: Ob.body(13, weight: FontWeight.w600, color: isLive ? Ob.lime : Ob.creamA(.6))),
+        Text(isLive ? 'Started at ${hm(o.startTime)}' : 'Starts at ${hm(o.startTime ?? s.startTime)}', style: Ob.display(22, height: 1.2)),
+        Text(isLive ? 'Mark who’s here below, then end the session.' : 'Starting tells your players you’re on.', style: Ob.body(15, color: Ob.creamA(.6))),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: ObButton(
+            height: 50,
+            radius: 14,
+            tone: isLive ? ObButtonTone.light : ObButtonTone.lime,
+            onPressed: () => setOccurrenceLive(context, ref, o, start: !isLive),
+            child: Text(isLive ? 'End session' : 'Start session', style: Ob.body(17, weight: FontWeight.w600, color: isLive ? Ob.warn : Ob.ink)),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -263,10 +297,11 @@ class _OccurrenceTile extends ConsumerWidget {
                 onPressed: _addToCalendar,
                 icon: Icon(LucideIcons.calendarPlus, color: Ob.creamA(.6), size: 20),
               ),
+              if (!o.date.isAfter(DateTime.now()))
               CupertinoButton(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: const Size(44, 44),
-                onPressed: () => _confirm(context, ref, start: true),
+                onPressed: () => setOccurrenceLive(context, ref, o, start: true),
                 child: Text('Start', style: Ob.body(17, weight: FontWeight.w600, color: Ob.lime)),
               ),
             ])
@@ -274,7 +309,7 @@ class _OccurrenceTile extends ConsumerWidget {
               ? CupertinoButton(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   minimumSize: const Size(44, 44),
-                  onPressed: () => _confirm(context, ref, start: false),
+                  onPressed: () => setOccurrenceLive(context, ref, o, start: false),
                   child: Text('End', style: Ob.body(17, weight: FontWeight.w600, color: Ob.warn)),
                 )
               : done
@@ -295,26 +330,27 @@ class _OccurrenceTile extends ConsumerWidget {
       endDate: start.add(Duration(minutes: session.durationMinutes)),
     ));
   }
+}
 
-  Future<void> _confirm(BuildContext context, WidgetRef ref, {required bool start}) async {
-    final ok = await showCupertinoDialog<bool>(
-      context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: Text(start ? 'Start the session?' : 'End the session?'),
-        content: Text(start ? 'Your players get a heads-up that you’re starting.' : 'The roll is locked in once you end it.'),
-        actions: [
-          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not yet')),
-          CupertinoDialogAction(isDefaultAction: true, onPressed: () => Navigator.pop(ctx, true), child: Text(start ? 'Start' : 'End')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      await ref.read(coachingServiceProvider).updateOccurrenceStatus(occurrence.id, start ? 'in_progress' : 'completed');
-      ref.invalidate(sessionOccurrencesProvider(occurrence.sessionId));
-      ref.invalidate(coachSessionsProvider);
-    } catch (e) {
-      if (context.mounted) TopNotification.showError(context, 'Couldn\'t ${start ? 'start' : 'end'} the session: $e');
-    }
+/// Starts or ends one date of a session, after the coach confirms.
+Future<void> setOccurrenceLive(BuildContext context, WidgetRef ref, SessionOccurrence occurrence, {required bool start}) async {
+  final ok = await showCupertinoDialog<bool>(
+    context: context,
+    builder: (ctx) => CupertinoAlertDialog(
+      title: Text(start ? 'Start the session?' : 'End the session?'),
+      content: Text(start ? 'Your players get a heads-up that you’re starting.' : 'The roll is locked in once you end it.'),
+      actions: [
+        CupertinoDialogAction(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not yet')),
+        CupertinoDialogAction(isDefaultAction: true, onPressed: () => Navigator.pop(ctx, true), child: Text(start ? 'Start' : 'End')),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await ref.read(coachingServiceProvider).updateOccurrenceStatus(occurrence.id, start ? 'in_progress' : 'completed');
+    ref.invalidate(sessionOccurrencesProvider(occurrence.sessionId));
+    ref.invalidate(coachSessionsProvider);
+  } catch (e) {
+    if (context.mounted) TopNotification.showError(context, 'Couldn\'t ${start ? 'start' : 'end'} the session: $e');
   }
 }

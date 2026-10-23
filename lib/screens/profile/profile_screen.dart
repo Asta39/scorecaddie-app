@@ -744,7 +744,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   // ── Coach profile (dark, gold) ─────────────────────────────────────────────
 
-  static const _gold = Color(0xFFB7791F);
 
   Widget _buildDarkCoach(BuildContext context, UserProfile? profile) {
     final provider = ref.watch(currentProviderProvider).valueOrNull;
@@ -767,96 +766,76 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ObTabHeader('You', actions: [
                 if (provider != null)
                   ObIconButton(
-                    icon: LucideIcons.share2,
+                    icon: LucideIcons.share,
                     label: 'Share my profile',
                     onPressed: () => UrlHelper.shareProfile(userId: provider.userId, name: provider.name, role: provider.role),
                   ),
                 ObIconButton(icon: LucideIcons.settings, label: 'Settings', onPressed: () => context.push('/profile/settings')),
-              ]).rise(),
-              const SizedBox(height: 20),
+              ]),
+              const SizedBox(height: 14),
               Row(children: [
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(color: _gold, shape: BoxShape.circle),
-                    child: ProfileImage(url: _imageFile?.path ?? profile?.avatarUrl, name: profile?.name, size: 84, isCircle: true),
+                Semantics(
+                  button: true,
+                  label: 'Change profile photo',
+                  excludeSemantics: true,
+                  child: GestureDetector(
+                    onTap: _pickImage,
+                    child: ProfileImage(url: _imageFile?.path ?? profile?.avatarUrl, name: profile?.name, size: 64, isCircle: true),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(profile?.name ?? 'Coach', maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.display(28, height: 1.05)),
-                    const SizedBox(height: 6),
-                    const ObChip('Coach', on: true, color: _gold),
+                    Text(profile?.name ?? 'Coach', maxLines: 2, overflow: TextOverflow.ellipsis, style: Ob.display(24, height: 1.15)),
+                    Text(
+                      ['Coach', if (provider != null && provider.experience > 0) '${provider.experience} years', if (provider?.price != null && provider!.price! > 0) 'KES ${provider.price!.toStringAsFixed(0)}/hr'].join(' · '),
+                      style: Ob.body(15, color: Ob.creamA(.6)),
+                    ),
                   ]),
                 ),
-              ]).rise(),
-              const SizedBox(height: 18),
-              ObSplitCards(
-                left: ObStat('Rating', ((stats?['rating'] ?? 0) as num).toStringAsFixed(1), valueColor: _gold),
-                right: ObStat('Students', '${stats?['students'] ?? 0}'),
-              ).rise(1),
-              const SizedBox(height: 10),
-              ObSplitCards(
-                left: ObStat('Profile views', '${stats?['views'] ?? 0}'),
-                right: ObStat('New in 30 days', '${stats?['activity'] ?? 0}'),
-              ),
-              const SizedBox(height: 24),
-              ObEyebrow('About you', action: 'Edit', onAction: () => context.push('/profile/settings')),
-              const SizedBox(height: 10),
-              ObCard(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(
-                    (provider?.bio?.isNotEmpty ?? false) ? provider!.bio! : 'Add a short bio so players know what you teach.',
-                    style: Ob.body(14, height: 1.5, color: Ob.creamA((provider?.bio?.isNotEmpty ?? false) ? .85 : .5)),
+              ]),
+              const SizedBox(height: 22),
+              ObGroup(header: 'Your numbers', children: [
+                ObRow('Rating', value: ((stats?['rating'] ?? 0) as num).toStringAsFixed(1)),
+                ObRow('Students', value: '${stats?['students'] ?? 0}', onTap: () => context.go('/coach/students')),
+                ObRow('Profile views', value: '${stats?['views'] ?? 0}'),
+                ObRow('New in 30 days', value: '${stats?['activity'] ?? 0}'),
+              ]),
+              const SizedBox(height: 22),
+              ObGroup(
+                header: 'About you',
+                footer: specs.isEmpty ? null : 'Teaches ${specs.join(', ').toLowerCase()}.',
+                children: [
+                  ObRow(
+                    (provider?.bio?.isNotEmpty ?? false) ? provider!.bio! : 'Add a short bio',
+                    titleColor: (provider?.bio?.isNotEmpty ?? false) ? null : Ob.lime,
+                    subtitle: (provider?.bio?.isNotEmpty ?? false) ? null : 'So players know what you teach',
+                    onTap: () => context.push('/profile/settings'),
                   ),
-                  if (specs.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Wrap(spacing: 8, runSpacing: 8, children: [for (final sp in specs) ObChip(sp, on: true, color: _gold)]),
-                  ],
-                ]),
+                ],
               ),
-              const SizedBox(height: 24),
-              const ObEyebrow('Reviews'),
-              const SizedBox(height: 10),
+              const SizedBox(height: 22),
               if (reviews == null || (reviews.isLoading && !reviews.hasValue))
-                const Center(child: CupertinoActivityIndicator(color: _gold))
-              else if ((reviews.valueOrNull ?? const []).isEmpty)
-                ObCard(child: Text('Reviews from your players show up here.', style: Ob.body(13, color: Ob.creamA(.6))))
+                const Center(child: CupertinoActivityIndicator(color: Ob.lime))
               else
-                for (final r in reviews.valueOrNull!.take(3))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: ObCard(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          Expanded(child: Text(r.playerName, style: Ob.body(14, weight: FontWeight.w800))),
-                          for (var i = 0; i < 5; i++) Icon(Icons.star_rounded, size: 15, color: i < r.rating ? _gold : Ob.creamA(.15)),
-                        ]),
-                        const SizedBox(height: 6),
-                        Text(r.comment, maxLines: 3, overflow: TextOverflow.ellipsis, style: Ob.body(13, height: 1.45, color: Ob.creamA(.75))),
-                      ]),
-                    ),
-                  ),
-              const SizedBox(height: 16),
-              const ObEyebrow('Account'),
-              const SizedBox(height: 10),
-              ObCard(
-                padding: EdgeInsets.zero,
-                child: Column(children: [
-                  _darkRow(LucideIcons.userPen, 'Edit coaching profile', 'Bio, rates, specialities', () => context.push('/profile/settings')),
-                  const ObHair(),
-                  _darkRow(LucideIcons.users, 'Contacts', 'Friends and players', () => context.push('/profile/friends')),
-                  const ObHair(),
-                  _darkRow(LucideIcons.briefcase, 'Bag', 'Clubs you teach with', () => context.push('/profile/bag')),
-                  const ObHair(),
-                  _darkRow(LucideIcons.logOut, 'Sign out', null, () async {
-                    await ref.read(supabaseAuthServiceProvider).signOut();
-                    if (context.mounted) context.go('/auth');
-                  }, color: Ob.warn),
+                ObGroup(header: 'Reviews', children: [
+                  if ((reviews.valueOrNull ?? const []).isEmpty) const ObRow('No reviews yet', subtitle: 'Reviews from your players show up here'),
+                  for (final r in (reviews.valueOrNull ?? const []).take(3))
+                    ObRow(r.playerName, subtitle: r.comment, value: '${'★' * r.rating.round()}'),
                 ]),
-              ),
+              const SizedBox(height: 22),
+              ObGroup(header: 'Account', children: [
+                _darkRow(LucideIcons.userPen, 'Edit coaching profile', 'Bio, rates, specialities', () => context.push('/profile/settings')),
+                _darkRow(LucideIcons.users, 'Contacts', 'Friends and players', () => context.push('/profile/friends')),
+                _darkRow(LucideIcons.briefcase, 'Bag', 'Clubs you teach with', () => context.push('/profile/bag')),
+              ]),
+              const SizedBox(height: 22),
+              ObGroup(children: [
+                _darkRow(LucideIcons.logOut, 'Sign out', null, () async {
+                  await ref.read(supabaseAuthServiceProvider).signOut();
+                  if (context.mounted) context.go('/auth');
+                }, color: Ob.warn),
+              ]),
             ],
           ),
           )

@@ -729,5 +729,29 @@ class CoachingService {
         .eq('player_id', playerId)
         .asyncMap((_) => getPlayerCoachingSummary(playerId));
   }
-}
 
+  /// Notes between one coach and one player, newest first. Both of them see
+  /// every note; nobody else does.
+  Future<List<Map<String, dynamic>>> getNotes({required String coachId, required String playerId}) async {
+    final rows = await _supabase
+        .from('coaching_notes')
+        .select('id, author_id, body, created_at')
+        .eq('coach_id', coachId)
+        .eq('player_id', playerId)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<void> addNote({required String coachId, required String playerId, required String body}) async {
+    await _supabase.from('coaching_notes').insert({
+      'coach_id': coachId,
+      'player_id': playerId,
+      'author_id': _supabase.auth.currentUser!.id,
+      'body': body,
+    });
+  }
+
+  Future<void> deleteNote(String id) async {
+    await _supabase.from('coaching_notes').delete().eq('id', id);
+  }
+}

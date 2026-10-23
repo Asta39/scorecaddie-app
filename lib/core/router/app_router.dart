@@ -48,7 +48,6 @@ import '../../screens/auth/loading_transition_screen.dart';
 import '../../screens/rounds/rounds_history_screen.dart';
 import '../../widgets/loading_spinner.dart';
 import '../../screens/social/player_profile_screen.dart';
-import '../../screens/social/chat_screen.dart';
 import '../../screens/provider/create_session_screen.dart';
 import '../../screens/provider/edit_session_screen.dart';
 import '../../screens/provider/coach_sessions_screen.dart';
@@ -209,13 +208,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           coachId: state.pathParameters['coachId']!,
           sessionId: state.pathParameters['sessionId']!,
         ),
-      ),
-      GoRoute(
-        path: '/chat/:id',
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          return ChatScreen(otherUserId: id);
-        },
       ),
       GoRoute(
         path: '/book-tee-time',

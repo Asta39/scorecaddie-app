@@ -112,3 +112,8 @@ final coachRevenueBreakdownProvider = FutureProvider<Map<String, double>>((ref) 
 final sessionAttendanceProvider = FutureProvider.family<List<SessionAttendance>, String>((ref, occurrenceId) {
   return ref.watch(coachingServiceProvider).getAttendanceForOccurrence(occurrenceId);
 });
+
+/// Notes shared between a coach and a player: (coachId, playerId).
+final coachingNotesProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, (String, String)>((ref, ids) {
+  return ref.watch(coachingServiceProvider).getNotes(coachId: ids.$1, playerId: ids.$2);
+});

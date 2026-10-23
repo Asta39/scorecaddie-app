@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../providers/app_providers.dart';
 import '../../widgets/profile_image.dart';
 import '../../widgets/top_notification.dart';
+import '../../widgets/coaching_notes.dart';
+import '../../core/utils/url_helper.dart';
 import '../onboarding/ob_app.dart';
 import '../onboarding/ob_style.dart';
 import '../onboarding/ob_forms.dart';
@@ -169,8 +171,8 @@ class _StudentScreen extends ConsumerWidget {
                     height: 50,
                     radius: 14,
                     tone: ObButtonTone.light,
-                    onPressed: () => context.push('/chat/${s.id}'),
-                    child: Text('Message', style: Ob.body(17, weight: FontWeight.w600)),
+                    onPressed: (profile?['phone'] ?? '').toString().isEmpty ? null : () => UrlHelper.launchCaller('${profile!['phone']}'),
+                    child: Text('Call', style: Ob.body(17, weight: FontWeight.w600)),
                   ),
                 ),
               ]),
@@ -181,6 +183,12 @@ class _StudentScreen extends ConsumerWidget {
                 ObRow('Average score', value: stats?['avgScore']?.toString() ?? '—'),
                 ObRow('Best score', value: stats?['bestScore']?.toString() ?? '—'),
               ]),
+              const SizedBox(height: 22),
+              CoachingNotes(
+                coachId: ref.watch(authStateProvider).valueOrNull?.id ?? '',
+                playerId: s.id,
+                otherName: s.name.split(' ').first,
+              ),
               const SizedBox(height: 22),
               ObGroup(header: 'With you', children: [
                 for (final name in s.sessions) ObRow(name),

@@ -231,6 +231,7 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
         padding: EdgeInsets.fromLTRB(20, 10, 20, 14 + MediaQuery.of(context).padding.bottom),
         decoration: BoxDecoration(color: Ob.bg, border: Border(top: BorderSide(color: Ob.creamA(.06)))),
         child: Row(children: [
+          if (coach) ...[
           Semantics(
             button: true,
             label: 'Call $first',
@@ -248,20 +249,21 @@ class _ProviderPreviewScreenState extends ConsumerState<ProviderPreviewScreen> {
             ),
           ),
           const SizedBox(width: 10),
+          ],
           Expanded(
             child: ObButton(
               onPressed: coach
                   ? () => context.push('/marketplace/coach/${p.userId}/sessions')
-                  : () {
-                      ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'chat');
-                      context.push('/chat/${p.userId}');
+                  : () async {
+                      await UrlHelper.launchCaller(p.phone);
+                      ref.read(interactionServiceProvider).logInteraction(providerId: p.userId, type: 'call');
                     },
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(coach ? LucideIcons.calendarPlus : LucideIcons.messageCircle, size: 18, color: Ob.ink),
+                Icon(coach ? LucideIcons.calendarPlus : LucideIcons.phone, size: 18, color: Ob.ink),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    coach ? 'Book a session' : (price == null ? 'Book $first' : 'Book $first · $price'),
+                    coach ? 'Book a session' : (price == null ? 'Call $first' : 'Call $first · $price'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Ob.label(16, weight: FontWeight.w800),
